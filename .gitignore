@@ -1,3 +1,6 @@
 /.venv/
-/sam_vit_h_4b8939.pth
+/draft/sam_vit_h_4b8939.pth
 /.idea/
+/data/
+/draft/normalize/
+/draft/aligned/

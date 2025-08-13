@@ -11,7 +11,10 @@ from src.find_all_photos import find_all_photos, get_similar_json
 
 
 def normalize(filename, output_directory, points, scale, index):
-    original_image = Image.open(filename).convert("RGB")
+    try:
+        original_image = Image.open(filename).convert("RGB")
+    except:
+        return False
     os.makedirs(output, exist_ok=True)
 
     # Получаем координаты точек в оригинальном масштабе
@@ -101,11 +104,14 @@ def run(dataset, output, keypoints, scale, count=-1):
     print('Normalizing photos...')
     previous_percent = 0
     for index, image in enumerate(images):
-        result = normalize(image, output, keypoints, scale, index)
-        if count > 0 and result:
-            count -= 1
-            if count == 0:
-                break
+        try:
+            result = normalize(image, output, keypoints, scale, index)
+            if count > 0 and result:
+                count -= 1
+                if count == 0:
+                    break
+        except:
+            pass
         if index >= (previous_percent + 5) * 0.01 * len(images):
             previous_percent += 5
             print(previous_percent, end='%\n')
@@ -129,4 +135,4 @@ if __name__ == '__main__':
     dataset = '../../data/original_dataset'
     output = '../../data/normalized'
     # test(dataset, output, keypoints, scale)
-    run(dataset, output, keypoints, scale, -1)
+    run(dataset, output, keypoints, scale)

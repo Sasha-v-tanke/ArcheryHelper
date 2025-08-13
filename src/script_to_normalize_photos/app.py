@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import filedialog, Canvas, Button, Frame, Label
 from PIL import Image, ImageTk
@@ -9,23 +10,22 @@ import cv2
 # so you can find parameters for normalizing for only one photo
 # and use them for all
 
-# remember
-
 class TargetAlignmentApp:
-    def __init__(self, root):
+    def __init__(self, root, dataset_path):
         self.root = root
+        self.dataset_path = dataset_path
         self.root.title("Target Alignment")
 
         self.image_path = ""
         self.points = []
         self.dragging_point = None
         self.rect_lines = []
-        self.guide_lines = []
-        self.aligned_image = None  # store last aligned image for saving
+        self.aligned_image = None
 
         self.saved_parameters = None
 
         self.create_widgets()
+        self.get_main_photos()
 
     def create_widgets(self):
         # Image frame
@@ -215,8 +215,15 @@ class TargetAlignmentApp:
             print('=' * 20)
             self.reset_state()
 
+    def get_main_photos(self):
+        path = self.dataset_path + '/arrow-sequences/versions/1/'
+        folders = [entry for entry in os.scandir(path) if entry.is_dir()]
+        print([folder.path + '/00.png' for folder in folders])
+
 
 if __name__ == "__main__":
+    dataset_folder = '../../data/original_dataset'
+
     root = tk.Tk()
-    app = TargetAlignmentApp(root)
+    app = TargetAlignmentApp(root, dataset_folder)
     root.mainloop()

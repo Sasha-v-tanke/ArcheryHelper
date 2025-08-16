@@ -25,3 +25,7 @@ if __name__ == '__main__':
     print('Test')
     assert len(find_all_photos('../data/original_dataset')) == 1085
     print('Success')
+
+    # print(len(find_all_photos('../data/normalized')))
+    # print(len(find_all_photos('../data/brightness')))
+    # print(len(find_all_photos('../data/quality')))

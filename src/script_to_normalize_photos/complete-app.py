@@ -126,6 +126,7 @@ class App:
         output_size = int(dst_points[:, 0].max()), int(dst_points[:, 1].max())
 
         M, _ = cv2.findHomography(src_points, dst_points)
+        # print('Update:', M)
         img_np = np.array(self.image)
         if img_np.ndim == 2:
             img_np = cv2.cvtColor(img_np, cv2.COLOR_GRAY2RGB)
@@ -177,10 +178,16 @@ class App:
         self.rect_lines.append(self.main_canvas.create_line(*left, *right, fill='green', width=1, dash=(4, 2)))
 
     def load_photos(self):
-        # path = self.dataset_folder + '/arrow-sequences/versions/1/'
-        # folders = [entry for entry in os.scandir(path) if entry.is_dir()]
-        # self.photos = [folder.path + '/00.png' for folder in folders]
-        self.photos = ["/Users/alex/Projects/Python/archery/data/original_dataset/arrow-sequences/versions/1/11/00.png"]
+        path = self.dataset_folder + '/archive/'
+        folders = [entry for entry in os.scandir(path) if entry.is_dir()]
+        self.photos = [folder.path + '/00.png' for folder in folders]
+
+        output = '../../data/normalized/'
+        if not os.path.exists(output):
+            return
+        folders = [entry.path.split('/')[-1] for entry in os.scandir(output) if entry.is_dir()]
+        self.photos = [photo for photo in self.photos if photo.split('/')[-2] not in folders]
+        # self.photos = ["../../data/original_dataset/ar/01.png"]
 
     def update(self, image_np):
         result_image = Image.fromarray(image_np)
@@ -195,7 +202,7 @@ class App:
         print(self.photos[self.photo_index - 1], self.parameters)
         folder = '/'.join(self.photos[self.photo_index - 1].split('/')[:-1])
         package = self.photos[self.photo_index - 1].split('/')[-2]
-        output = '../../data/normalize/' + package
+        output = '../../data/normalized/' + package
         run(folder, output, self.parameters['points'], self.parameters['scale'])
         self.load_next_photo()
 

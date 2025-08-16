@@ -52,6 +52,11 @@ def extract_arrow_from_custom_json(filename, keyword='arrows'):
     return arrows
 
 
+def save_json(filename, arrows):
+    with open(filename, 'w') as f:
+        json.dump(arrows, f)
+
+
 if __name__ == '__main__':
     print("Test")
     original_json = "../data/original_dataset/arrow-sequences/versions/1/8/06.json"

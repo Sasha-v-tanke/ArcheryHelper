@@ -6,17 +6,16 @@ import glob
 import os
 import numpy as np
 
+from path_manager import NEW_DATASET_PATH, NEW_NORMALIZED_DATASET
+
 # === Настройки директорий ===
-INPUT_DIR = "/Users/alex/Projects/Python/archery/data/new_dataset"  # папка с исходными фото
-OUTPUT_DIR = "/Users/alex/Projects/Python/archery/data/normalized-new"  # папка для сохранённых
+INPUT_DIR = NEW_DATASET_PATH  # папка с исходными фото
+OUTPUT_DIR = NEW_NORMALIZED_DATASET  # папка для сохранённых
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # === Глобальные переменные ===
 image_files = glob.glob(os.path.join(INPUT_DIR, "*.jpeg"))
-image_files = [img for img in image_files if
-               not os.path.exists(OUTPUT_DIR + '/' + img.split('/')[-1].replace('.jpeg', '.json'))]
-
-print(image_files)
+image_files = [img for img in image_files if not os.path.exists(OUTPUT_DIR + '/' + img.split('/')[-1])]
 current_index = 0
 points = []
 point_handles = []
@@ -160,6 +159,7 @@ def save_image():
         return
     save_path = os.path.join(OUTPUT_DIR, current_img_name)
     cv2.imwrite(save_path, cv2.cvtColor(normalized_img, cv2.COLOR_RGB2BGR))
+    next_image()
     # messagebox.showinfo("Сохранено", f"Файл сохранён: {save_path}")
 
 

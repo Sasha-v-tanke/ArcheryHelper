@@ -97,6 +97,7 @@ class TargetApp:
         if os.path.isdir(directory):
             for ext in SUPPORTED_EXTS:
                 files.extend(glob.glob(os.path.join(directory, f"*{ext}")))
+        files = [file for file in files if not os.path.exists(file.replace('.jpeg', '.json'))]
         return sorted(files)
 
     def current_file(self):
@@ -129,6 +130,8 @@ class TargetApp:
     def next_photo(self):
         if not self.files:
             return
+        if self.idx + 1 == len(self.files):
+            exit(0)
         self.idx = (self.idx + 1) % len(self.files)
         self.reset_shots(hard=True)
         self.load_current_photo()

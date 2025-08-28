@@ -4,7 +4,7 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
-from path_manager import NEW_NORMALIZED_DATASET, MODELS
+from path_manager import NEW_NORMALIZED_DATASET, NEW_DATASET_PATH
 from src.ai.config import LEARNING_RATE, BATCH_SIZE, EPOCHS, TRAIN_TEST_SPLIT, MAX_SHOTS
 from src.ai.dataset import ArcheryDataset
 from src.ai.model import ArcheryResNet
@@ -14,8 +14,8 @@ from src.ai.utils import get_device, collate_fn, save_model
 
 
 # ==== Train ====
-def train(data_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_RATE):
-    dataset = ArcheryDataset(data_dir, transform=CustomAugmentation())
+def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_RATE):
+    dataset = ArcheryDataset(data_dir, json_dir, transform=CustomAugmentation())
     print("Всего изображений:", len(dataset))
 
     if len(dataset) == 0:
@@ -68,4 +68,4 @@ def train(data_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_RATE):
 
 
 if __name__ == "__main__":
-    train(NEW_NORMALIZED_DATASET)
+    train(NEW_DATASET_PATH, NEW_NORMALIZED_DATASET)

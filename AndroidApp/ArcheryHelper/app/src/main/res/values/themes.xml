@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.ArcheryHelper" parent="Theme.AppCompat.Light.NoActionBar" />
+
+    <style name="Theme.ArcheryHelper.Fullscreen" parent="Theme.ArcheryHelper">
+        <item name="android:actionBarStyle">@style/Widget.Theme.ArcheryHelper.ActionBar.Fullscreen
+        </item>
+        <item name="android:windowActionBarOverlay">true</item>
+        <item name="android:windowBackground">@null</item>
+    </style>
+
+    <style name="ThemeOverlay.ArcheryHelper.FullscreenContainer" parent="">
+        <item name="fullscreenBackgroundColor">@color/light_blue_600</item>
+        <item name="fullscreenTextColor">@color/light_blue_A200</item>
+    </style>
+</resources>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <Space
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Выберите способ записи:"
+        android:textSize="20dp"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnManualInput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ввод вручную"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnScanInput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Сканирование" />
+
+    <Space
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_weight="0.5" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/btnBack"
+        android:text="Вернуться" />
+
+    <Space
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" />
+</LinearLayout>

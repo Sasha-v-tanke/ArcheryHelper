@@ -1,9 +1,8 @@
-import os.path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from path_manager import NEW_NORMALIZED_DATASET, MODELS
+from path_manager import NEW_NORMALIZED_DATASET, NEW_DATASET_PATH
 from src.ai.model import ArcheryResNet
 from src.ai.config import *
 from src.ai.dataset import ArcheryDataset
@@ -41,7 +40,7 @@ def visualize_model(model, dataset, device, n_samples=3):
 # ==== После тренировки ====
 if __name__ == "__main__":
     device = get_device()
-    dataset = ArcheryDataset(NEW_NORMALIZED_DATASET, transform=CustomAugmentation())
+    dataset = ArcheryDataset(NEW_DATASET_PATH, NEW_DATASET_PATH, transform=CustomAugmentation())
     model = ArcheryResNet(MAX_SHOTS * 2).to(device)
     load_model(model, device)
 

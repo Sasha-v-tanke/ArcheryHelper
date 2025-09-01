@@ -22,9 +22,20 @@ object DataManager {
         val editor = prefs.edit()
         val index = getLastDistanceIndex() + 1
         val now = Date()
-        val formatter = SimpleDateFormat("dd:MM:yy - HH:mm", Locale.getDefault())
+        val formatter = SimpleDateFormat("dd.MM.yy - HH:mm", Locale.getDefault())
         editor.putString("distance_${index}", formatter.format(now))
+        editor.putInt("distance_${index}_distance", 50)
         editor.putBoolean("distance_${index}_manual_input", manualInput)
+        editor.apply()
+    }
+
+    fun getDistance(distanceIndex: Int): Int {
+        return prefs.getInt("distance_${distanceIndex}_distance", 50)
+    }
+
+    fun updateDistance(distanceIndex: Int, newDistance: Int) {
+        val editor = prefs.edit()
+        editor.putInt("distance_${distanceIndex}_distance", newDistance)
         editor.apply()
     }
 
@@ -39,7 +50,8 @@ object DataManager {
 
     fun loadDistance(distanceIndex: Int): Distance {
         val date = prefs.getString("distance_${distanceIndex}", "") ?: ""
-        val distance = Distance(date, distanceIndex)
+        val dist = prefs.getInt("distance_${distanceIndex}_distance", 50)
+        val distance = Distance(date, distanceIndex, dist)
         var seriesIndex = 1
         while (prefs.contains("distance_${distanceIndex}_series_${seriesIndex}_shot_1_result")) {
             distance.series.add(loadSeries(distanceIndex, seriesIndex))

@@ -3,6 +3,7 @@ package com.direwolf.archeryhelper.activities
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
+import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -34,10 +35,17 @@ class StatisticsActivity : TemplateActivity() {
             distances.add(DataManager.loadDistance(i))
         }
 
-        recyclerView.adapter = DistancesListAdapter(distances) { index ->
-            val intent = Intent(this, DetailedStatisticsActivity::class.java)
-            intent.putExtra("distance_index", index)
-            startActivity(intent)
+        if (distances.size == 0) {
+            findViewById<TextView>(R.id.empty).visibility = TextView.VISIBLE
+            recyclerView.visibility = RecyclerView.GONE
+        } else {
+            findViewById<TextView>(R.id.empty).visibility = TextView.GONE
+            recyclerView.visibility = RecyclerView.VISIBLE
+            recyclerView.adapter = DistancesListAdapter(distances) { index ->
+                val intent = Intent(this, DetailedStatisticsActivity::class.java)
+                intent.putExtra("distance_index", index)
+                startActivity(intent)
+            }
         }
     }
 }

@@ -26,6 +26,13 @@
         android:id="@+id/btnShowDistances"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Показать статистику" />
+        android:text="Показать статистику"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnClear"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Очистить историю" />
 
 </LinearLayout>

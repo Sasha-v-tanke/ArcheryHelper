@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory.decodeResource
 import android.os.Bundle
 import android.provider.MediaStore
 import android.widget.Button
@@ -20,17 +21,16 @@ class ScanActivity : TemplateActivity() {
 
     private lateinit var photoView: ImageView
     private lateinit var btnScan: Button
-    private var image: Bitmap? = null
 
     private val cameraLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 val imageBitmap = result.data?.extras?.get("data") as? Bitmap
                 if (imageBitmap != null) {
-                    image = cropToSquare(imageBitmap)
+                    val image = cropToSquare(imageBitmap)
                     photoView.setImageBitmap(image)
                     findViewById<Button>(R.id.btnContinue).isEnabled = true
-                    (application as Application).imageHolder.setImage(image!!)
+                    (application as Application).imageHolder.setImage(imageBitmap)
                 } else {
                     debugLog("Фото не получено")
                 }
@@ -45,6 +45,8 @@ class ScanActivity : TemplateActivity() {
         photoView = findViewById(R.id.photoView)
         btnScan = findViewById(R.id.btnScan)
 
+        debug()
+
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
@@ -52,6 +54,18 @@ class ScanActivity : TemplateActivity() {
         btnScan.setOnClickListener {
             openCameraApp()
         }
+
+        findViewById<Button>(R.id.btnContinue).setOnClickListener {
+            startActivity(Intent(this, EditActivity::class.java))
+        }
+    }
+
+    private fun debug() {
+        val bitmap = decodeResource(resources, R.drawable.test)
+        val image = cropToSquare(bitmap)
+        photoView.setImageBitmap(image)
+        findViewById<Button>(R.id.btnContinue).isEnabled = true
+        (application as Application).imageHolder.setImage(bitmap)
     }
 
     private fun openCameraApp() {
@@ -63,11 +77,12 @@ class ScanActivity : TemplateActivity() {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun cropToSquare(bitmap: Bitmap): Bitmap {
+    private fun cropToSquare(bitmap: Bitmap, size: Int = 256): Bitmap {
         val dimension = minOf(bitmap.width, bitmap.height)
         val x = (bitmap.width - dimension) / 2
         val y = (bitmap.height - dimension) / 2
-        return Bitmap.createBitmap(bitmap, x, y, dimension, dimension)
+        val squareBitmap = Bitmap.createBitmap(bitmap, x, y, dimension, dimension)
+        return Bitmap.createScaledBitmap(squareBitmap, size, size, true)
     }
 
     companion object {

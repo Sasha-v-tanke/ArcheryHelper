@@ -1,8 +1,11 @@
 package com.direwolf.archeryhelper.activities
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
+import android.provider.ContactsContract.Data
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -39,9 +42,17 @@ class DistanceActivity : TemplateActivity() {
         }
 
         val avg = if (count != 0) sum.toDouble() / count else 0.0
-        findViewById<TextView>(R.id.seriesAvg).text = "Average: " + String.format("%.1f", avg)
-        findViewById<TextView>(R.id.seriesSum).text = "Sum: $sum"
-        findViewById<TextView>(R.id.seriesCnt).text = "Count: $count"
+        findViewById<TextView>(R.id.seriesAvg).text = "Среднее: " + String.format("%.1f", avg)
+        findViewById<TextView>(R.id.seriesSum).text = "Сумма: $sum"
+        findViewById<TextView>(R.id.seriesCnt).text = "Выстрелы: $count"
+
+        if (count == 0) {
+            findViewById<TextView>(R.id.empty).visibility = TextView.VISIBLE
+            recyclerView.visibility = RecyclerView.GONE
+        } else {
+            recyclerView.visibility = RecyclerView.VISIBLE
+            findViewById<TextView>(R.id.empty).visibility = TextView.GONE
+        }
 
         findViewById<Button>(R.id.btnAddSeries).setOnClickListener {
             if (DataManager.isManualInput(distance.number)) {
@@ -50,7 +61,6 @@ class DistanceActivity : TemplateActivity() {
             } else {
                 startActivity(Intent(this, ScanActivity::class.java))
             }
-
         }
 
         findViewById<Button>(R.id.btnCurrentStatistics).setOnClickListener {
@@ -62,6 +72,27 @@ class DistanceActivity : TemplateActivity() {
         findViewById<Button>(R.id.btnSaveDistance).setOnClickListener {
             startActivity(Intent(this, MainMenuActivity::class.java))
             finish()
+        }
+
+        val distanceNameView = findViewById<TextView>(R.id.distanceName)
+        distanceNameView.text = "Дистанция: ${distance.distance}м"
+        distanceNameView.setOnClickListener {
+            val input = EditText(this)
+            input.hint = "Введите число"
+
+            // Создаём диалог
+            AlertDialog.Builder(this)
+                .setTitle("Дистанция в метрах")
+                .setView(input)
+                .setPositiveButton("OK") { dialog, which ->
+                    val userInput = input.text.toString()
+                    distanceNameView.text = "Дистанция: ${userInput}м"
+                    DataManager.updateDistance(DataManager.getLastDistanceIndex(), input.text.toString().toInt())
+                }
+                .setNegativeButton("Отмена") { dialog, which ->
+                    dialog.cancel()
+                }
+                .show()
         }
     }
 }

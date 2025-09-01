@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from path_manager import NEW_NORMALIZED_DATASET, NEW_DATASET_PATH
+from path_manager import NEW_DATASET_PATH, NEW_NORMALIZED_DATASET, CONVERTED_DATASET_PATH
 from src.ai.model import ArcheryResNet
 from src.ai.config import *
 from src.ai.dataset import ArcheryDataset
@@ -11,7 +11,7 @@ from src.ai.ui import draw_target
 from src.ai.utils import get_device, load_model
 
 
-def visualize_model(model, dataset, device, n_samples=3):
+def visualize_model(model, dataset: ArcheryDataset, device, n_samples=3):
     model.eval()
     fig, axes = plt.subplots(n_samples, 3, figsize=(12, 4 * n_samples))
 
@@ -20,6 +20,7 @@ def visualize_model(model, dataset, device, n_samples=3):
             img, coords = dataset[i]
             img_tensor = img.unsqueeze(0).to(device)
             pred = model(img_tensor).cpu().numpy().flatten()
+            # pred /= COEF
 
             img_np = (img.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
             target_real = draw_target(coords.numpy())
@@ -40,8 +41,8 @@ def visualize_model(model, dataset, device, n_samples=3):
 # ==== После тренировки ====
 if __name__ == "__main__":
     device = get_device()
-    dataset = ArcheryDataset(NEW_DATASET_PATH, NEW_DATASET_PATH, transform=CustomAugmentation())
-    model = ArcheryResNet(MAX_SHOTS * 2).to(device)
+    dataset = ArcheryDataset(CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET, transform=CustomAugmentation())
+    model = ArcheryResNet(OUTPUT_DIM).to(device)
     load_model(model, device)
 
-    visualize_model(model, dataset, device, n_samples=3)
+    visualize_model(model, dataset, device)

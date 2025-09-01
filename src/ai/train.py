@@ -4,8 +4,8 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
-from path_manager import NEW_NORMALIZED_DATASET, NEW_DATASET_PATH
-from src.ai.config import LEARNING_RATE, BATCH_SIZE, EPOCHS, TRAIN_TEST_SPLIT, MAX_SHOTS
+from path_manager import NEW_NORMALIZED_DATASET, NEW_DATASET_PATH, CONVERTED_DATASET_PATH
+from src.ai.config import LEARNING_RATE, BATCH_SIZE, EPOCHS, TRAIN_TEST_SPLIT, MAX_SHOTS, MISS, COEF
 from src.ai.dataset import ArcheryDataset
 from src.ai.model import ArcheryResNet
 from src.ai.transform import CustomAugmentation
@@ -41,6 +41,7 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
         total_loss = 0
         for imgs, coords in loader_train:
             imgs, coords = imgs.to(device), coords.to(device)
+            # coords *= COEF
             preds = model(imgs)
             loss = criterion(preds, coords)
             optimizer.zero_grad()
@@ -57,6 +58,11 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
             for imgs, coords in loader_val:
                 imgs, coords = imgs.to(device), coords.to(device)
                 preds = model(imgs)
+                # for j in range(preds.shape[0]):
+                #     for i in range(0, preds.shape[1], 2):
+                #         if preds[j, i] < 0:
+                #             preds[j, i] = -100
+                #             preds[j, i + 1] = -100
                 val_loss += criterion(preds, coords).item()
 
         test_history.append(val_loss / len(loader_val))
@@ -68,4 +74,4 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
 
 
 if __name__ == "__main__":
-    train(NEW_DATASET_PATH, NEW_NORMALIZED_DATASET)
+    train(CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET)

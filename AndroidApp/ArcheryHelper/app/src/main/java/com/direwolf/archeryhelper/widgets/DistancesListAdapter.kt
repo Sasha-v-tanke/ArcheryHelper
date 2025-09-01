@@ -44,8 +44,8 @@ class DistancesListAdapter(
 
         holder.tvSummary.text = "Сумма: $sum"
         holder.tvAverage.text = "Среднее: " + String.format("%.1f", avg)
-        holder.tvSeriesCount.text = "Серий: $seriesCount"
-        holder.tvShotsCount.text = "Выстрелов: $shotsCount"
+        holder.tvSeriesCount.text = "Серии: $seriesCount"
+        holder.tvShotsCount.text = "Выстрелы: $shotsCount"
 
         holder.itemView.setOnClickListener {
             onClick(position + 1)

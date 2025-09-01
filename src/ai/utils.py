@@ -24,11 +24,12 @@ def save_model(model):
     print(f"Model saved to archery_resnet_{number}.pth")
 
 
-def load_model(model, device):
+def load_model(model, device, index=-1):
     number = 0
-    while os.path.exists(os.path.join(MODELS, f"archery_resnet_{number}.pth")):
+    while os.path.exists(os.path.join(MODELS, f"archery_resnet_{number}.pth")) and index == -1:
         number += 1
-    model.load_state_dict(torch.load(os.path.join(MODELS, f"archery_resnet_{number - 1}.pth"), map_location=device))
+    model.load_state_dict(torch.load(os.path.join(MODELS, f"archery_resnet_{index if index >= 0 else number - 1}.pth"),
+                                     map_location=device))
 
 
 def zip_shots(shots):

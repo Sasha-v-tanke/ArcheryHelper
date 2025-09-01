@@ -3,7 +3,7 @@ import glob
 import json
 import torch
 from torch.utils.data import Dataset
-from PIL import Image
+from PIL import Image, ImageFile
 
 from src.ai.config import MAX_SHOTS, MISS
 
@@ -27,9 +27,10 @@ class ArcheryDataset(Dataset):
     def __len__(self):
         return len(self.images)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> (ImageFile, list):
         img_path = self.images[idx]
         json_path = self.jsons[idx]
+        # print(img_path)
 
         img = Image.open(img_path).convert("RGB")
         with open(json_path, "r") as f:

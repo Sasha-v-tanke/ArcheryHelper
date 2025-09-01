@@ -24,7 +24,7 @@ class DetailedStatisticsActivity : TemplateActivity() {
 
         val backBtn: Button = findViewById(R.id.btnBack)
         backBtn.setOnClickListener {
-            startActivity(Intent(this, StatisticsActivity::class.java))
+//            startActivity(Intent(this, StatisticsActivity::class.java))
             finish()
         }
 
@@ -40,9 +40,17 @@ class DetailedStatisticsActivity : TemplateActivity() {
         val sum = distance.series.sumOf { s -> s.shots.sumOf { it.result } }
         val avg = if (shotsCount > 0) sum.toDouble() / shotsCount else 0.0
 
+        if (shotsCount == 0) {
+            findViewById<TextView>(R.id.empty).visibility = TextView.VISIBLE
+            recyclerView.visibility = RecyclerView.GONE
+        } else {
+            findViewById<TextView>(R.id.empty).visibility = TextView.GONE
+            recyclerView.visibility = RecyclerView.VISIBLE
+        }
+
         findViewById<TextView>(R.id.distanceSum).text = "Сумма: $sum"
         findViewById<TextView>(R.id.shotsAvg).text = "Среднее: ${String.format("%.1f", avg)}"
-        findViewById<TextView>(R.id.shotsCount).text = "Выстрелов: $shotsCount"
+        findViewById<TextView>(R.id.shotsCount).text = "Выстрелы: $shotsCount"
 
     }
 }

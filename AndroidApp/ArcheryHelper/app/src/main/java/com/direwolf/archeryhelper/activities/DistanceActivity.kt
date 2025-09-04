@@ -95,4 +95,36 @@ class DistanceActivity : TemplateActivity() {
                 .show()
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+
+        distance = DataManager.loadLastDistance()
+        recyclerView.layoutManager = GridLayoutManager(this, 5, RecyclerView.HORIZONTAL, false)
+        recyclerView.adapter = SeriesListAdapter(distance)
+
+        var count = 0
+        var sum = 0
+        for (series in distance.series) {
+            count += series.shots.size
+            for (shot in series.shots) {
+                sum += shot.result
+            }
+        }
+
+        val avg = if (count != 0) sum.toDouble() / count else 0.0
+        findViewById<TextView>(R.id.seriesAvg).text = "Среднее: " + String.format("%.1f", avg)
+        findViewById<TextView>(R.id.seriesSum).text = "Сумма: $sum"
+        findViewById<TextView>(R.id.seriesCnt).text = "Выстрелы: $count"
+
+        if (count == 0) {
+            findViewById<TextView>(R.id.empty).visibility = TextView.VISIBLE
+            recyclerView.visibility = RecyclerView.GONE
+        } else {
+            recyclerView.visibility = RecyclerView.VISIBLE
+            findViewById<TextView>(R.id.empty).visibility = TextView.GONE
+        }
+        val distanceNameView = findViewById<TextView>(R.id.distanceName)
+        distanceNameView.text = "Дистанция: ${distance.distance}м"
+    }
 }

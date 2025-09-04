@@ -39,7 +39,7 @@ class DistancesListAdapter(
 
         val seriesCount = distance.series.size
         val shotsCount = distance.series.sumOf { it.shots.size }
-        val sum = distance.series.sumOf { s -> s.shots.sumOf { it.result } }
+        val sum = distance.series.sumOf { s -> s.shots.sumOf { if (it.result == 11) 10 else it.result } }
         val avg = if (shotsCount > 0) sum.toDouble() / shotsCount else 0.0
 
         holder.tvSummary.text = "Сумма: $sum"

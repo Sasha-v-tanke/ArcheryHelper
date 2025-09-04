@@ -45,7 +45,7 @@ class ScanActivity : TemplateActivity() {
         photoView = findViewById(R.id.photoView)
         btnScan = findViewById(R.id.btnScan)
 
-        debug()
+//        debug()
 
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)

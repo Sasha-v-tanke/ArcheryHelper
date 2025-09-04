@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.direwolf.archeryhelper.R
 import com.direwolf.archeryhelper.utils.Distance
 import com.direwolf.archeryhelper.utils.Series
+import com.direwolf.archeryhelper.utils.debugLog
 
 class SeriesListAdapter(
     private val distance: Distance
@@ -29,9 +30,11 @@ class SeriesListAdapter(
 
     override fun onBindViewHolder(holder: SeriesViewHolder, position: Int) {
         val series = distance.series[position]
+        debugLog("position $position")
         holder.tvSeriesNumber.text = "Серия ${series.number}"
 
         holder.llShotsContainer.removeAllViews()
+        series.shots.sortBy { -it.result }
         series.shots.forEach { shot ->
             val shotTextView = TextView(holder.itemView.context)
             shotTextView.text = if (shot.result == 11) "X" else shot.result.toString()
@@ -40,12 +43,15 @@ class SeriesListAdapter(
             holder.llShotsContainer.addView(shotTextView)
         }
 
-        val sum = series.shots.sumOf { if (it.result == 1) 10 else it.result }
+        val sum = series.shots.sumOf { if (it.result == 11) 10 else it.result }
         holder.tvSeriesSum.text = sum.toString()
 
         val avg = if (series.shots.isNotEmpty()) sum.toDouble() / series.shots.size else 0.0
         holder.tvSeriesAvg.text = String.format("%.1f", avg)
     }
 
-    override fun getItemCount(): Int = distance.series.size
+    override fun getItemCount(): Int {
+        debugLog("size: ${distance.series.size}")
+        return distance.series.size
+    }
 }

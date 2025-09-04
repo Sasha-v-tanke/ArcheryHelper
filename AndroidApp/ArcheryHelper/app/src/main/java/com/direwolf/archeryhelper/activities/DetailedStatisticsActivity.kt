@@ -51,5 +51,15 @@ class DetailedStatisticsActivity : TemplateActivity() {
         findViewById<TextView>(R.id.shotsAvg).text = "Среднее: ${String.format("%.1f", avg)}"
         findViewById<TextView>(R.id.shotsCount).text = "Выстрелы: $shotsCount"
 
+        val showBtn = findViewById<Button>(R.id.showAnalyses)
+        if (!DataManager.isManualInput(distance.number)) showBtn.visibility = Button.VISIBLE
+        else showBtn.visibility = Button.GONE
+        showBtn.setOnClickListener {
+            val intent = Intent(this, AdvancedStatisticsActivity::class.java)
+            intent.putExtra("index", distanceIndex)
+            startActivity(intent)
+        }
+
+
     }
 }

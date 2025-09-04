@@ -192,6 +192,7 @@ class EditActivity : TemplateActivity() {
         btnRemove.visibility = v
         btnPrev.visibility = v
         btnNext.visibility = v
+        btnEdit.text = if (visible) "Сохранить" else "Редактировать"
     }
 
     private fun redraw() {

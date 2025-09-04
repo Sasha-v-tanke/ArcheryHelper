@@ -34,7 +34,7 @@ class ManualInputActivity : TemplateActivity() {
         recyclerView.adapter = adapter
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {
-            series.shots.sortByDescending { it.result }
+            series.shots.sortBy { -it.result }
             series.shots.forEachIndexed { index, shot -> shot.number = index + 1 }
             DataManager.saveSeries(series)
             startActivity(Intent(this, DistanceActivity::class.java))
@@ -54,17 +54,24 @@ class ManualInputActivity : TemplateActivity() {
     }
 
     private fun showNumberPicker() {
-        val numberPicker = NumberPicker(this)
-        numberPicker.minValue = 0
-        numberPicker.maxValue = 10
-        numberPicker.wrapSelectorWheel = false
+        val labels = (0..10).map { it.toString() }.plus("X").toTypedArray()
+        val scores = ((0..10).toMutableList().apply { add(11) }).asReversed()
+
+        val numberPicker = NumberPicker(this).apply {
+            wrapSelectorWheel = false
+            descendantFocusability = NumberPicker.FOCUS_BLOCK_DESCENDANTS
+            minValue = 0
+            maxValue = labels.size - 1
+            displayedValues = labels.reversedArray()
+        }
 
         val dialog = android.app.AlertDialog.Builder(this)
             .setTitle("Выберите результат выстрела")
             .setView(numberPicker)
             .setPositiveButton("OK") { _, _ ->
-                val selectedResult = numberPicker.value
+                val selectedResult = scores[numberPicker.value] // 11 для "X"
                 addShot(selectedResult)
+                update()
             }
             .setNegativeButton("Отмена", null)
             .create()
@@ -75,5 +82,13 @@ class ManualInputActivity : TemplateActivity() {
     private fun addShot(result: Int) {
         series.shots.add(Shot(series.shots.size + 1, result))
         adapter.notifyDataSetChanged()
+    }
+
+    private fun update() {
+        val sum = series.shots.sumOf { if (it.result == 11) 10 else it.result }
+        val avg = if (series.shots.size > 0) sum.toDouble() / series.shots.size else 0.0
+
+        sumView.text = "Сумма: $sum"
+        avgView.text = "Среднее: ${String.format("%.1f", avg)}"
     }
 }

@@ -1,11 +1,11 @@
 import random
-from torchvision import transforms
 from PIL import ImageEnhance
 
 from src.ai.config import IMG_SIZE
 
 
 class CustomAugmentation:
+
     def __init__(self, size=IMG_SIZE):
         self.size = size
 
@@ -25,5 +25,4 @@ class CustomAugmentation:
         for i in range(1, len(coords), 2):
             coords[i] = (coords[i] - angle + 360.0) % 360.0
 
-        img = transforms.ToTensor()(img)
         return img, coords

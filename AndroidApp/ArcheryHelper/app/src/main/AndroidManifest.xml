@@ -6,7 +6,7 @@
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
-    
+
     <application
         android:name=".managers.Application"
         android:allowBackup="true"
@@ -17,6 +17,9 @@
         android:roundIcon="@drawable/icon"
         android:supportsRtl="false"
         android:theme="@style/Theme.ArcheryHelper">
+        <activity
+            android:name=".activities.AdvancedStatisticsActivity"
+            android:exported="false" />
         <activity
             android:name=".activities.DetailedStatisticsActivity"
             android:exported="false" />

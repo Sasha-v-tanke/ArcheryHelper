@@ -34,13 +34,13 @@ class SeriesListAdapter(
         holder.llShotsContainer.removeAllViews()
         series.shots.forEach { shot ->
             val shotTextView = TextView(holder.itemView.context)
-            shotTextView.text = shot.result.toString()
+            shotTextView.text = if (shot.result == 11) "X" else shot.result.toString()
             shotTextView.textSize = 16f
             shotTextView.setPadding(8, 0, 8, 0)
             holder.llShotsContainer.addView(shotTextView)
         }
 
-        val sum = series.shots.sumOf { it.result }
+        val sum = series.shots.sumOf { if (it.result == 1) 10 else it.result }
         holder.tvSeriesSum.text = sum.toString()
 
         val avg = if (series.shots.isNotEmpty()) sum.toDouble() / series.shots.size else 0.0

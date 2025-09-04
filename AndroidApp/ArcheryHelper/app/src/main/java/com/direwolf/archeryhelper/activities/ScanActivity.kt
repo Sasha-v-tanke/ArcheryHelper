@@ -57,6 +57,7 @@ class ScanActivity : TemplateActivity() {
 
         findViewById<Button>(R.id.btnContinue).setOnClickListener {
             startActivity(Intent(this, EditActivity::class.java))
+            finish()
         }
     }
 
@@ -65,7 +66,7 @@ class ScanActivity : TemplateActivity() {
         val image = cropToSquare(bitmap)
         photoView.setImageBitmap(image)
         findViewById<Button>(R.id.btnContinue).isEnabled = true
-        (application as Application).imageHolder.setImage(bitmap)
+        (application as Application).imageHolder.setImage(image)
     }
 
     private fun openCameraApp() {
@@ -82,7 +83,8 @@ class ScanActivity : TemplateActivity() {
         val x = (bitmap.width - dimension) / 2
         val y = (bitmap.height - dimension) / 2
         val squareBitmap = Bitmap.createBitmap(bitmap, x, y, dimension, dimension)
-        return Bitmap.createScaledBitmap(squareBitmap, size, size, true)
+        val bitmap = Bitmap.createScaledBitmap(squareBitmap, size, size, true)
+        return bitmap
     }
 
     companion object {

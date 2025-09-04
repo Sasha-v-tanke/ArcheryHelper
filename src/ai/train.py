@@ -41,7 +41,6 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
         total_loss = 0
         for imgs, coords in loader_train:
             imgs, coords = imgs.to(device), coords.to(device)
-            # coords *= COEF
             preds = model(imgs)
             loss = criterion(preds, coords)
             optimizer.zero_grad()
@@ -49,7 +48,6 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
             optimizer.step()
             total_loss += loss.item()
         train_history.append(total_loss / len(loader_train))
-        # print(f"[Train] Epoch {epoch + 1}/{epochs}, Loss: {total_loss / len(loader_train):.4f}")
 
         # validation
         model.eval()
@@ -58,11 +56,6 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
             for imgs, coords in loader_val:
                 imgs, coords = imgs.to(device), coords.to(device)
                 preds = model(imgs)
-                # for j in range(preds.shape[0]):
-                #     for i in range(0, preds.shape[1], 2):
-                #         if preds[j, i] < 0:
-                #             preds[j, i] = -100
-                #             preds[j, i + 1] = -100
                 val_loss += criterion(preds, coords).item()
 
         test_history.append(val_loss / len(loader_val))

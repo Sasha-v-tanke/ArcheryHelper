@@ -3,9 +3,10 @@ import torch
 
 from path_manager import MODELS
 from src.ai.config import MISS
+from src.ai.model import ArcheryResNet
 
 
-def get_device():
+def get_device() -> torch.device:
     return torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.mps.is_available() else 'cpu')
 
 
@@ -16,7 +17,7 @@ def collate_fn(batch):
     return imgs, coords
 
 
-def save_model(model):
+def save_model(model: ArcheryResNet):
     number = 0
     while os.path.exists(os.path.join(MODELS, f"archery_resnet_{number}.pth")):
         number += 1
@@ -24,7 +25,7 @@ def save_model(model):
     print(f"Model saved to archery_resnet_{number}.pth")
 
 
-def load_model(model, device, index=-1):
+def load_model(model: ArcheryResNet, device: torch.device, index: int = -1):
     number = 0
     while os.path.exists(os.path.join(MODELS, f"archery_resnet_{number}.pth")) and index == -1:
         number += 1
@@ -32,13 +33,13 @@ def load_model(model, device, index=-1):
                                      map_location=device))
 
 
-def zip_shots(shots):
+def zip_shots(shots: list):
     return [[shots[i], shots[i + 1]] for i in range(0, len(shots), 2)]
 
 
-def unzip_shots(shots):
+def unzip_shots(shots: list):
     return [e for shot in shots for e in shot]
 
 
-def filter_shots(shots):
+def filter_shots(shots: list):
     return [shot for shot in shots if shot != MISS]

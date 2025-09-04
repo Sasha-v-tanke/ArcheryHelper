@@ -1,4 +1,4 @@
-from path_manager import NEW_DATASET_PATH, NEW_NORMALIZED_DATASET, CONVERTED_DATASET_PATH
+from path_manager import NEW_NORMALIZED_DATASET, CONVERTED_DATASET_PATH
 from src.ai.config import OUTPUT_DIM
 from src.ai.convert_pth import convert
 from src.ai.dataset import ArcheryDataset

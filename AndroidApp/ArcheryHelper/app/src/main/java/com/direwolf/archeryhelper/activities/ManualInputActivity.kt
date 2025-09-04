@@ -37,7 +37,6 @@ class ManualInputActivity : TemplateActivity() {
             series.shots.sortByDescending { it.result }
             series.shots.forEachIndexed { index, shot -> shot.number = index + 1 }
             DataManager.saveSeries(series)
-            debugLog("save: ${series.shots.size} ${series.number}")
             startActivity(Intent(this, DistanceActivity::class.java))
         }
 

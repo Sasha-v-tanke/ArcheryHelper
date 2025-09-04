@@ -27,7 +27,7 @@ class ShotListAdapter(
     override fun onBindViewHolder(holder: ShotViewHolder, position: Int) {
         val shot: Shot = series.shots[position]
         holder.tvShotNumber.text = "Выстрел ${shot.number}"
-        holder.tvShotResult.text = shot.result.toString()
+        holder.tvShotResult.text = if (shot.result == 11) "X" else shot.result.toString()
     }
 
     override fun getItemCount(): Int = series.shots.size

@@ -62,13 +62,13 @@
                 android:id="@+id/btnPrev"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="prev" />
+                android:text="&lt;--" />
 
             <Button
                 android:id="@+id/btnNxt"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="next" />
+                android:text="--&gt;" />
 
         </LinearLayout>
 

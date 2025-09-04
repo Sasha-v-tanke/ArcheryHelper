@@ -24,7 +24,6 @@ class DetailedStatisticsActivity : TemplateActivity() {
 
         val backBtn: Button = findViewById(R.id.btnBack)
         backBtn.setOnClickListener {
-//            startActivity(Intent(this, StatisticsActivity::class.java))
             finish()
         }
 
@@ -37,7 +36,7 @@ class DetailedStatisticsActivity : TemplateActivity() {
         recyclerView.adapter = SeriesListAdapter(distance)
 
         val shotsCount = distance.series.sumOf { it.shots.size }
-        val sum = distance.series.sumOf { s -> s.shots.sumOf { it.result } }
+        val sum = distance.series.sumOf { s -> s.shots.sumOf { if (it.result == 11) 10 else it.result } }
         val avg = if (shotsCount > 0) sum.toDouble() / shotsCount else 0.0
 
         if (shotsCount == 0) {

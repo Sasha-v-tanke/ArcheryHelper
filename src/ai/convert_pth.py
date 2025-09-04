@@ -1,5 +1,8 @@
 import torch
-from path_manager import MODELS
+from PIL import Image
+from torchvision import transforms
+
+from path_manager import MODELS, CONVERTED_DATASET_PATH
 from src.ai.config import OUTPUT_DIM, IMG_SIZE
 from src.ai.model import ArcheryResNet
 from src.ai.utils import load_model, get_device
@@ -13,13 +16,18 @@ def convert():
     load_model(model, device)
     model.eval()
 
-    example_input = torch.randn(1, 3, IMG_SIZE, IMG_SIZE)
-    traced = torch.jit.trace(model, example_input)
+    img = Image.open(CONVERTED_DATASET_PATH + "/30.jpeg").convert("RGB")
+    transform = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    img_tensor = transform(img).unsqueeze(0).to(device)
+    traced = torch.jit.trace(model, img_tensor)
 
-    optimized_traced = optimize_for_mobile(traced)
+    traced.save(MODELS + "/model.pt")
+    # optimized_traced = optimize_for_mobile(traced)
 
     # Сохраняем Lite модель
-    optimized_traced._save_for_lite_interpreter(MODELS + "/model.ptl")
+    traced._save_for_lite_interpreter(MODELS + "/model.ptl")
 
 
 if __name__ == '__main__':

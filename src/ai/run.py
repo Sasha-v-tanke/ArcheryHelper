@@ -9,9 +9,10 @@ from src.ai.transform import CustomAugmentation
 from src.ai.utils import get_device, load_model
 
 if __name__ == '__main__':
-    train(CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET)
+    train(NEW_NORMALIZED_DATASET, NEW_NORMALIZED_DATASET)
     device = get_device()
-    dataset = ArcheryDataset(CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET, transform=CustomAugmentation())
+    dataset = ArcheryDataset(NEW_NORMALIZED_DATASET, NEW_NORMALIZED_DATASET,
+                             aug_transform=CustomAugmentation(), num_aug=4)
     model = ArcheryResNet(OUTPUT_DIM).to(device)
     load_model(model, device)
 

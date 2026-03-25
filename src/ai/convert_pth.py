@@ -3,10 +3,9 @@ from PIL import Image
 from torchvision import transforms
 
 from path_manager import MODELS, CONVERTED_DATASET_PATH
-from src.ai.config import OUTPUT_DIM, IMG_SIZE
+from src.ai.config import OUTPUT_DIM
 from src.ai.model import ArcheryResNet
-from src.ai.utils import load_model, get_device
-from torch.utils.mobile_optimizer import optimize_for_mobile
+from src.ai.utils import load_model
 
 
 def convert():

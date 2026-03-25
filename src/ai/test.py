@@ -40,7 +40,8 @@ def visualize_model(model: ArcheryResNet, dataset: ArcheryDataset, device: torch
 # ==== После тренировки ====
 if __name__ == "__main__":
     device = get_device()
-    dataset = ArcheryDataset(CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET, transform=CustomAugmentation())
+    dataset = ArcheryDataset(CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET, aug_transform=CustomAugmentation(),
+                             num_aug=4)
     model = ArcheryResNet(OUTPUT_DIM).to(device)
     load_model(model, device)
 

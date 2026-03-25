@@ -15,3 +15,7 @@
 /AndroidApp/ArcheryHelper/.idea
 /AndroidApp/ArcheryHelper/build
 
+/runs
+/models
+
+/src/roboflow/archery-1

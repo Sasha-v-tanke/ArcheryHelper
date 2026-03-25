@@ -6,6 +6,7 @@ DATA_PATH = os.path.join(BASE_DIR, 'data')
 NEW_DATASET_PATH = os.path.join(DATA_PATH, 'new_dataset')
 ORIGINAL_DATASET_PATH = os.path.join(DATA_PATH, 'original_dataset')
 CONVERTED_DATASET_PATH = os.path.join(DATA_PATH, 'converted')
+YOLO_DATASET_PATH = os.path.join(DATA_PATH, 'yolo')
 
 NORMALIZED_DATASET = os.path.join(DATA_PATH, 'normalized')
 NEW_NORMALIZED_DATASET = os.path.join(DATA_PATH, 'normalized-new')

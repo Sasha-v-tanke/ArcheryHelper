@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
+from src.ai.config import SHOT
 from src.ai.utils import zip_shots, filter_shots
 
 
@@ -18,14 +19,17 @@ def draw_target(shots: list):
 
     shots = filter_shots(zip_shots(shots))
 
-    for r_n, theta in shots:
-        if r_n < 0:
+    for p, r_n, theta in shots:
+        if p < 0.5 * SHOT:
             continue
         r_pix = r_n * max_r
         x = int(cx + r_pix * math.cos(theta / 180 * math.pi))
         y = int(cy + r_pix * math.sin(theta / 180 * math.pi))
+        POINT_SIZE = 8
+        BORDER_SIZE = 10
         if 0 <= x < size and 0 <= y < size:
-            img[y - 3:y + 4, x - 3:x + 4] = [0, 255, 0]
+            img[y - BORDER_SIZE:y + BORDER_SIZE + 1, x - BORDER_SIZE:x + BORDER_SIZE + 1] = [0, 0, 0]
+            img[y - POINT_SIZE:y + POINT_SIZE + 1, x - POINT_SIZE:x + POINT_SIZE + 1] = [0, 255, 0]
     return img
 
 

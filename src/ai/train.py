@@ -5,7 +5,8 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 from path_manager import NEW_NORMALIZED_DATASET, NEW_DATASET_PATH, CONVERTED_DATASET_PATH
-from src.ai.config import LEARNING_RATE, BATCH_SIZE, EPOCHS, TRAIN_TEST_SPLIT, MAX_SHOTS, MISS, COEF
+from src.ai.config import LEARNING_RATE, BATCH_SIZE, EPOCHS, TRAIN_TEST_SPLIT, MAX_SHOTS, SHOT
+from src.ai.criterion import ArrowCriterion
 from src.ai.dataset import ArcheryDataset
 from src.ai.model import ArcheryResNet
 from src.ai.transform import CustomAugmentation
@@ -15,7 +16,7 @@ from src.ai.utils import get_device, collate_fn, save_model
 
 # ==== Train ====
 def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_RATE):
-    dataset = ArcheryDataset(data_dir, json_dir, transform=CustomAugmentation())
+    dataset = ArcheryDataset(data_dir, json_dir, aug_transform=CustomAugmentation(), num_aug=4)
     print("Всего изображений:", len(dataset))
 
     if len(dataset) == 0:
@@ -28,11 +29,10 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
     loader_train = DataLoader(train_set, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     loader_val = DataLoader(test_set, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
 
-    output_dim = MAX_SHOTS * 2
     device = get_device()
-    model = ArcheryResNet(output_dim).to(device)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    model = ArcheryResNet().to(device)
+    criterion = ArrowCriterion(alpha=1.0, beta=10.0)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
 
     train_history = []
     test_history = []
@@ -41,6 +41,13 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
         total_loss = 0
         for imgs, coords in loader_train:
             imgs, coords = imgs.to(device), coords.to(device)
+            for j in range(len(coords)):
+                for i in range(0, len(coords[j]), 3):
+                    if coords[j][i] < 0.5 * SHOT:
+                        coords[j][i + 1] = 0
+                        coords[j][i + 2] = 0
+                    else:
+                        coords[j][i] = SHOT
             preds = model(imgs)
             loss = criterion(preds, coords)
             optimizer.zero_grad()

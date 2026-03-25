@@ -2,7 +2,7 @@ import os
 import torch
 
 from path_manager import MODELS
-from src.ai.config import MISS
+from src.ai.config import MISS, SHOT
 from src.ai.model import ArcheryResNet
 
 
@@ -34,7 +34,7 @@ def load_model(model: ArcheryResNet, device: torch.device, index: int = -1):
 
 
 def zip_shots(shots: list):
-    return [[shots[i], shots[i + 1]] for i in range(0, len(shots), 2)]
+    return [[shots[i], shots[i + 1], shots[i + 2]] for i in range(0, len(shots), 3)]
 
 
 def unzip_shots(shots: list):
@@ -42,4 +42,4 @@ def unzip_shots(shots: list):
 
 
 def filter_shots(shots: list):
-    return [shot for shot in shots if shot != MISS]
+    return [shot for shot in shots if shot[0] > 0.5 * SHOT]

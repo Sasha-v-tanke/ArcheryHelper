@@ -48,10 +48,15 @@ class EditActivity : TemplateActivity() {
     private var maxRadius: Float = 0f
     private var addMode = false
     private var dragMode = false
+    private var restoredState = false
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         imageView.post {
+            if (restoredState) {
+                redraw()
+                return@post
+            }
             val bitmap = CapturedImageRepository.load(this)
             if (bitmap == null) {
                 Toast.makeText(this, "Нет фото для анализа", Toast.LENGTH_SHORT).show()
@@ -91,6 +96,7 @@ class EditActivity : TemplateActivity() {
         btnContinue = findViewById(R.id.btnContinue)
 
         setEditButtonsVisible(false)
+        restoreState(savedInstanceState)
 
         btnEdit.setOnClickListener {
             editMode = !editMode
@@ -187,8 +193,34 @@ class EditActivity : TemplateActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val points = shotEditor.snapshot()
+        outState.putFloatArray(STATE_X_POINTS, points.map { it.xNorm }.toFloatArray())
+        outState.putFloatArray(STATE_Y_POINTS, points.map { it.yNorm }.toFloatArray())
+        outState.putInt(STATE_SELECTED_INDEX, selectedIndex)
+        outState.putBoolean(STATE_EDIT_MODE, editMode)
+        outState.putBoolean(STATE_ADD_MODE, addMode)
+    }
+
     private fun parseRadius(radius: Float): Int {
         return ScoreCalculator.scoreRadius(radius)
+    }
+
+    private fun restoreState(savedInstanceState: Bundle?) {
+        if (savedInstanceState == null) return
+        val xs = savedInstanceState.getFloatArray(STATE_X_POINTS) ?: return
+        val ys = savedInstanceState.getFloatArray(STATE_Y_POINTS) ?: return
+        if (xs.size != ys.size) return
+
+        shotEditor = ShotEditor(xs.indices.map { ShotPoint(xs[it], ys[it]) })
+        selectedIndex = savedInstanceState.getInt(STATE_SELECTED_INDEX, -1)
+        editMode = savedInstanceState.getBoolean(STATE_EDIT_MODE, false)
+        addMode = savedInstanceState.getBoolean(STATE_ADD_MODE, false)
+        restoredState = true
+        setEditButtonsVisible(editMode)
+        btnAdd.text = if (addMode) "Отмена" else "Добавить"
+        normalizeSelectedIndex()
     }
 
     private fun setEditButtonsVisible(visible: Boolean) {
@@ -305,4 +337,11 @@ class EditActivity : TemplateActivity() {
         return Math.toDegrees(atan2(point.yNorm.toDouble(), point.xNorm.toDouble())).toFloat()
     }
 
+    companion object {
+        private const val STATE_X_POINTS = "state_x_points"
+        private const val STATE_Y_POINTS = "state_y_points"
+        private const val STATE_SELECTED_INDEX = "state_selected_index"
+        private const val STATE_EDIT_MODE = "state_edit_mode"
+        private const val STATE_ADD_MODE = "state_add_mode"
+    }
 }

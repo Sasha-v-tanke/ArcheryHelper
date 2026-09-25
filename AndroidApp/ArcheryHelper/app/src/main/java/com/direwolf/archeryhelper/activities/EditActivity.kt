@@ -1,7 +1,6 @@
 package com.direwolf.archeryhelper.activities
 
 import android.content.Intent
-import android.graphics.*
 import android.os.Bundle
 import android.view.MotionEvent
 import android.widget.*
@@ -13,6 +12,7 @@ import com.direwolf.archeryhelper.image.CapturedImageRepository
 import com.direwolf.archeryhelper.managers.DataManager
 import com.direwolf.archeryhelper.ml.TorchShotDetector
 import com.direwolf.archeryhelper.stats.ScoreCalculator
+import com.direwolf.archeryhelper.ui.TargetOverlayRenderer
 import com.direwolf.archeryhelper.utils.Series
 import com.direwolf.archeryhelper.utils.Shot
 import com.direwolf.archeryhelper.utils.debugLog
@@ -235,33 +235,8 @@ class EditActivity : TemplateActivity() {
     }
 
     private fun redraw() {
-        val bitmap = BitmapFactory.decodeResource(resources, R.drawable.target)
-        val scaled = Bitmap.createScaledBitmap(bitmap, 800, 800, true)
-        val copy = scaled.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(copy)
-
-        val paintNormal = Paint().apply {
-            color = Color.GREEN
-            style = Paint.Style.FILL
-            strokeWidth = 10f
-        }
-        val paintSelected = Paint().apply {
-            color = Color.CYAN
-            style = Paint.Style.FILL
-            strokeWidth = 12f
-        }
-
+        val copy = TargetOverlayRenderer.render(resources, shotEditor.snapshot(), selectedIndex)
         maxRadius = copy.width / 2f
-        val cx = maxRadius
-        val cy = maxRadius
-        val points = shotEditor.snapshot()
-        for ((i, point) in points.withIndex()) {
-            val x = cx + point.xNorm * maxRadius
-            val y = cy + point.yNorm * maxRadius
-            val paint = if (i == selectedIndex) paintSelected else paintNormal
-            canvas.drawCircle(x.toFloat(), y.toFloat(), 12f, paint)
-        }
-
         imageView.setImageBitmap(copy)
     }
 

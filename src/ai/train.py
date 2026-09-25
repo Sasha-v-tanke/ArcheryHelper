@@ -9,6 +9,7 @@ from src.ai.config import LEARNING_RATE, BATCH_SIZE, EPOCHS, TRAIN_TEST_SPLIT, M
 from src.ai.criterion import ArrowCriterion
 from src.ai.dataset import ArcheryDataset
 from src.ai.model import ArcheryResNet
+from src.ai.splits import expanded_sample_indices
 from src.ai.transform import CustomAugmentation
 from src.ai.ui import show_history
 from src.ai.utils import get_device, collate_fn, save_model
@@ -22,7 +23,13 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
     if len(dataset) == 0:
         raise RuntimeError(f"В '{data_dir}' нет картинок!")
 
-    train_idx, test_idx = train_test_split(range(len(dataset)), test_size=TRAIN_TEST_SPLIT, random_state=42)
+    train_base_idx, test_base_idx = train_test_split(
+        range(dataset.base_len),
+        test_size=TRAIN_TEST_SPLIT,
+        random_state=42
+    )
+    train_idx = expanded_sample_indices(train_base_idx, dataset.base_len, dataset.num_aug, include_augmented=True)
+    test_idx = expanded_sample_indices(test_base_idx, dataset.base_len, dataset.num_aug, include_augmented=False)
     train_set = torch.utils.data.Subset(dataset, train_idx)
     test_set = torch.utils.data.Subset(dataset, test_idx)
 

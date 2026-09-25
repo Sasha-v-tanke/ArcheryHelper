@@ -9,12 +9,12 @@ import java.io.FileOutputStream
 object CapturedImageRepository {
     private const val PREFS_NAME = "captured_image"
     private const val KEY_PATH = "current_path"
-    private const val FILE_NAME = "current_scan.png"
+    private const val FILE_NAME = "current_scan.jpg"
 
     fun save(context: Context, bitmap: Bitmap): String {
         val file = File(context.cacheDir, FILE_NAME)
         FileOutputStream(file).use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)
         }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()

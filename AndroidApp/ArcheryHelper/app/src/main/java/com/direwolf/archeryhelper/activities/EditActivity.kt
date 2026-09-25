@@ -7,7 +7,7 @@ import android.view.MotionEvent
 import android.widget.*
 import androidx.lifecycle.lifecycleScope
 import com.direwolf.archeryhelper.R
-import com.direwolf.archeryhelper.managers.Application
+import com.direwolf.archeryhelper.image.CapturedImageRepository
 import com.direwolf.archeryhelper.managers.DataManager
 import com.direwolf.archeryhelper.ml.TorchShotDetector
 import com.direwolf.archeryhelper.stats.ScoreCalculator
@@ -46,7 +46,7 @@ class EditActivity : TemplateActivity() {
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         imageView.post {
-            val bitmap = (application as Application).imageHolder.getImage()
+            val bitmap = CapturedImageRepository.load(this)
             if (bitmap == null) {
                 Toast.makeText(this, "Нет фото для анализа", Toast.LENGTH_SHORT).show()
                 finish()

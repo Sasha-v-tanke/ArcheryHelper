@@ -13,7 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.direwolf.archeryhelper.R
-import com.direwolf.archeryhelper.managers.Application
+import com.direwolf.archeryhelper.image.CapturedImageRepository
 import com.direwolf.archeryhelper.utils.debugLog
 
 class ScanActivity : TemplateActivity() {
@@ -30,7 +30,7 @@ class ScanActivity : TemplateActivity() {
                     val image = cropToSquare(imageBitmap)
                     photoView.setImageBitmap(image)
                     findViewById<Button>(R.id.btnContinue).isEnabled = true
-                    (application as Application).imageHolder.setImage(imageBitmap)
+                    CapturedImageRepository.save(this, image)
                 } else {
                     debugLog("Фото не получено")
                 }
@@ -66,7 +66,7 @@ class ScanActivity : TemplateActivity() {
         val image = cropToSquare(bitmap)
         photoView.setImageBitmap(image)
         findViewById<Button>(R.id.btnContinue).isEnabled = true
-        (application as Application).imageHolder.setImage(image)
+        CapturedImageRepository.save(this, image)
     }
 
     private fun openCameraApp() {

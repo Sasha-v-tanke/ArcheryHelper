@@ -1,3 +1,4 @@
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,13 +12,17 @@ from src.ai.dataset import ArcheryDataset
 from src.ai.model import ArcheryResNet
 from src.ai.splits import expanded_sample_indices
 from src.ai.transform import CustomAugmentation
+from src.ai.training_config import TrainingConfig, load_training_config, set_training_seed
 from src.ai.ui import show_history
 from src.ai.utils import get_device, collate_fn, save_model
 
 
 # ==== Train ====
-def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_RATE):
-    dataset = ArcheryDataset(data_dir, json_dir, aug_transform=CustomAugmentation(), num_aug=4)
+def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_RATE, config: TrainingConfig | None = None):
+    config = config or TrainingConfig(epochs=epochs, batch_size=batch_size, learning_rate=lr)
+    set_training_seed(config.seed)
+
+    dataset = ArcheryDataset(data_dir, json_dir, aug_transform=CustomAugmentation(), num_aug=config.num_aug)
     print("Всего изображений:", len(dataset))
 
     if len(dataset) == 0:
@@ -25,25 +30,25 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
 
     train_base_idx, test_base_idx = train_test_split(
         range(dataset.base_len),
-        test_size=TRAIN_TEST_SPLIT,
-        random_state=42
+        test_size=config.train_test_split,
+        random_state=config.seed
     )
     train_idx = expanded_sample_indices(train_base_idx, dataset.base_len, dataset.num_aug, include_augmented=True)
     test_idx = expanded_sample_indices(test_base_idx, dataset.base_len, dataset.num_aug, include_augmented=False)
     train_set = torch.utils.data.Subset(dataset, train_idx)
     test_set = torch.utils.data.Subset(dataset, test_idx)
 
-    loader_train = DataLoader(train_set, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-    loader_val = DataLoader(test_set, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+    loader_train = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, collate_fn=collate_fn)
+    loader_val = DataLoader(test_set, batch_size=config.batch_size, shuffle=False, collate_fn=collate_fn)
 
     device = get_device()
     model = ArcheryResNet().to(device)
-    criterion = ArrowCriterion(alpha=1.0, beta=10.0)
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
+    criterion = ArrowCriterion(alpha=config.loss_alpha, beta=config.loss_beta)
+    optimizer = optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
 
     train_history = []
     test_history = []
-    for epoch in range(epochs):
+    for epoch in range(config.epochs):
         model.train()
         total_loss = 0
         for imgs, coords in loader_train:
@@ -73,7 +78,7 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
                 val_loss += criterion(preds, coords).item()
 
         test_history.append(val_loss / len(loader_val))
-        print(f"[Val]   Epoch {epoch + 1}/{epochs}, Loss: {val_loss / len(loader_val):.4f}")
+        print(f"[Val]   Epoch {epoch + 1}/{config.epochs}, Loss: {val_loss / len(loader_val):.4f}")
 
     save_model(model)
 
@@ -81,4 +86,8 @@ def train(data_dir, json_dir, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_
 
 
 if __name__ == "__main__":
-    train(CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, default=None)
+    args = parser.parse_args()
+    train_config = load_training_config(args.config) if args.config else None
+    train(CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET, config=train_config)

@@ -5,6 +5,7 @@ from torchvision import transforms
 from path_manager import MODELS, CONVERTED_DATASET_PATH
 from src.ai.config import OUTPUT_DIM
 from src.ai.model import ArcheryResNet
+from src.ai.model_metadata import write_model_metadata, write_sha256
 from src.ai.utils import load_model
 
 
@@ -26,7 +27,10 @@ def convert():
     # optimized_traced = optimize_for_mobile(traced)
 
     # Сохраняем Lite модель
-    traced._save_for_lite_interpreter(MODELS + "/model.ptl")
+    model_path = MODELS + "/model.ptl"
+    traced._save_for_lite_interpreter(model_path)
+    write_model_metadata(MODELS)
+    write_sha256(model_path, MODELS)
 
 
 if __name__ == '__main__':

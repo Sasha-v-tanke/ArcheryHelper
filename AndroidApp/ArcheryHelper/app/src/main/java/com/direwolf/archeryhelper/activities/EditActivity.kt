@@ -1,28 +1,24 @@
 package com.direwolf.archeryhelper.activities
 
-import android.content.Context
 import android.content.Intent
 import android.graphics.*
 import android.os.Bundle
 import android.view.MotionEvent
 import android.widget.*
+import androidx.lifecycle.lifecycleScope
 import com.direwolf.archeryhelper.R
 import com.direwolf.archeryhelper.managers.Application
 import com.direwolf.archeryhelper.managers.DataManager
+import com.direwolf.archeryhelper.ml.TorchShotDetector
+import com.direwolf.archeryhelper.stats.ScoreCalculator
 import com.direwolf.archeryhelper.utils.Series
 import com.direwolf.archeryhelper.utils.Shot
 import com.direwolf.archeryhelper.utils.debugLog
-import org.pytorch.IValue
-import org.pytorch.LiteModuleLoader
-import org.pytorch.Module
-import org.pytorch.Tensor
-import org.pytorch.torchvision.TensorImageUtils
-import java.io.File
-import java.io.FileOutputStream
-import java.nio.FloatBuffer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.max
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -30,7 +26,7 @@ class EditActivity : TemplateActivity() {
     override fun getLayoutId(): Int = R.layout.activity_edit
 
     private lateinit var imageView: ImageView
-    private lateinit var module: Module
+    private lateinit var shotDetector: TorchShotDetector
 
     // UI-кнопки
     private lateinit var btnEdit: Button
@@ -50,29 +46,28 @@ class EditActivity : TemplateActivity() {
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         imageView.post {
-            var flag = true
             val bitmap = (application as Application).imageHolder.getImage()
             if (bitmap == null) {
                 Toast.makeText(this, "Нет фото для анализа", Toast.LENGTH_SHORT).show()
                 finish()
-                flag = false
+                return@post
             }
-            if (flag) {
-                module = LiteModuleLoader.load(assetFilePath(this, "model.ptl"))
 
-                val inputTensor = bitmapToTensor(bitmap!!)
-                val outputTensor = module.forward(IValue.from(inputTensor)).toTensor()
-                val scores = outputTensor.dataAsFloatArray
-
-                for (i in scores.indices step 2) {
-                    val r = scores[i]
-                    val theta = scores[i + 1]
-                    if (r in 0.0..1.0 && theta >= 0) {
-                        points.add(Pair(r, theta))
+            lifecycleScope.launch {
+                try {
+                    val detections = withContext(Dispatchers.Default) {
+                        shotDetector.detect(bitmap)
                     }
+                    points.clear()
+                    detections.forEach {
+                        points.add(Pair(it.radiusNorm, it.angleDeg))
+                    }
+                    redraw()
+                } catch (e: Exception) {
+                    debugLog(e.message ?: "Ошибка распознавания")
+                    Toast.makeText(this@EditActivity, "Ошибка распознавания", Toast.LENGTH_SHORT).show()
+                    redraw()
                 }
-
-                redraw()
             }
         }
     }
@@ -80,6 +75,7 @@ class EditActivity : TemplateActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         imageView = findViewById(R.id.imageView)
+        shotDetector = TorchShotDetector(this)
 
         btnEdit = findViewById(R.id.btnEdit)
         btnAdd = findViewById(R.id.btnAdd)
@@ -165,9 +161,7 @@ class EditActivity : TemplateActivity() {
     }
 
     private fun parseRadius(radius: Float): Int {
-        val r = radius * 10f
-        if (r <= 0.5) return 11
-        return 10 - r.toInt()
+        return ScoreCalculator.scoreRadius(radius)
     }
 
     private fun addPoint(x: Float, y: Float) {
@@ -226,44 +220,4 @@ class EditActivity : TemplateActivity() {
         imageView.setImageBitmap(copy)
     }
 
-    private fun assetFilePath(context: Context, assetName: String): String {
-        val file = File(context.filesDir, assetName)
-//        if (!file.exists() || file.length() == 0L) {
-        context.assets.open(assetName).use { input ->
-            FileOutputStream(file).use { output -> input.copyTo(output) }
-        }
-//        }
-        return file.absolutePath
-    }
-}
-
-
-fun bitmapToTensor(bitmap: Bitmap): Tensor {
-    val width = bitmap.width
-    val height = bitmap.height
-    val floatBuffer = FloatArray(3 * height * width)
-    val pixels = IntArray(width * height)
-    bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-    var offsetR = 0
-    var offsetG = height * width
-    var offsetB = 2 * height * width
-
-    for (y in 0 until height) {
-        for (x in 0 until width) {
-            val idx = y * width + x
-            val clr = pixels[idx]
-
-            val r = ((clr shr 16) and 0xFF) / 255f
-            val g = ((clr shr 8) and 0xFF) / 255f
-            val b = (clr and 0xFF) / 255f
-
-            floatBuffer[offsetR + idx] = r
-            floatBuffer[offsetG + idx] = g
-            floatBuffer[offsetB + idx] = b
-        }
-    }
-
-    // создаем тензор формы [1, 3, H, W]
-    return Tensor.fromBlob(floatBuffer, longArrayOf(1, 3, height.toLong(), width.toLong()))
 }

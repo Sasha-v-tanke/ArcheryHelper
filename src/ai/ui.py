@@ -2,22 +2,23 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+from pathlib import Path
 
 from src.ai.config import SHOT
-from src.ai.utils import zip_shots, filter_shots
+from src.ai.predictions import decode_predictions
 
 
 def draw_target(shots: list):
-    """
-    shots: список [r_norm, theta_deg, ...] по парам
-    """
-    img = Image.open("/Users/alex/Projects/Python/archery/src/ai/target.png")
+    img = Image.open(Path(__file__).with_name("target.png"))
     img = np.array(img, dtype=np.uint8)
     size = img.shape[0]
     cx, cy = size // 2, size // 2
     max_r = size // 2
 
-    shots = filter_shots(zip_shots(shots))
+    shots = [
+        [shot.confidence, shot.radius_norm, shot.angle_deg]
+        for shot in decode_predictions(shots, len(shots) // 3, 0.5)
+    ]
 
     for p, r_n, theta in shots:
         if p < 0.5 * SHOT:

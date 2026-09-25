@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -66,6 +67,9 @@ dependencies {
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
     implementation("androidx.camera:camera-core:1.3.1")
     implementation("androidx.camera:camera-camera2:1.3.1")
     implementation("org.pytorch:pytorch_android_lite:1.13.0")

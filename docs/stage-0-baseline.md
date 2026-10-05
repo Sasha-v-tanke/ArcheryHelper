@@ -51,13 +51,18 @@ Run commands from the repository root unless another directory is shown.
 The current automated Python unit baseline is:
 
 ```bash
-python -m unittest \
-  src.ai.test.test_contracts \
-  src.ai.test.test_evaluation \
-  src.ai.test.test_predictions \
-  src.ai.test.test_splits \
-  src.ai.test.test_training_config
+for test_file in \
+  test_contracts.py \
+  test_evaluation.py \
+  test_predictions.py \
+  test_splits.py \
+  test_training_config.py
+do
+  python -m unittest discover -s src/ai/test -p "$test_file"
+done
 ```
+
+The explicit discovery patterns are intentional: the repository also contains `src/ai/test.py`, which collides with the `src/ai/test/` directory when tests are addressed as `src.ai.test.*` modules.
 
 `src/ai/test/test_output.py` and `src/ai/test/test_ptl.py` are executable/manual diagnostic scripts and currently contain no `unittest.TestCase` tests, so they are not part of the unit baseline.
 

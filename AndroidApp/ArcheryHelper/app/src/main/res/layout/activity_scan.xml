@@ -7,11 +7,20 @@
     android:layout_height="match_parent"
     android:padding="16dp">
 
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:background="@android:color/black"
+        android:layout_marginTop="16dp" />
+
     <ImageView
         android:id="@+id/photoView"
         android:layout_width="300dp"
         android:layout_height="300dp"
         android:background="@android:color/black"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
         android:layout_marginTop="16dp" />
 
     <Button

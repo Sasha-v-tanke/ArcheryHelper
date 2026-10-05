@@ -1,28 +1,27 @@
 package com.direwolf.archeryhelper.activities
 
-import android.content.Context
 import android.content.Intent
-import android.graphics.*
 import android.os.Bundle
 import android.view.MotionEvent
 import android.widget.*
+import androidx.lifecycle.lifecycleScope
 import com.direwolf.archeryhelper.R
-import com.direwolf.archeryhelper.managers.Application
+import com.direwolf.archeryhelper.domain.ShotEditor
+import com.direwolf.archeryhelper.domain.ShotPoint
+import com.direwolf.archeryhelper.image.CapturedImageRepository
 import com.direwolf.archeryhelper.managers.DataManager
+import com.direwolf.archeryhelper.ml.TorchShotDetector
+import com.direwolf.archeryhelper.stats.ScoreCalculator
+import com.direwolf.archeryhelper.ui.TargetOverlayRenderer
 import com.direwolf.archeryhelper.utils.Series
 import com.direwolf.archeryhelper.utils.Shot
 import com.direwolf.archeryhelper.utils.debugLog
-import org.pytorch.IValue
-import org.pytorch.LiteModuleLoader
-import org.pytorch.Module
-import org.pytorch.Tensor
-import org.pytorch.torchvision.TensorImageUtils
-import java.io.File
-import java.io.FileOutputStream
-import java.nio.FloatBuffer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.max
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -30,49 +29,53 @@ class EditActivity : TemplateActivity() {
     override fun getLayoutId(): Int = R.layout.activity_edit
 
     private lateinit var imageView: ImageView
-    private lateinit var module: Module
+    private lateinit var shotDetector: TorchShotDetector
 
     // UI-кнопки
     private lateinit var btnEdit: Button
     private lateinit var btnAdd: Button
     private lateinit var btnRemove: Button
+    private lateinit var btnUndo: Button
     private lateinit var btnPrev: Button
     private lateinit var btnNext: Button
+    private lateinit var btnReset: Button
     private lateinit var btnBack: Button
     private lateinit var btnContinue: Button
 
-    private val points = mutableListOf<Pair<Float, Float>>()
+    private var shotEditor = ShotEditor()
     private var selectedIndex = -1
     private var editMode = false
     private var maxRadius: Float = 0f
     private var addMode = false
+    private var dragMode = false
+    private var restoredState = false
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         imageView.post {
-            var flag = true
-            val bitmap = (application as Application).imageHolder.getImage()
+            if (restoredState) {
+                redraw()
+                return@post
+            }
+            val bitmap = CapturedImageRepository.load(this)
             if (bitmap == null) {
                 Toast.makeText(this, "Нет фото для анализа", Toast.LENGTH_SHORT).show()
                 finish()
-                flag = false
+                return@post
             }
-            if (flag) {
-                module = LiteModuleLoader.load(assetFilePath(this, "model.ptl"))
 
-                val inputTensor = bitmapToTensor(bitmap!!)
-                val outputTensor = module.forward(IValue.from(inputTensor)).toTensor()
-                val scores = outputTensor.dataAsFloatArray
-
-                for (i in scores.indices step 2) {
-                    val r = scores[i]
-                    val theta = scores[i + 1]
-                    if (r in 0.0..1.0 && theta >= 0) {
-                        points.add(Pair(r, theta))
+            lifecycleScope.launch {
+                try {
+                    val detections = withContext(Dispatchers.Default) {
+                        shotDetector.detect(bitmap)
                     }
+                    shotEditor = ShotEditor(detections.map { polarToShotPoint(it.radiusNorm, it.angleDeg) })
+                    redraw()
+                } catch (e: Exception) {
+                    debugLog(e.message ?: "Ошибка распознавания")
+                    Toast.makeText(this@EditActivity, "Ошибка распознавания", Toast.LENGTH_SHORT).show()
+                    redraw()
                 }
-
-                redraw()
             }
         }
     }
@@ -80,16 +83,20 @@ class EditActivity : TemplateActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         imageView = findViewById(R.id.imageView)
+        shotDetector = TorchShotDetector(this)
 
         btnEdit = findViewById(R.id.btnEdit)
         btnAdd = findViewById(R.id.btnAdd)
         btnRemove = findViewById(R.id.btnRemove)
+        btnUndo = findViewById(R.id.btnUndo)
         btnPrev = findViewById(R.id.btnPrev)
         btnNext = findViewById(R.id.btnNxt)
+        btnReset = findViewById(R.id.btnReset)
         btnBack = findViewById(R.id.btnBack)
         btnContinue = findViewById(R.id.btnContinue)
 
         setEditButtonsVisible(false)
+        restoreState(savedInstanceState)
 
         btnEdit.setOnClickListener {
             editMode = !editMode
@@ -97,13 +104,15 @@ class EditActivity : TemplateActivity() {
             if (!editMode) {
                 selectedIndex = -1
                 addMode = false
-            } else if (points.isNotEmpty()) {
+                dragMode = false
+            } else if (shotEditor.snapshot().isNotEmpty()) {
                 selectedIndex = 0
             }
             redraw()
         }
 
         btnNext.setOnClickListener {
+            val points = shotEditor.snapshot()
             if (points.isNotEmpty()) {
                 selectedIndex = (selectedIndex + 1) % points.size
                 redraw()
@@ -111,6 +120,7 @@ class EditActivity : TemplateActivity() {
         }
 
         btnPrev.setOnClickListener {
+            val points = shotEditor.snapshot()
             if (points.isNotEmpty()) {
                 selectedIndex = if (selectedIndex - 1 < 0) points.size - 1 else selectedIndex - 1
                 redraw()
@@ -128,15 +138,30 @@ class EditActivity : TemplateActivity() {
         }
 
         btnRemove.setOnClickListener {
+            val points = shotEditor.snapshot()
             if (selectedIndex in points.indices) {
-                points.removeAt(selectedIndex)
-                if (points.isNotEmpty()) {
-                    selectedIndex %= points.size
+                shotEditor.remove(selectedIndex)
+                val updatedPoints = shotEditor.snapshot()
+                if (updatedPoints.isNotEmpty()) {
+                    selectedIndex %= updatedPoints.size
                 } else {
                     selectedIndex = -1
                 }
                 redraw()
             }
+        }
+
+        btnUndo.setOnClickListener {
+            if (shotEditor.undo()) {
+                normalizeSelectedIndex()
+                redraw()
+            }
+        }
+
+        btnReset.setOnClickListener {
+            shotEditor.reset()
+            normalizeSelectedIndex()
+            redraw()
         }
 
         btnBack.setOnClickListener {
@@ -146,8 +171,10 @@ class EditActivity : TemplateActivity() {
 
         btnContinue.setOnClickListener {
             val shots = mutableListOf<Shot>()
+            val points = shotEditor.snapshot()
             for (i in points.indices) {
-                shots.add(Shot(i + 1, parseRadius(points[i].first), points[i].first, points[i].second))
+                val radius = points[i].radiusNorm()
+                shots.add(Shot(i + 1, parseRadius(radius), radius, angleDeg(points[i])))
             }
             val series = Series(DataManager.getLastSeriesIndex() + 1, shots)
             DataManager.saveSeries(series, DataManager.getLastDistanceIndex())
@@ -155,115 +182,141 @@ class EditActivity : TemplateActivity() {
         }
 
         imageView.setOnTouchListener { _, event ->
-            if (editMode && addMode && event.action == MotionEvent.ACTION_DOWN && maxRadius != 0f) {
-                val x = event.x
-                val y = event.y
-                addPoint(x, y)
+            if (editMode && maxRadius != 0f) {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> handleTouchDown(event.x, event.y)
+                    MotionEvent.ACTION_MOVE -> handleTouchMove(event.x, event.y)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> dragMode = false
+                }
             }
             true
         }
     }
 
-    private fun parseRadius(radius: Float): Int {
-        val r = radius * 10f
-        if (r <= 0.5) return 11
-        return 10 - r.toInt()
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val points = shotEditor.snapshot()
+        outState.putFloatArray(STATE_X_POINTS, points.map { it.xNorm }.toFloatArray())
+        outState.putFloatArray(STATE_Y_POINTS, points.map { it.yNorm }.toFloatArray())
+        outState.putInt(STATE_SELECTED_INDEX, selectedIndex)
+        outState.putBoolean(STATE_EDIT_MODE, editMode)
+        outState.putBoolean(STATE_ADD_MODE, addMode)
     }
 
-    private fun addPoint(x: Float, y: Float) {
-        val cx = imageView.width / 2
-        val cy = imageView.height / 2
-        val dx = x - cx
-        val dy = y - cy
-        val r_pix = sqrt(dx * dx + dy * dy)
-        val max_r = if (cx < cy) cx else cy
-        val r = r_pix / max_r
-        val theta = Math.toDegrees(Math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        points.add(Pair(r, theta))
-        selectedIndex = points.size - 1
-        addMode = false
-        btnAdd.text = "Добавить"
-        redraw()
+    private fun parseRadius(radius: Float): Int {
+        return ScoreCalculator.scoreRadius(radius)
+    }
+
+    private fun restoreState(savedInstanceState: Bundle?) {
+        if (savedInstanceState == null) return
+        val xs = savedInstanceState.getFloatArray(STATE_X_POINTS) ?: return
+        val ys = savedInstanceState.getFloatArray(STATE_Y_POINTS) ?: return
+        if (xs.size != ys.size) return
+
+        shotEditor = ShotEditor(xs.indices.map { ShotPoint(xs[it], ys[it]) })
+        selectedIndex = savedInstanceState.getInt(STATE_SELECTED_INDEX, -1)
+        editMode = savedInstanceState.getBoolean(STATE_EDIT_MODE, false)
+        addMode = savedInstanceState.getBoolean(STATE_ADD_MODE, false)
+        restoredState = true
+        setEditButtonsVisible(editMode)
+        btnAdd.text = if (addMode) "Отмена" else "Добавить"
+        normalizeSelectedIndex()
     }
 
     private fun setEditButtonsVisible(visible: Boolean) {
         val v = if (visible) Button.VISIBLE else Button.GONE
         btnAdd.visibility = v
         btnRemove.visibility = v
+        btnUndo.visibility = v
         btnPrev.visibility = v
         btnNext.visibility = v
+        btnReset.visibility = v
         btnEdit.text = if (visible) "Сохранить" else "Редактировать"
     }
 
     private fun redraw() {
-        val bitmap = BitmapFactory.decodeResource(resources, R.drawable.target)
-        val scaled = Bitmap.createScaledBitmap(bitmap, 800, 800, true)
-        val copy = scaled.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(copy)
-
-        val paintNormal = Paint().apply {
-            color = Color.GREEN
-            style = Paint.Style.FILL
-            strokeWidth = 10f
-        }
-        val paintSelected = Paint().apply {
-            color = Color.CYAN
-            style = Paint.Style.FILL
-            strokeWidth = 12f
-        }
-
+        val copy = TargetOverlayRenderer.render(resources, shotEditor.snapshot(), selectedIndex)
         maxRadius = copy.width / 2f
-        val cx = maxRadius
-        val cy = maxRadius
-        for ((i, point) in points.withIndex()) {
-            val (r, theta) = point
-            val x = cx + r * cos(theta / 180f * PI) * maxRadius
-            val y = cy + r * sin(theta / 180f * PI) * maxRadius
-            val paint = if (i == selectedIndex) paintSelected else paintNormal
-            canvas.drawCircle(x.toFloat(), y.toFloat(), 12f, paint)
-        }
-
         imageView.setImageBitmap(copy)
     }
 
-    private fun assetFilePath(context: Context, assetName: String): String {
-        val file = File(context.filesDir, assetName)
-//        if (!file.exists() || file.length() == 0L) {
-        context.assets.open(assetName).use { input ->
-            FileOutputStream(file).use { output -> input.copyTo(output) }
+    private fun handleTouchDown(x: Float, y: Float) {
+        val point = eventToShotPoint(x, y)
+        if (addMode) {
+            shotEditor.add(point)
+            selectedIndex = shotEditor.snapshot().lastIndex
+            addMode = false
+            btnAdd.text = "Добавить"
+            redraw()
+            return
         }
-//        }
-        return file.absolutePath
-    }
-}
 
-
-fun bitmapToTensor(bitmap: Bitmap): Tensor {
-    val width = bitmap.width
-    val height = bitmap.height
-    val floatBuffer = FloatArray(3 * height * width)
-    val pixels = IntArray(width * height)
-    bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-    var offsetR = 0
-    var offsetG = height * width
-    var offsetB = 2 * height * width
-
-    for (y in 0 until height) {
-        for (x in 0 until width) {
-            val idx = y * width + x
-            val clr = pixels[idx]
-
-            val r = ((clr shr 16) and 0xFF) / 255f
-            val g = ((clr shr 8) and 0xFF) / 255f
-            val b = (clr and 0xFF) / 255f
-
-            floatBuffer[offsetR + idx] = r
-            floatBuffer[offsetG + idx] = g
-            floatBuffer[offsetB + idx] = b
+        val nearestIndex = findNearestPoint(point)
+        if (nearestIndex != -1) {
+            selectedIndex = nearestIndex
+            dragMode = true
+            redraw()
         }
     }
 
-    // создаем тензор формы [1, 3, H, W]
-    return Tensor.fromBlob(floatBuffer, longArrayOf(1, 3, height.toLong(), width.toLong()))
+    private fun handleTouchMove(x: Float, y: Float) {
+        if (!dragMode || selectedIndex !in shotEditor.snapshot().indices) return
+        shotEditor.move(selectedIndex, eventToShotPoint(x, y))
+        redraw()
+    }
+
+    private fun eventToShotPoint(x: Float, y: Float): ShotPoint {
+        val cx = imageView.width / 2f
+        val cy = imageView.height / 2f
+        val maxR = minOf(cx, cy)
+        return ShotPoint(
+            ((x - cx) / maxR).coerceIn(-1f, 1f),
+            ((y - cy) / maxR).coerceIn(-1f, 1f)
+        )
+    }
+
+    private fun findNearestPoint(point: ShotPoint): Int {
+        val points = shotEditor.snapshot()
+        var nearestIndex = -1
+        var nearestDistance = Float.MAX_VALUE
+        for ((index, candidate) in points.withIndex()) {
+            val dx = candidate.xNorm - point.xNorm
+            val dy = candidate.yNorm - point.yNorm
+            val distance = sqrt(dx * dx + dy * dy)
+            if (distance < nearestDistance) {
+                nearestDistance = distance
+                nearestIndex = index
+            }
+        }
+        return if (nearestDistance <= 0.12f) nearestIndex else -1
+    }
+
+    private fun normalizeSelectedIndex() {
+        val points = shotEditor.snapshot()
+        selectedIndex = when {
+            points.isEmpty() -> -1
+            selectedIndex !in points.indices -> points.lastIndex
+            else -> selectedIndex
+        }
+    }
+
+    private fun polarToShotPoint(radius: Float, angleDeg: Float): ShotPoint {
+        val angleRad = angleDeg / 180f * PI
+        return ShotPoint(
+            (radius * cos(angleRad)).toFloat(),
+            (radius * sin(angleRad)).toFloat()
+        )
+    }
+
+    private fun angleDeg(point: ShotPoint): Float {
+        return Math.toDegrees(atan2(point.yNorm.toDouble(), point.xNorm.toDouble())).toFloat()
+    }
+
+    companion object {
+        private const val STATE_X_POINTS = "state_x_points"
+        private const val STATE_Y_POINTS = "state_y_points"
+        private const val STATE_SELECTED_INDEX = "state_selected_index"
+        private const val STATE_EDIT_MODE = "state_edit_mode"
+        private const val STATE_ADD_MODE = "state_add_mode"
+    }
 }

@@ -1,0 +1,11 @@
+{
+  "epochs": 100,
+  "batch_size": 32,
+  "learning_rate": 0.005,
+  "train_test_split": 0.2,
+  "seed": 42,
+  "num_aug": 4,
+  "weight_decay": 0.00001,
+  "loss_alpha": 1.0,
+  "loss_beta": 10.0
+}

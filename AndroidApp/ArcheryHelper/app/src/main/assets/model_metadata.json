@@ -1,0 +1,9 @@
+{
+  "contract_version": 1,
+  "width": 256,
+  "height": 256,
+  "output": "shot_set_polar",
+  "max_shots": 6,
+  "coordinate_system": "target_center_polar",
+  "confidence_threshold": 0.5
+}

@@ -41,8 +41,11 @@ class ManualInputActivity : TemplateActivity() {
         }
 
         findViewById<Button>(R.id.btnRemove).setOnClickListener {
-            series.shots.removeAt(series.shots.size - 1)
-            adapter.notifyDataSetChanged()
+            if (series.shots.isNotEmpty()) {
+                series.shots.removeAt(series.shots.size - 1)
+                adapter.notifyDataSetChanged()
+                update()
+            }
         }
 
         findViewById<Button>(R.id.btnAddShot).setOnClickListener {
@@ -51,6 +54,7 @@ class ManualInputActivity : TemplateActivity() {
 
         sumView = findViewById(R.id.shotsSum)
         avgView = findViewById(R.id.shotsAvg)
+        update()
     }
 
     private fun showNumberPicker() {
@@ -71,7 +75,6 @@ class ManualInputActivity : TemplateActivity() {
             .setPositiveButton("OK") { _, _ ->
                 val selectedResult = scores[numberPicker.value] // 11 для "X"
                 addShot(selectedResult)
-                update()
             }
             .setNegativeButton("Отмена", null)
             .create()
@@ -82,6 +85,7 @@ class ManualInputActivity : TemplateActivity() {
     private fun addShot(result: Int) {
         series.shots.add(Shot(series.shots.size + 1, result))
         adapter.notifyDataSetChanged()
+        update()
     }
 
     private fun update() {

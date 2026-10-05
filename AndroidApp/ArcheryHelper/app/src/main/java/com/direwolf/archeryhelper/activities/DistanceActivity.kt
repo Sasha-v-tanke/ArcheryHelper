@@ -7,6 +7,7 @@ import android.provider.ContactsContract.Data
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.direwolf.archeryhelper.R
@@ -86,8 +87,13 @@ class DistanceActivity : TemplateActivity() {
                 .setView(input)
                 .setPositiveButton("OK") { dialog, which ->
                     val userInput = input.text.toString()
-                    distanceNameView.text = "Дистанция: ${userInput}м"
-                    DataManager.updateDistance(DataManager.getLastDistanceIndex(), input.text.toString().toInt())
+                    val distanceMeters = userInput.toIntOrNull()
+                    if (distanceMeters == null || distanceMeters <= 0) {
+                        Toast.makeText(this, "Введите положительное число", Toast.LENGTH_SHORT).show()
+                    } else {
+                        distanceNameView.text = "Дистанция: ${distanceMeters}м"
+                        DataManager.updateDistance(DataManager.getLastDistanceIndex(), distanceMeters)
+                    }
                 }
                 .setNegativeButton("Отмена") { dialog, which ->
                     dialog.cancel()

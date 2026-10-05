@@ -1,0 +1,50 @@
+name: Baseline
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - name: Run Python unit baseline
+        run: |
+          python -m unittest \
+            src.ai.test.test_contracts \
+            src.ai.test.test_evaluation \
+            src.ai.test.test_predictions \
+            src.ai.test.test_splits \
+            src.ai.test.test_training_config
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: AndroidApp/ArcheryHelper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare Gradle wrapper
+        run: chmod +x gradlew
+      - name: Run Android unit tests and debug build
+        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
+      - name: Verify Room schema is committed
+        run: |
+          if [ -n "$(git status --porcelain -- app/schemas)" ]; then
+            echo "Room schema differs from the committed baseline:"
+            git status --short -- app/schemas
+            find app/schemas -type f -name '*.json' -print -exec cat {} \;
+            exit 1
+          fi

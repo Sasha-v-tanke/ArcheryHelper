@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.ai.model_metadata import MODEL_METADATA, load_model_metadata, write_model_metadata
-from src.ai.predictions import decode_predictions
+from neural_network.model_metadata import MODEL_METADATA, load_model_metadata, write_model_metadata
+from neural_network.predictions import decode_predictions
 
 
 class PredictionsTest(unittest.TestCase):
@@ -36,7 +36,7 @@ class PredictionsTest(unittest.TestCase):
 
     def test_android_asset_matches_python_metadata(self):
         android_metadata = Path(
-            "AndroidApp/ArcheryHelper/app/src/main/assets/model_metadata.json"
+            "app/app/src/main/assets/model_metadata.json"
         )
         data = json.loads(android_metadata.read_text(encoding="utf-8"))
 

@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 from torchvision import transforms
 
 from path_manager import CONVERTED_DATASET_PATH, NEW_NORMALIZED_DATASET, MODELS
-from src.ai.model import ArcheryResNet
-from src.ai.config import OUTPUT_DIM
-from src.ai.utils import get_device, load_model
-from src.ai.transform import CustomAugmentation
-from src.ai.ui import draw_target
+from neural_network.model import ArcheryResNet
+from neural_network.config import OUTPUT_DIM
+from neural_network.utils import get_device, load_model
+from neural_network.transform import CustomAugmentation
+from neural_network.ui import draw_target
 
 
 # === Проверка одной картинки ===

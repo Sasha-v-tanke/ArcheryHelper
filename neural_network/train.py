@@ -6,15 +6,15 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 from path_manager import NEW_NORMALIZED_DATASET, NEW_DATASET_PATH, CONVERTED_DATASET_PATH
-from src.ai.config import LEARNING_RATE, BATCH_SIZE, EPOCHS, TRAIN_TEST_SPLIT, MAX_SHOTS, SHOT
-from src.ai.criterion import ArrowCriterion
-from src.ai.dataset import ArcheryDataset
-from src.ai.model import ArcheryResNet
-from src.ai.splits import expanded_sample_indices
-from src.ai.transform import CustomAugmentation
-from src.ai.training_config import TrainingConfig, load_training_config, set_training_seed
-from src.ai.ui import show_history
-from src.ai.utils import get_device, collate_fn, save_model
+from neural_network.config import LEARNING_RATE, BATCH_SIZE, EPOCHS, TRAIN_TEST_SPLIT, MAX_SHOTS, SHOT
+from neural_network.criterion import ArrowCriterion
+from neural_network.dataset import ArcheryDataset
+from neural_network.model import ArcheryResNet
+from neural_network.splits import expanded_sample_indices
+from neural_network.transform import CustomAugmentation
+from neural_network.training_config import TrainingConfig, load_training_config, set_training_seed
+from neural_network.ui import show_history
+from neural_network.utils import get_device, collate_fn, save_model
 
 
 # ==== Train ====

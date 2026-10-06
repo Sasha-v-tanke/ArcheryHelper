@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.ai.training_config import TrainingConfig, load_training_config, save_training_config
+from neural_network.training_config import TrainingConfig, load_training_config, save_training_config
 
 
 class TrainingConfigTest(unittest.TestCase):

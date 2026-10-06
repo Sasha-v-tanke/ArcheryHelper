@@ -17,16 +17,21 @@ jobs:
           python-version-file: .python-version
       - name: Run Python unit baseline
         run: |
-          for test_file in             test_contracts.py             test_evaluation.py             test_predictions.py             test_splits.py             test_training_config.py
+          for test_file in \
+            test_contracts.py \
+            test_evaluation.py \
+            test_predictions.py \
+            test_splits.py \
+            test_training_config.py
           do
-            python -m unittest discover -s src/ai/test -p "$test_file"
+            python -m unittest discover -s neural_network/tests -p "$test_file"
           done
 
   android:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: AndroidApp/ArcheryHelper
+        working-directory: app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4

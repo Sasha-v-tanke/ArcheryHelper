@@ -2,7 +2,7 @@ import torch.nn as nn
 from torchvision import models
 from torchvision.models import ResNet18_Weights
 
-from src.ai.config import OUTPUT_DIM
+from neural_network.config import OUTPUT_DIM
 
 
 class ArcheryResNet(nn.Module):

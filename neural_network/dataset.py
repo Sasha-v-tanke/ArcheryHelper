@@ -5,8 +5,8 @@ from PIL import Image
 from torchvision import transforms
 from pathlib import Path
 
-from src.ai.config import MAX_SHOTS, MISS, SHOT, IMG_SIZE
-from src.ai.contracts import build_manifest_from_dirs
+from neural_network.config import MAX_SHOTS, MISS, SHOT, IMG_SIZE
+from neural_network.contracts import build_manifest_from_dirs
 
 
 class ArcheryDataset(Dataset):

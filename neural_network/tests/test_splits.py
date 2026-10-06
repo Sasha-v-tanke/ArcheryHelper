@@ -1,6 +1,6 @@
 import unittest
 
-from src.ai.splits import expanded_sample_indices
+from neural_network.splits import expanded_sample_indices
 
 
 class SplitsTest(unittest.TestCase):

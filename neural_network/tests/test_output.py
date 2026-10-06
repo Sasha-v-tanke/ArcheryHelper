@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from src.ai.ui import draw_target
+from neural_network.ui import draw_target
 
 if __name__ == '__main__':
     output = [0.02080202, 1.3568408, 0.003408637, 1.5882763, -0.01461004, 1.4385384, -0.48691177, 1.3041178,

@@ -1,7 +1,7 @@
 import random
 from PIL import ImageEnhance
 
-from src.ai.config import IMG_SIZE, SHOT
+from neural_network.config import IMG_SIZE, SHOT
 
 
 class CustomAugmentation:

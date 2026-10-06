@@ -1,12 +1,17 @@
 package com.direwolf.archeryhelper.stats
 
 import com.direwolf.archeryhelper.domain.ShotPoint
+import com.direwolf.archeryhelper.domain.TargetConfig
+import com.direwolf.archeryhelper.domain.TargetFormat
+import com.direwolf.archeryhelper.domain.TargetTemplate
+import com.direwolf.archeryhelper.domain.TenRingMode
 import kotlin.math.max
 import kotlin.math.sqrt
 
-data class TargetGeometry(
-    val rings: Int = 10,
-    val xRingRadiusNorm: Float = 0.05f
+data class ScoreResult(
+    val finalCandidate: Int,
+    val isX: Boolean,
+    val lineCall: Boolean
 )
 
 data class SeriesStatistics(
@@ -21,24 +26,58 @@ data class SeriesStatistics(
 )
 
 interface ScoringEngine {
-    fun score(target: TargetGeometry, shot: ShotPoint): Int
-    fun analyze(target: TargetGeometry, shots: List<ShotPoint>): SeriesStatistics
+    fun score(
+        targetTemplate: TargetTemplate,
+        impact: ShotPoint,
+        arrowDiameterMm: Float? = null,
+        localizationError: Float = 0f
+    ): ScoreResult
+
+    fun analyze(targetTemplate: TargetTemplate, shots: List<ShotPoint>): SeriesStatistics
 }
 
 class ArcheryScoringEngine : ScoringEngine {
-    override fun score(target: TargetGeometry, shot: ShotPoint): Int {
-        val radius = shot.radiusNorm()
-        if (radius <= target.xRingRadiusNorm) return 11
-        if (radius > 1f) return 0
-        return max(0, target.rings - (radius * target.rings).toInt())
+    override fun score(
+        targetTemplate: TargetTemplate,
+        impact: ShotPoint,
+        arrowDiameterMm: Float?,
+        localizationError: Float
+    ): ScoreResult {
+        require(localizationError.isFinite() && localizationError >= 0f)
+
+        val diameter = arrowDiameterMm ?: targetTemplate.config.arrowDiameterMm
+        require(diameter == null || (diameter.isFinite() && diameter > 0f))
+
+        val shaftRadiusNorm = if (diameter == null) {
+            0f
+        } else {
+            diameter / targetTemplate.config.faceDiameterMm
+        }
+        val centerRadius = impact.radiusNorm()
+        val scoringRadius = max(0f, centerRadius - shaftRadiusNorm)
+        val finalCandidate = targetTemplate.ringBoundaries
+            .firstOrNull { scoringRadius <= it.radiusNorm }
+            ?.score
+            ?: 0
+        val isX = finalCandidate == 10 && scoringRadius <= targetTemplate.xRingRadiusNorm
+        val lineCall = isLineCall(
+            targetTemplate = targetTemplate,
+            centerRadius = centerRadius,
+            shaftRadiusNorm = shaftRadiusNorm,
+            localizationError = localizationError
+        )
+        return ScoreResult(finalCandidate, isX, lineCall)
     }
 
-    override fun analyze(target: TargetGeometry, shots: List<ShotPoint>): SeriesStatistics {
+    override fun analyze(targetTemplate: TargetTemplate, shots: List<ShotPoint>): SeriesStatistics {
         if (shots.isEmpty()) {
             return SeriesStatistics(0, 0.0, ShotPoint(0f, 0f), 0f, 0f, 0f, 0f, emptyMap())
         }
 
-        val scores = shots.map { score(target, it) }
+        val scores = shots.map {
+            val result = score(targetTemplate, it)
+            if (result.isX) 11 else result.finalCandidate
+        }
         val center = ShotPoint(
             shots.sumOf { it.xNorm.toDouble() }.toFloat() / shots.size,
             shots.sumOf { it.yNorm.toDouble() }.toFloat() / shots.size
@@ -67,13 +106,36 @@ class ArcheryScoringEngine : ScoringEngine {
             ringCounts = scores.groupingBy { it }.eachCount()
         )
     }
+
+    private fun isLineCall(
+        targetTemplate: TargetTemplate,
+        centerRadius: Float,
+        shaftRadiusNorm: Float,
+        localizationError: Float
+    ): Boolean {
+        if (localizationError == 0f) return false
+
+        val lower = max(0f, centerRadius - localizationError - shaftRadiusNorm)
+        val upper = max(0f, centerRadius + localizationError - shaftRadiusNorm)
+        val boundaries = targetTemplate.ringBoundaries.map { it.radiusNorm } + targetTemplate.xRingRadiusNorm
+        return boundaries.any { it in lower..upper }
+    }
 }
 
 object ScoreCalculator {
-    private val defaultEngine = ArcheryScoringEngine()
-    private val defaultTarget = TargetGeometry()
+    private val defaultEngine: ScoringEngine = ArcheryScoringEngine()
+    private val defaultTarget = TargetTemplate.from(
+        TargetConfig(
+            format = TargetFormat.SINGLE,
+            tripleLayout = null,
+            minimumScoringZone = 1,
+            tenRingMode = TenRingMode.RECURVE,
+            faceDiameterMm = 400
+        )
+    )
 
     fun scoreRadius(radiusNorm: Float): Int {
-        return defaultEngine.score(defaultTarget, ShotPoint(radiusNorm, 0f))
+        val result = defaultEngine.score(defaultTarget, ShotPoint(radiusNorm, 0f))
+        return if (result.isX) 11 else result.finalCandidate
     }
 }

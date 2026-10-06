@@ -2,8 +2,8 @@ import os
 import torch
 
 from path_manager import MODELS
-from src.ai.config import MISS, SHOT
-from src.ai.model import ArcheryResNet
+from neural_network.config import MISS, SHOT
+from neural_network.model import ArcheryResNet
 
 
 def get_device() -> torch.device:

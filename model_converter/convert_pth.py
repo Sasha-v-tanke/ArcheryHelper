@@ -3,10 +3,10 @@ from PIL import Image
 from torchvision import transforms
 
 from path_manager import MODELS, CONVERTED_DATASET_PATH
-from src.ai.config import OUTPUT_DIM
-from src.ai.model import ArcheryResNet
-from src.ai.model_metadata import write_model_metadata, write_sha256
-from src.ai.utils import load_model
+from neural_network.config import OUTPUT_DIM
+from neural_network.model import ArcheryResNet
+from neural_network.model_metadata import write_model_metadata, write_sha256
+from neural_network.utils import load_model
 
 
 def convert():

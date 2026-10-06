@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Sequence
 
-from src.ai.contracts import ShotAnnotation
+from neural_network.contracts import ShotAnnotation
 
 
 @dataclass(frozen=True)

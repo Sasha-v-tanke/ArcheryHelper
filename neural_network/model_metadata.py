@@ -2,8 +2,8 @@ import hashlib
 import json
 from pathlib import Path
 
-from src.ai.config import IMG_SIZE, MAX_SHOTS
-from src.ai.contracts import ModelMetadata
+from neural_network.config import IMG_SIZE, MAX_SHOTS
+from neural_network.contracts import ModelMetadata
 
 
 MODEL_METADATA = ModelMetadata(

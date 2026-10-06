@@ -4,8 +4,8 @@ import numpy as np
 from PIL import Image
 from pathlib import Path
 
-from src.ai.config import SHOT
-from src.ai.predictions import decode_predictions
+from neural_network.config import SHOT
+from neural_network.predictions import decode_predictions
 
 
 def draw_target(shots: list):

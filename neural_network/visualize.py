@@ -3,12 +3,12 @@ import numpy as np
 import torch
 
 from path_manager import NEW_NORMALIZED_DATASET, CONVERTED_DATASET_PATH
-from src.ai.model import ArcheryResNet
-from src.ai.config import *
-from src.ai.dataset import ArcheryDataset
-from src.ai.transform import CustomAugmentation
-from src.ai.ui import draw_target
-from src.ai.utils import get_device, load_model
+from neural_network.model import ArcheryResNet
+from neural_network.config import *
+from neural_network.dataset import ArcheryDataset
+from neural_network.transform import CustomAugmentation
+from neural_network.ui import draw_target
+from neural_network.utils import get_device, load_model
 
 
 def visualize_model(model: ArcheryResNet, dataset: ArcheryDataset, device: torch.device, n_samples: int = 3):

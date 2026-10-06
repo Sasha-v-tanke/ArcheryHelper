@@ -1,7 +1,7 @@
 import unittest
 
-from src.ai.contracts import ShotAnnotation
-from src.ai.evaluation import evaluate_detections
+from neural_network.contracts import ShotAnnotation
+from neural_network.evaluation import evaluate_detections
 
 
 class EvaluationTest(unittest.TestCase):

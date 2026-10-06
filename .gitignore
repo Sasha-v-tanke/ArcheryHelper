@@ -7,15 +7,15 @@
 /draft/normalize/
 /draft/aligned/
 
-/DataConverter/.idea/
-/DataConverter/out/
-/DataConverter/DataConverter.iml
+/dataset_tools/data_converter/.idea/
+/dataset_tools/data_converter/out/
+/dataset_tools/data_converter/DataConverter.iml
 
-/AndroidApp/ArcheryHelper/.gradle
-/AndroidApp/ArcheryHelper/.idea
-/AndroidApp/ArcheryHelper/build
+/app/.gradle
+/app/.idea
+/app/build
 
 /runs
 /models
 
-/src/roboflow/archery-1
+/dataset_tools/roboflow/archery-1

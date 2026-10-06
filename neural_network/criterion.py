@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from src.ai.config import SHOT
+from neural_network.config import SHOT
 
 
 class ArrowCriterion(nn.Module):

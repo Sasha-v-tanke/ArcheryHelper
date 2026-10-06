@@ -5,7 +5,7 @@ import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from src.ai.config import BATCH_SIZE, EPOCHS, LEARNING_RATE, TRAIN_TEST_SPLIT
+from neural_network.config import BATCH_SIZE, EPOCHS, LEARNING_RATE, TRAIN_TEST_SPLIT
 
 
 @dataclass(frozen=True)

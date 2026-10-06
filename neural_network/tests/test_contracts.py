@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.ai.contracts import (
+from neural_network.contracts import (
     DatasetSample,
     ModelInputSpec,
     ModelMetadata,

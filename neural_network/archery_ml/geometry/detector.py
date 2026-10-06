@@ -12,7 +12,7 @@ from neural_network.archery_ml.geometry.target_templates import (
     GeometryTemplate,
     geometry_template,
 )
-from neural_network.archery_ml.targets import TargetConfig, TargetFormat, TripleLayout
+from neural_network.archery_ml.targets import TargetConfig, TripleLayout
 
 
 @dataclass(frozen=True)
@@ -208,9 +208,9 @@ def _target_color_masks(image: np.ndarray) -> dict[str, np.ndarray]:
     blue_lab = np.where((b_channel <= 142) & (saturation >= 35), 255, 0).astype(np.uint8)
 
     masks = {
-        "yellow": cv2.bitwise_or(yellow_hsv, cv2.bitwise_and(yellow_hsv, yellow_lab)),
-        "red": cv2.bitwise_or(red_hsv, cv2.bitwise_and(red_hsv, red_lab)),
-        "blue": cv2.bitwise_or(blue_hsv, cv2.bitwise_and(blue_hsv, blue_lab)),
+        "yellow": cv2.bitwise_or(yellow_hsv, yellow_lab),
+        "red": cv2.bitwise_or(red_hsv, red_lab),
+        "blue": cv2.bitwise_or(blue_hsv, blue_lab),
     }
     kernel = np.ones((3, 3), dtype=np.uint8)
     for name, mask in tuple(masks.items()):

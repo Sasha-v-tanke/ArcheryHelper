@@ -100,8 +100,9 @@ class TargetGeometryDetector:
         masks = _target_color_masks(rgb)
         candidates = _face_candidates(masks, width, height)
         ordered_candidates, layout_valid = _order_candidates(candidates, template)
+        orientation_axes = _layout_axes(ordered_candidates, template)
         faces = tuple(
-            self._fit_face(index, candidate, masks, template, width, height)
+            self._fit_face(index, candidate, masks, template, width, height, orientation_axes)
             for index, candidate in enumerate(ordered_candidates)
         )
         bounds = _aggregate_bounds(faces)
@@ -130,9 +131,14 @@ class TargetGeometryDetector:
         template: GeometryTemplate,
         image_width: int,
         image_height: int,
+        orientation_axes: tuple[np.ndarray, np.ndarray],
     ) -> FaceGeometry:
         rings = _associated_rings(candidate, masks, template)
-        image_to_norm = _initial_image_to_norm(candidate.ellipse, template.colored_outer_radius_norm)
+        image_to_norm = _initial_image_to_norm(
+            candidate,
+            template.colored_outer_radius_norm,
+            orientation_axes,
+        )
         if rings:
             image_to_norm = _fit_projective_transform(image_to_norm, rings)
         fit_error = _ring_fit_error(image_to_norm, rings)
@@ -203,9 +209,21 @@ def _target_color_masks(image: np.ndarray) -> dict[str, np.ndarray]:
     )
     blue_hsv = cv2.inRange(hsv, np.array([85, 45, 25]), np.array([140, 255, 255]))
 
-    yellow_lab = np.where((b_channel >= 142) & (saturation >= 45), 255, 0).astype(np.uint8)
-    red_lab = np.where((a_channel >= 142) & (saturation >= 45), 255, 0).astype(np.uint8)
-    blue_lab = np.where((b_channel <= 142) & (saturation >= 35), 255, 0).astype(np.uint8)
+    yellow_lab = np.where(
+        (b_channel >= 155) & (a_channel <= 150) & (saturation >= 35),
+        255,
+        0,
+    ).astype(np.uint8)
+    red_lab = np.where(
+        (a_channel >= 155) & (b_channel >= 140) & (saturation >= 35),
+        255,
+        0,
+    ).astype(np.uint8)
+    blue_lab = np.where(
+        (b_channel <= 120) & (a_channel <= 170) & (saturation >= 30),
+        255,
+        0,
+    ).astype(np.uint8)
 
     masks = {
         "yellow": cv2.bitwise_or(yellow_hsv, yellow_lab),
@@ -305,22 +323,24 @@ def _associated_rings(
     return rings
 
 
-def _initial_image_to_norm(ellipse: EllipseFit, radius_norm: float) -> np.ndarray:
-    angle = math.radians(ellipse.angle_deg)
-    cos_angle = math.cos(angle)
-    sin_angle = math.sin(angle)
-    rotation = np.array(
-        [[cos_angle, sin_angle], [-sin_angle, cos_angle]],
+def _initial_image_to_norm(
+    candidate: _Candidate,
+    radius_norm: float,
+    orientation_axes: tuple[np.ndarray, np.ndarray],
+) -> np.ndarray:
+    center = np.array(
+        [candidate.ellipse.center_x, candidate.ellipse.center_y],
         dtype=np.float64,
     )
-    scale = np.diag(
-        [
-            2.0 * radius_norm / max(ellipse.diameter_x, 1e-6),
-            2.0 * radius_norm / max(ellipse.diameter_y, 1e-6),
-        ]
-    )
-    linear = scale @ rotation
-    center = np.array([ellipse.center_x, ellipse.center_y], dtype=np.float64)
+    contour_points = candidate.contour.reshape(-1, 2).astype(np.float64) - center
+    linear_rows = []
+    for axis in orientation_axes:
+        unit = np.asarray(axis, dtype=np.float64)
+        unit /= max(float(np.linalg.norm(unit)), 1e-6)
+        projection = contour_points @ unit
+        diameter = max(float(projection.max() - projection.min()), 1e-6)
+        linear_rows.append(unit * (2.0 * radius_norm / diameter))
+    linear = np.vstack(linear_rows)
     translation = -linear @ center
     return np.array(
         [
@@ -447,6 +467,33 @@ def _order_triangular(candidates: list[_Candidate]) -> tuple[list[_Candidate], b
     remaining.sort(key=lambda index: centers[index, 0])
     ordered = [candidates[top_index], candidates[remaining[0]], candidates[remaining[1]]]
     return ordered, bool(valid)
+
+
+def _layout_axes(
+    ordered_candidates: list[_Candidate],
+    template: GeometryTemplate,
+) -> tuple[np.ndarray, np.ndarray]:
+    if template.expected_face_count != 3 or len(ordered_candidates) != 3:
+        return (
+            np.array([1.0, 0.0], dtype=np.float64),
+            np.array([0.0, 1.0], dtype=np.float64),
+        )
+    centers = np.asarray(
+        [
+            [candidate.ellipse.center_x, candidate.ellipse.center_y]
+            for candidate in ordered_candidates
+        ],
+        dtype=np.float64,
+    )
+    if template.triple_layout is TripleLayout.VERTICAL:
+        y_axis = centers[2] - centers[0]
+    elif template.triple_layout is TripleLayout.TRIANGULAR:
+        y_axis = 0.5 * (centers[1] + centers[2]) - centers[0]
+    else:
+        y_axis = np.array([0.0, 1.0], dtype=np.float64)
+    y_axis /= max(float(np.linalg.norm(y_axis)), 1e-6)
+    x_axis = np.array([y_axis[1], -y_axis[0]], dtype=np.float64)
+    return x_axis, y_axis
 
 
 def _ellipse_from_cv(ellipse: tuple) -> EllipseFit:

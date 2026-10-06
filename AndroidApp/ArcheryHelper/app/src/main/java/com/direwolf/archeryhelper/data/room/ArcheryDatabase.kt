@@ -10,7 +10,7 @@ import androidx.room.RoomDatabase
         ShotEntity::class
     ],
     version = 1,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class ArcheryDatabase : RoomDatabase() {
     abstract fun archeryDao(): ArcheryDao

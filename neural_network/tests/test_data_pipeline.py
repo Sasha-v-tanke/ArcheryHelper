@@ -60,6 +60,57 @@ class DatasetPipelineTest(unittest.TestCase):
             self.assertEqual(result.samples[0].group_id, result.samples[1].group_id)
             self.assertEqual(1, len(result.near_duplicate_groups))
 
+    def test_dedup_preserves_group_membership_from_removed_exact_duplicate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = root / "a.png"
+            exact = root / "b.png"
+            related = root / "c.png"
+            Image.new("RGB", (9, 8), (0, 0, 0)).save(original)
+            exact.write_bytes(original.read_bytes())
+            gradient = Image.new("L", (9, 8))
+            gradient.putdata(
+                [255 - column * 28 for _row in range(8) for column in range(9)]
+            )
+            gradient.convert("RGB").save(related)
+            annotation = (ImpactAnnotation(0.0, 0.0),)
+            samples = [
+                self._sample("a", original, "group-a", annotation),
+                self._sample("b", exact, "group-b", annotation),
+                self._sample("c", related, "group-b", annotation),
+            ]
+
+            result = deduplicate_samples(samples, perceptual_threshold=0)
+
+            groups = {sample.id: sample.group_id for sample in result.samples}
+            self.assertEqual(("b",), result.exact_duplicates_removed)
+            self.assertEqual(groups["a"], groups["c"])
+            self.assertEqual((), result.near_duplicate_groups)
+
+    def test_dedup_rejects_exact_duplicate_across_mobile_real_test_boundary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            training = root / "train.png"
+            mobile = root / "mobile.png"
+            Image.new("RGB", (8, 8), (0, 0, 0)).save(training)
+            mobile.write_bytes(training.read_bytes())
+            annotation = (ImpactAnnotation(0.0, 0.0),)
+            samples = [
+                self._sample("train", training, "train-group", annotation),
+                DatasetSample(
+                    id="mobile",
+                    image_path=mobile,
+                    annotation_path=None,
+                    split="mobile_real_test",
+                    source_id="source",
+                    group_id="mobile-group",
+                    annotations=annotation,
+                ),
+            ]
+
+            with self.assertRaisesRegex(ValueError, "mobile_real_test"):
+                deduplicate_samples(samples)
+
     def test_split_is_deterministic_group_aware_and_preserves_mobile_real_test(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

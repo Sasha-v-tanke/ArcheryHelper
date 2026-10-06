@@ -93,17 +93,23 @@ def deduplicate_samples(
     if perceptual_threshold < 0:
         raise ValueError("perceptual_threshold must be non-negative")
 
-    exact_by_hash: dict[str, DatasetSample] = {}
+    exact_by_hash: dict[str, int] = {}
     retained: list[DatasetSample] = []
     removed: list[str] = []
+    group_links: list[tuple[int, str]] = []
 
     for sample in sorted(samples, key=lambda item: item.id):
         digest = _sha256(sample.image_path)
-        representative = exact_by_hash.get(digest)
-        if representative is None:
-            exact_by_hash[digest] = sample
+        representative_index = exact_by_hash.get(digest)
+        group_key = sample.group_id or sample.id
+        if representative_index is None:
+            representative_index = len(retained)
+            exact_by_hash[digest] = representative_index
             retained.append(sample)
+            group_links.append((representative_index, group_key))
             continue
+
+        representative = retained[representative_index]
         if (
             representative.annotations != sample.annotations
             or representative.target_metadata != sample.target_metadata
@@ -112,36 +118,48 @@ def deduplicate_samples(
                 f"exact duplicate images have conflicting annotations: "
                 f"{representative.id}, {sample.id}"
             )
+        if (representative.split == "mobile_real_test") != (
+            sample.split == "mobile_real_test"
+        ):
+            raise ValueError(
+                f"exact duplicate images cross mobile_real_test boundary: "
+                f"{representative.id}, {sample.id}"
+            )
         removed.append(sample.id)
+        group_links.append((representative_index, group_key))
 
     union_find = _UnionFind(len(retained))
     groups_by_id: dict[str, int] = {}
-    for index, sample in enumerate(retained):
-        key = sample.group_id or sample.id
-        previous = groups_by_id.get(key)
+    for index, group_key in group_links:
+        previous = groups_by_id.get(group_key)
         if previous is not None:
             union_find.union(previous, index)
         else:
-            groups_by_id[key] = index
+            groups_by_id[group_key] = index
 
+    perceptual_union_find = _UnionFind(len(retained))
     tree = _BKTree()
     for index, sample in enumerate(retained):
         perceptual_hash = _dhash(sample.image_path)
         for match in tree.query(perceptual_hash, perceptual_threshold):
             union_find.union(match, index)
+            perceptual_union_find.union(match, index)
         tree.add(perceptual_hash, index)
 
     components: dict[int, list[int]] = {}
     for index in range(len(retained)):
         components.setdefault(union_find.find(index), []).append(index)
 
+    perceptual_components: dict[int, list[int]] = {}
+    for index in range(len(retained)):
+        perceptual_components.setdefault(
+            perceptual_union_find.find(index),
+            [],
+        ).append(index)
+
     updated = list(retained)
-    near_groups: list[tuple[str, ...]] = []
     for members in components.values():
         member_samples = [retained[index] for index in members]
-        if len(member_samples) > 1:
-            near_groups.append(tuple(sorted(sample.id for sample in member_samples)))
-
         existing_group_ids = {sample.group_id for sample in member_samples if sample.group_id}
         if len(existing_group_ids) == 1:
             merged_group_id = next(iter(existing_group_ids))
@@ -153,6 +171,12 @@ def deduplicate_samples(
 
         for index in members:
             updated[index] = replace(retained[index], group_id=merged_group_id)
+
+    near_groups = [
+        tuple(sorted(retained[index].id for index in members))
+        for members in perceptual_components.values()
+        if len(members) > 1
+    ]
 
     return DeduplicationResult(
         samples=tuple(sorted(updated, key=lambda sample: sample.id)),

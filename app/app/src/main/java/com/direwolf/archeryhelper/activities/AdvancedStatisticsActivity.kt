@@ -6,11 +6,8 @@ import android.widget.ImageView
 import com.direwolf.archeryhelper.R
 import com.direwolf.archeryhelper.domain.ShotPoint
 import com.direwolf.archeryhelper.managers.DataManager
-import com.direwolf.archeryhelper.utils.Shot
 import com.direwolf.archeryhelper.ui.TargetOverlayRenderer
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
+import com.direwolf.archeryhelper.utils.Shot
 
 class AdvancedStatisticsActivity : TemplateActivity() {
     override fun getLayoutId(): Int = R.layout.activity_advanced_statistics
@@ -38,12 +35,8 @@ class AdvancedStatisticsActivity : TemplateActivity() {
 
     private fun redraw() {
         val points = shots.mapNotNull { shot ->
-            if (shot.distance == null || shot.angle == null) return@mapNotNull null
-            val angleRad = shot.angle / 180f * PI
-            ShotPoint(
-                (shot.distance * cos(angleRad)).toFloat(),
-                (shot.distance * sin(angleRad)).toFloat()
-            )
+            if (shot.xNorm == null || shot.yNorm == null) return@mapNotNull null
+            ShotPoint(shot.xNorm, shot.yNorm, shot.faceIndex)
         }
         imageView.setImageBitmap(TargetOverlayRenderer.render(resources, points, pointRadius = 4f))
     }

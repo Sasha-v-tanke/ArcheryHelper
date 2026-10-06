@@ -3,7 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from neural_network.model_metadata import MODEL_METADATA, load_model_metadata, write_model_metadata
+from neural_network.model_metadata import (
+    LEGACY_MODEL_METADATA,
+    MODEL_METADATA,
+    load_model_metadata,
+    write_model_metadata,
+)
 from neural_network.predictions import decode_predictions
 
 
@@ -28,19 +33,24 @@ class PredictionsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "expected at least 3 output values"):
             decode_predictions([1.0, 0.2], max_shots=1, confidence_threshold=0.5)
 
-    def test_model_metadata_roundtrip(self):
+    def test_model_metadata_v2_roundtrip(self):
         with tempfile.TemporaryDirectory() as tmp:
             write_model_metadata(tmp)
 
             self.assertEqual(MODEL_METADATA, load_model_metadata(Path(tmp) / "model_metadata.json"))
 
-    def test_android_asset_matches_python_metadata(self):
-        android_metadata = Path(
-            "app/app/src/main/assets/model_metadata.json"
-        )
+    def test_public_model_metadata_does_not_expose_max_shots(self):
+        data = MODEL_METADATA.to_dict()
+
+        self.assertEqual(2, data["contract_version"])
+        self.assertNotIn("max_shots", data)
+        self.assertEqual("impact_heatmap_offset", data["output"]["type"])
+
+    def test_android_legacy_asset_matches_legacy_metadata(self):
+        android_metadata = Path("app/app/src/main/assets/model_metadata.json")
         data = json.loads(android_metadata.read_text(encoding="utf-8"))
 
-        self.assertEqual(MODEL_METADATA.to_dict(), data)
+        self.assertEqual(LEGACY_MODEL_METADATA.to_dict(), data)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ jobs:
             test_contracts.py \
             test_evaluation.py \
             test_predictions.py \
+            test_scoring_v2.py \
             test_splits.py \
             test_training_config.py
           do

@@ -1,0 +1,11 @@
+name,format,layout,minimum_zone,ten_mode,face_diameter_mm,x_norm,y_norm,face_index,arrow_diameter_mm,localization_error,score,is_x,line_call
+recurve_x_center,SINGLE,,1,RECURVE,400,0.0,0.0,0,,0.0,10,true,false
+recurve_ten_outside_x,SINGLE,,1,RECURVE,400,0.06,0.0,0,,0.0,10,false,false
+compound_ten,SINGLE,,1,COMPOUND,400,0.04,0.0,0,,0.0,10,true,false
+compound_nine_outside_ten,SINGLE,,1,COMPOUND,400,0.06,0.0,0,,0.0,9,false,false
+recurve_nine_boundary,SINGLE,,1,RECURVE,400,0.2,0.0,0,,0.0,9,false,false
+miss_outside_full_face,SINGLE,,1,RECURVE,400,1.01,0.0,0,,0.0,0,false,false
+triple_miss_outside_visible_six,TRIPLE,VERTICAL,6,RECURVE,400,0.51,0.0,2,,0.0,0,false,false
+shaft_cuts_ten,SINGLE,,1,RECURVE,400,0.115,0.0,0,8.0,0.0,10,false,false
+uncertainty_crosses_ten_boundary,SINGLE,,1,RECURVE,400,0.11,0.0,0,,0.02,9,false,true
+triple_face_local_coordinates,TRIPLE,TRIANGULAR,6,RECURVE,400,-0.25,0.0,1,,0.0,8,false,false

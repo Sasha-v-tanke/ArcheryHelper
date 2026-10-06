@@ -3,6 +3,7 @@ package com.direwolf.archeryhelper.data.room
 import android.content.SharedPreferences
 import com.direwolf.archeryhelper.domain.InputMode
 import com.direwolf.archeryhelper.domain.Shot
+import com.direwolf.archeryhelper.domain.ShotPoint
 
 object SharedPrefsMigration {
     private const val MIGRATION_DONE = "room_migration_v1_done"
@@ -34,12 +35,15 @@ object SharedPrefsMigration {
                 var shotIndex = 1
                 while (prefs.contains("distance_${distanceIndex}_series_${seriesIndex}_shot_${shotIndex}_result")) {
                     val base = "distance_${distanceIndex}_series_${seriesIndex}_shot_${shotIndex}"
+                    val radius = if (prefs.contains("${base}_distance")) prefs.getFloat("${base}_distance", 0f) else null
+                    val angle = if (prefs.contains("${base}_angle")) prefs.getFloat("${base}_angle", 0f) else null
+                    val point = if (radius != null && angle != null) ShotPoint.fromPolar(radius, angle) else null
                     shots.add(
                         Shot(
                             number = shotIndex,
                             result = prefs.getInt("${base}_result", 0),
-                            distance = if (prefs.contains("${base}_distance")) prefs.getFloat("${base}_distance", 0f) else null,
-                            angle = if (prefs.contains("${base}_angle")) prefs.getFloat("${base}_angle", 0f) else null
+                            xNorm = point?.xNorm,
+                            yNorm = point?.yNorm
                         )
                     )
                     shotIndex++

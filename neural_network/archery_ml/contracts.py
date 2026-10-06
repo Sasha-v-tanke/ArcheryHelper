@@ -8,7 +8,7 @@ from typing import Literal, Sequence
 
 
 SCHEMA_VERSION = 2
-SplitName = Literal["train", "val", "test"]
+SplitName = Literal["train", "val", "test", "mobile_real_test"]
 TargetFormatName = Literal["SINGLE", "TRIPLE"]
 TripleLayoutName = Literal["VERTICAL", "TRIANGULAR"]
 TenRingModeName = Literal["RECURVE", "COMPOUND"]
@@ -272,11 +272,13 @@ def load_manifest(path: Path) -> list[DatasetSample]:
 
 
 def save_manifest(path: Path, samples: Sequence[DatasetSample]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ordered_samples = sorted(samples, key=lambda sample: (sample.source_id or "", sample.id))
     path.write_text(
         json.dumps(
             {
                 "schema_version": SCHEMA_VERSION,
-                "samples": [sample.to_dict() for sample in samples],
+                "samples": [sample.to_dict() for sample in ordered_samples],
             },
             indent=2,
         ),

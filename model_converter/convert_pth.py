@@ -5,7 +5,7 @@ from torchvision import transforms
 from path_manager import MODELS, CONVERTED_DATASET_PATH
 from neural_network.config import OUTPUT_DIM
 from neural_network.model import ArcheryResNet
-from neural_network.model_metadata import write_model_metadata, write_sha256
+from neural_network.model_metadata import write_legacy_model_metadata, write_sha256
 from neural_network.utils import load_model
 
 
@@ -29,7 +29,7 @@ def convert():
     # Сохраняем Lite модель
     model_path = MODELS + "/model.ptl"
     traced._save_for_lite_interpreter(model_path)
-    write_model_metadata(MODELS)
+    write_legacy_model_metadata(MODELS)
     write_sha256(model_path, MODELS)
 
 

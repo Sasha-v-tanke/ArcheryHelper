@@ -19,6 +19,7 @@ jobs:
         run: |
           for test_file in \
             test_contracts.py \
+            'test_data_*.py' \
             test_evaluation.py \
             test_predictions.py \
             test_scoring_v2.py \

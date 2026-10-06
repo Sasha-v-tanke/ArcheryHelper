@@ -5,6 +5,7 @@ import com.direwolf.archeryhelper.domain.Distance
 import com.direwolf.archeryhelper.domain.InputMode
 import com.direwolf.archeryhelper.domain.Series
 import com.direwolf.archeryhelper.domain.Shot
+import com.direwolf.archeryhelper.domain.ShotPoint
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -69,8 +70,8 @@ class RoomArcheryRepository(
                     seriesId = seriesId,
                     number = it.number,
                     result = it.result,
-                    radiusNorm = it.distance,
-                    angleDeg = it.angle
+                    radiusNorm = it.radiusNorm,
+                    angleDeg = it.angleDeg
                 )
             }
         )
@@ -96,11 +97,16 @@ class RoomArcheryRepository(
         return Series(
             number = series.number,
             shots = shots.sortedBy { it.number }.map {
+                val point = if (it.radiusNorm != null && it.angleDeg != null) {
+                    ShotPoint.fromPolar(it.radiusNorm, it.angleDeg)
+                } else {
+                    null
+                }
                 Shot(
                     number = it.number,
                     result = it.result,
-                    distance = it.radiusNorm,
-                    angle = it.angleDeg
+                    xNorm = point?.xNorm,
+                    yNorm = point?.yNorm
                 )
             }.toMutableList()
         )

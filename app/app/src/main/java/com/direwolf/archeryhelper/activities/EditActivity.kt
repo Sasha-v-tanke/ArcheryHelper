@@ -19,10 +19,6 @@ import com.direwolf.archeryhelper.utils.debugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 class EditActivity : TemplateActivity() {
@@ -69,7 +65,7 @@ class EditActivity : TemplateActivity() {
                     val detections = withContext(Dispatchers.Default) {
                         shotDetector.detect(bitmap)
                     }
-                    shotEditor = ShotEditor(detections.map { polarToShotPoint(it.radiusNorm, it.angleDeg) })
+                    shotEditor = ShotEditor(detections.map { ShotPoint.fromPolar(it.radiusNorm, it.angleDeg) })
                     redraw()
                 } catch (e: Exception) {
                     debugLog(e.message ?: "Ошибка распознавания")
@@ -173,8 +169,16 @@ class EditActivity : TemplateActivity() {
             val shots = mutableListOf<Shot>()
             val points = shotEditor.snapshot()
             for (i in points.indices) {
-                val radius = points[i].radiusNorm()
-                shots.add(Shot(i + 1, parseRadius(radius), radius, angleDeg(points[i])))
+                val point = points[i]
+                val radius = point.radiusNorm()
+                shots.add(
+                    Shot(
+                        number = i + 1,
+                        result = parseRadius(radius),
+                        xNorm = point.xNorm,
+                        yNorm = point.yNorm
+                    )
+                )
             }
             val series = Series(DataManager.getLastSeriesIndex() + 1, shots)
             DataManager.saveSeries(series, DataManager.getLastDistanceIndex())
@@ -298,18 +302,6 @@ class EditActivity : TemplateActivity() {
             selectedIndex !in points.indices -> points.lastIndex
             else -> selectedIndex
         }
-    }
-
-    private fun polarToShotPoint(radius: Float, angleDeg: Float): ShotPoint {
-        val angleRad = angleDeg / 180f * PI
-        return ShotPoint(
-            (radius * cos(angleRad)).toFloat(),
-            (radius * sin(angleRad)).toFloat()
-        )
-    }
-
-    private fun angleDeg(point: ShotPoint): Float {
-        return Math.toDegrees(atan2(point.yNorm.toDouble(), point.xNorm.toDouble())).toFloat()
     }
 
     companion object {

@@ -10,6 +10,7 @@ from neural_network.archery_ml.data.deduplicate import deduplicate_samples
 from neural_network.archery_ml.data.download import materialize_source
 from neural_network.archery_ml.data.importers import import_dataset
 from neural_network.archery_ml.data.pipeline import rebuild_dataset
+from neural_network.archery_ml.data.preview import render_preview
 from neural_network.archery_ml.data.registry import DEFAULT_REGISTRY_PATH, DatasetRegistry
 from neural_network.archery_ml.data.report import build_report
 from neural_network.archery_ml.data.split import assign_splits
@@ -19,7 +20,8 @@ from neural_network.archery_ml.data.workspace import DatasetWorkspace
 
 
 DEFAULT_WORKSPACE = Path("data")
-DEFAULT_MANIFEST = DatasetWorkspace(DEFAULT_WORKSPACE).manifest_path
+DEFAULT_DATASET_WORKSPACE = DatasetWorkspace(DEFAULT_WORKSPACE)
+DEFAULT_MANIFEST = DEFAULT_DATASET_WORKSPACE.manifest_path
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -40,6 +42,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_rebuild(args)
     if args.command == "inspect":
         return _run_inspect(args)
+    if args.command == "preview":
+        return _run_preview(args)
     parser.error(f"unsupported command: {args.command}")
     return 2
 
@@ -83,18 +87,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     inspect_parser = subparsers.add_parser("inspect")
     inspect_parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-    inspect_parser.add_argument("--split", action="append", default=None)
-    inspect_parser.add_argument("--source", action="append", default=None)
-    inspect_parser.add_argument(
-        "--target-format",
-        action="append",
-        choices=("SINGLE", "TRIPLE"),
-        default=None,
-    )
-    inspect_parser.add_argument("--canonical-only", action="store_true")
-    inspect_parser.add_argument("--raw-only", action="store_true")
-    inspect_parser.add_argument("--with-geometry", action="store_true")
+    _add_filter_arguments(inspect_parser)
     inspect_parser.add_argument("--limit", type=int, default=20)
+
+    preview_parser = subparsers.add_parser("preview")
+    preview_parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    preview_parser.add_argument("--output", type=Path, default=DEFAULT_DATASET_WORKSPACE.previews_dir)
+    _add_filter_arguments(preview_parser)
+    preview_parser.add_argument("--limit", type=int, default=20)
 
     return parser
 
@@ -104,6 +104,20 @@ def _add_split_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--train-ratio", type=float, default=0.8)
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--test-ratio", type=float, default=0.1)
+
+
+def _add_filter_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--split", action="append", default=None)
+    parser.add_argument("--source", action="append", default=None)
+    parser.add_argument(
+        "--target-format",
+        action="append",
+        choices=("SINGLE", "TRIPLE"),
+        default=None,
+    )
+    parser.add_argument("--canonical-only", action="store_true")
+    parser.add_argument("--raw-only", action="store_true")
+    parser.add_argument("--with-geometry", action="store_true")
 
 
 def _run_import(args: argparse.Namespace) -> int:
@@ -203,14 +217,7 @@ def _run_rebuild(args: argparse.Namespace) -> int:
 def _run_inspect(args: argparse.Namespace) -> int:
     if args.limit < 0:
         raise ValueError("limit must be non-negative")
-    view = DatasetView.load(args.manifest).select(
-        splits=args.split,
-        source_ids=args.source,
-        target_formats=args.target_format,
-        require_canonical_impacts=args.canonical_only,
-        require_raw_impacts=args.raw_only,
-        require_geometry=args.with_geometry,
-    )
+    view = _filtered_view(args)
     samples = view.samples[: args.limit]
     print(
         json.dumps(
@@ -235,3 +242,30 @@ def _run_inspect(args: argparse.Namespace) -> int:
         )
     )
     return 0
+
+
+def _run_preview(args: argparse.Namespace) -> int:
+    view = _filtered_view(args)
+    rendered = render_preview(view.samples, args.output, limit=args.limit)
+    print(
+        json.dumps(
+            {
+                "selected": len(view),
+                "rendered": len(rendered),
+                "output": str(args.output),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _filtered_view(args: argparse.Namespace) -> DatasetView:
+    return DatasetView.load(args.manifest).select(
+        splits=args.split,
+        source_ids=args.source,
+        target_formats=args.target_format,
+        require_canonical_impacts=args.canonical_only,
+        require_raw_impacts=args.raw_only,
+        require_geometry=args.with_geometry,
+    )

@@ -1,5 +1,6 @@
 from neural_network.archery_ml.data.deduplicate import DeduplicationResult, deduplicate_samples
 from neural_network.archery_ml.data.pipeline import DatasetRebuildResult, rebuild_dataset
+from neural_network.archery_ml.data.preview import render_preview
 from neural_network.archery_ml.data.registry import DatasetRegistry, DatasetSource
 from neural_network.archery_ml.data.report import DatasetReport, build_report
 from neural_network.archery_ml.data.snapshot import (
@@ -28,5 +29,6 @@ __all__ = [
     "deduplicate_samples",
     "load_snapshot",
     "rebuild_dataset",
+    "render_preview",
     "validate_dataset",
 ]

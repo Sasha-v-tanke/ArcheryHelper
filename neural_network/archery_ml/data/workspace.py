@@ -36,6 +36,10 @@ class DatasetWorkspace:
         return self.root / "snapshots"
 
     @property
+    def previews_dir(self) -> Path:
+        return self.root / "previews"
+
+    @property
     def manifest_path(self) -> Path:
         return self.manifests_dir / "dataset_manifest.json"
 
@@ -53,3 +57,4 @@ class DatasetWorkspace:
         self.manifests_dir.mkdir(parents=True, exist_ok=True)
         self.reports_dir.mkdir(parents=True, exist_ok=True)
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
+        self.previews_dir.mkdir(parents=True, exist_ok=True)

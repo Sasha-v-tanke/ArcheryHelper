@@ -17,6 +17,9 @@ from neural_network.archery_ml.data.registry import DatasetSource
 
 
 def import_legacy(root: Path, source: DatasetSource) -> list[DatasetSample]:
+    if source.annotation_space != "canonical":
+        raise ValueError("legacy importer only supports canonical annotations")
+
     samples: list[DatasetSample] = []
     metadata = target_metadata(source)
 

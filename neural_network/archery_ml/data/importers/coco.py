@@ -4,7 +4,12 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-from neural_network.archery_ml.contracts import DatasetSample, ImpactAnnotation
+from neural_network.archery_ml.contracts import (
+    DatasetSample,
+    ImageGeometryAnnotation,
+    ImagePointAnnotation,
+    ImpactAnnotation,
+)
 from neural_network.archery_ml.data.importers.common import (
     class_role,
     group_id,
@@ -20,7 +25,10 @@ from neural_network.archery_ml.data.registry import DatasetSource
 def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
     annotation_path = _find_annotation_file(root, source)
     payload = json.loads(annotation_path.read_text(encoding="utf-8"))
-    categories = {int(item["id"]): str(item.get("name", item["id"])) for item in payload.get("categories", ())}
+    categories = {
+        int(item["id"]): str(item.get("name", item["id"]))
+        for item in payload.get("categories", ())
+    }
     annotations_by_image: dict[int, list[dict]] = defaultdict(list)
     for annotation in payload.get("annotations", ()):
         annotations_by_image[int(annotation["image_id"])].append(annotation)
@@ -32,14 +40,40 @@ def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
         width = float(image["width"])
         height = float(image["height"])
         impacts: list[ImpactAnnotation] = []
+        raw_impacts: list[ImagePointAnnotation] = []
+        geometry: list[ImageGeometryAnnotation] = []
         for annotation in annotations_by_image.get(int(image["id"]), ()):
             category_id = int(annotation["category_id"])
-            role = class_role(source, str(category_id), categories.get(category_id))
-            if role != "impact":
+            category_name = categories.get(category_id, str(category_id))
+            role = class_role(source, str(category_id), category_name)
+            if role == "ignore":
                 continue
-            x, y = _annotation_point(annotation)
-            x_norm, y_norm = image_to_canonical(x / width, y / height)
-            impacts.append(ImpactAnnotation(x_norm=x_norm, y_norm=y_norm))
+            if role == "impact":
+                x, y = _annotation_point(annotation)
+                x_fraction = x / width
+                y_fraction = y / height
+                if source.annotation_space == "image":
+                    raw_impacts.append(
+                        ImagePointAnnotation(
+                            x_fraction=x_fraction,
+                            y_fraction=y_fraction,
+                            source_label=category_name,
+                            bbox=_normalized_bbox(annotation.get("bbox"), width, height),
+                        )
+                    )
+                else:
+                    x_norm, y_norm = image_to_canonical(x_fraction, y_fraction)
+                    impacts.append(ImpactAnnotation(x_norm=x_norm, y_norm=y_norm))
+                continue
+            geometry.extend(
+                _geometry_annotations(
+                    role,
+                    category_name,
+                    annotation,
+                    width,
+                    height,
+                )
+            )
 
         samples.append(
             DatasetSample(
@@ -51,6 +85,8 @@ def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
                 group_id=group_id(source, root, image_path),
                 annotations=tuple(impacts),
                 target_metadata=metadata,
+                raw_annotations=tuple(raw_impacts),
+                geometry_annotations=tuple(geometry),
             )
         )
     return samples
@@ -92,3 +128,75 @@ def _annotation_point(annotation: dict) -> tuple[float, float]:
     if bbox and len(bbox) >= 4:
         return float(bbox[0]) + float(bbox[2]) / 2.0, float(bbox[1]) + float(bbox[3]) / 2.0
     raise ValueError(f"unsupported COCO annotation id={annotation.get('id')}: expected keypoint or bbox")
+
+
+def _normalized_bbox(
+    bbox: list | tuple | None,
+    width: float,
+    height: float,
+) -> tuple[float, float, float, float] | None:
+    if not bbox or len(bbox) < 4:
+        return None
+    return (
+        float(bbox[0]) / width,
+        float(bbox[1]) / height,
+        float(bbox[2]) / width,
+        float(bbox[3]) / height,
+    )
+
+
+def _geometry_annotations(
+    role: str,
+    source_label: str,
+    annotation: dict,
+    width: float,
+    height: float,
+) -> list[ImageGeometryAnnotation]:
+    if role == "target_center":
+        x, y = _annotation_point(annotation)
+        return [
+            ImageGeometryAnnotation(
+                kind="target_center",
+                points=((x / width, y / height),),
+                source_label=source_label,
+            )
+        ]
+
+    segmentation = annotation.get("segmentation")
+    if isinstance(segmentation, list):
+        polygons = []
+        for polygon in segmentation:
+            if not isinstance(polygon, list) or len(polygon) < 6 or len(polygon) % 2 != 0:
+                continue
+            points = tuple(
+                (float(polygon[index]) / width, float(polygon[index + 1]) / height)
+                for index in range(0, len(polygon), 2)
+            )
+            polygons.append(
+                ImageGeometryAnnotation(
+                    kind=role,
+                    points=points,
+                    source_label=source_label,
+                )
+            )
+        if polygons:
+            return polygons
+
+    bbox = _normalized_bbox(annotation.get("bbox"), width, height)
+    if bbox is None:
+        raise ValueError(
+            f"geometry annotation id={annotation.get('id')} requires polygon or bbox"
+        )
+    x, y, box_width, box_height = bbox
+    return [
+        ImageGeometryAnnotation(
+            kind=role,
+            points=(
+                (x, y),
+                (x + box_width, y),
+                (x + box_width, y + box_height),
+                (x, y + box_height),
+            ),
+            source_label=source_label,
+        )
+    ]

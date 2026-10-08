@@ -12,6 +12,7 @@ SplitName = Literal["train", "val", "test", "mobile_real_test"]
 TargetFormatName = Literal["SINGLE", "TRIPLE"]
 TripleLayoutName = Literal["VERTICAL", "TRIANGULAR"]
 TenRingModeName = Literal["RECURVE", "COMPOUND"]
+GeometryAnnotationKind = Literal["target_center", "target_face", "ring"]
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,86 @@ class ImpactAnnotation:
             y_norm=float(data["y_norm"]),
             face_index=int(data.get("face_index", 0)),
             confidence=None if confidence is None else float(confidence),
+        )
+
+
+@dataclass(frozen=True)
+class ImagePointAnnotation:
+    x_fraction: float
+    y_fraction: float
+    face_index: int | None = None
+    source_label: str | None = None
+    bbox: tuple[float, float, float, float] | None = None
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.x_fraction) or not math.isfinite(self.y_fraction):
+            raise ValueError("image point coordinates must be finite")
+        if not 0.0 <= self.x_fraction <= 1.0 or not 0.0 <= self.y_fraction <= 1.0:
+            raise ValueError("image point coordinates must be normalized to [0, 1]")
+        if self.face_index is not None and self.face_index < 0:
+            raise ValueError("face_index must be non-negative")
+        if self.bbox is not None:
+            if len(self.bbox) != 4 or not all(math.isfinite(value) for value in self.bbox):
+                raise ValueError("bbox must contain four finite normalized values")
+            x, y, width, height = self.bbox
+            if x < 0.0 or y < 0.0 or width < 0.0 or height < 0.0:
+                raise ValueError("bbox values must be non-negative")
+            if x + width > 1.05 or y + height > 1.05:
+                raise ValueError("bbox must stay inside normalized image bounds")
+
+    def to_dict(self) -> dict:
+        data = {
+            "x_fraction": self.x_fraction,
+            "y_fraction": self.y_fraction,
+            "face_index": self.face_index,
+            "source_label": self.source_label,
+        }
+        if self.bbox is not None:
+            data["bbox"] = list(self.bbox)
+        return data
+
+    @staticmethod
+    def from_dict(data: dict) -> "ImagePointAnnotation":
+        bbox = data.get("bbox")
+        return ImagePointAnnotation(
+            x_fraction=float(data["x_fraction"]),
+            y_fraction=float(data["y_fraction"]),
+            face_index=None if data.get("face_index") is None else int(data["face_index"]),
+            source_label=None if data.get("source_label") is None else str(data["source_label"]),
+            bbox=None if bbox is None else tuple(float(value) for value in bbox),
+        )
+
+
+@dataclass(frozen=True)
+class ImageGeometryAnnotation:
+    kind: GeometryAnnotationKind
+    points: tuple[tuple[float, float], ...]
+    source_label: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"target_center", "target_face", "ring"}:
+            raise ValueError(f"unsupported geometry annotation kind: {self.kind}")
+        if not self.points:
+            raise ValueError("geometry annotation requires at least one point")
+        for x_fraction, y_fraction in self.points:
+            if not math.isfinite(x_fraction) or not math.isfinite(y_fraction):
+                raise ValueError("geometry annotation coordinates must be finite")
+            if not 0.0 <= x_fraction <= 1.0 or not 0.0 <= y_fraction <= 1.0:
+                raise ValueError("geometry annotation coordinates must be normalized to [0, 1]")
+
+    def to_dict(self) -> dict:
+        return {
+            "kind": self.kind,
+            "points": [[x, y] for x, y in self.points],
+            "source_label": self.source_label,
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> "ImageGeometryAnnotation":
+        return ImageGeometryAnnotation(
+            kind=data["kind"],
+            points=tuple((float(point[0]), float(point[1])) for point in data["points"]),
+            source_label=None if data.get("source_label") is None else str(data["source_label"]),
         )
 
 
@@ -98,6 +179,8 @@ class DatasetSample:
     group_id: str | None = None
     annotations: tuple[ImpactAnnotation, ...] = ()
     target_metadata: TargetMetadata | None = None
+    raw_annotations: tuple[ImagePointAnnotation, ...] = ()
+    geometry_annotations: tuple[ImageGeometryAnnotation, ...] = ()
 
     @property
     def source(self) -> str | None:
@@ -111,6 +194,8 @@ class DatasetSample:
             "source_id": self.source_id,
             "group_id": self.group_id,
             "annotations": [annotation.to_dict() for annotation in self.annotations],
+            "raw_annotations": [annotation.to_dict() for annotation in self.raw_annotations],
+            "geometry_annotations": [annotation.to_dict() for annotation in self.geometry_annotations],
             "target_metadata": None if self.target_metadata is None else self.target_metadata.to_dict(),
         }
         if self.annotation_path is not None:
@@ -130,6 +215,13 @@ class DatasetSample:
             group_id=data.get("group_id"),
             annotations=tuple(ImpactAnnotation.from_dict(item) for item in data.get("annotations", ())),
             target_metadata=None if target_metadata is None else TargetMetadata.from_dict(target_metadata),
+            raw_annotations=tuple(
+                ImagePointAnnotation.from_dict(item) for item in data.get("raw_annotations", ())
+            ),
+            geometry_annotations=tuple(
+                ImageGeometryAnnotation.from_dict(item)
+                for item in data.get("geometry_annotations", ())
+            ),
         )
 
 

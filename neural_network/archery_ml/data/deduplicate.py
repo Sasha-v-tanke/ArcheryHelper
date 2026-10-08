@@ -112,6 +112,8 @@ def deduplicate_samples(
         representative = retained[representative_index]
         if (
             representative.annotations != sample.annotations
+            or representative.raw_annotations != sample.raw_annotations
+            or representative.geometry_annotations != sample.geometry_annotations
             or representative.target_metadata != sample.target_metadata
         ):
             raise ValueError(

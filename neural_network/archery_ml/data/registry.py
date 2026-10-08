@@ -9,7 +9,11 @@ from typing import Any
 
 DEFAULT_REGISTRY_PATH = Path("dataset_tools/sources.json")
 SUPPORTED_IMPORTERS = frozenset({"legacy", "yolo", "coco", "roboflow"})
-SUPPORTED_TASKS = frozenset({"impact_detection"})
+SUPPORTED_TASKS = frozenset({"impact_detection", "geometry_evaluation"})
+SUPPORTED_ANNOTATION_SPACES = frozenset({"canonical", "image"})
+SUPPORTED_CLASS_ROLES = frozenset(
+    {"impact", "target_center", "target_face", "ring", "ignore"}
+)
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -25,6 +29,8 @@ class DatasetSource:
     allowed_tasks: tuple[str, ...]
     class_mapping: dict[str, str] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    annotation_space: str = "canonical"
+    homepage_url: str | None = None
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> "DatasetSource":
@@ -39,6 +45,8 @@ class DatasetSource:
             allowed_tasks=tuple(str(value) for value in data.get("allowed_tasks", ())),
             class_mapping={str(key): str(value) for key, value in data.get("class_mapping", {}).items()},
             options=dict(data.get("options", {})),
+            annotation_space=str(data.get("annotation_space", "canonical")),
+            homepage_url=None if data.get("homepage_url") is None else str(data["homepage_url"]),
         )
         source.validate()
         return source
@@ -56,11 +64,15 @@ class DatasetSource:
             raise ValueError(f"dataset source {self.id} must define license")
         if not self.author:
             raise ValueError(f"dataset source {self.id} must define author")
+        if not self.allowed_tasks:
+            raise ValueError(f"dataset source {self.id} must define at least one allowed task")
         unsupported_tasks = set(self.allowed_tasks) - SUPPORTED_TASKS
         if unsupported_tasks:
             raise ValueError(f"unsupported tasks for {self.id}: {sorted(unsupported_tasks)}")
-        if "impact_detection" not in self.allowed_tasks:
-            raise ValueError(f"dataset source {self.id} is not allowed for impact_detection")
+        if self.annotation_space not in SUPPORTED_ANNOTATION_SPACES:
+            raise ValueError(
+                f"unsupported annotation_space for {self.id}: {self.annotation_space}"
+            )
         if self.url.startswith(("http://", "https://")):
             if self.checksum_sha256 is None:
                 raise ValueError(f"remote dataset source {self.id} must define checksum_sha256")
@@ -68,9 +80,14 @@ class DatasetSource:
                 raise ValueError(f"invalid checksum_sha256 for {self.id}")
         elif self.checksum_sha256 is not None and not _SHA256_RE.fullmatch(self.checksum_sha256):
             raise ValueError(f"invalid checksum_sha256 for {self.id}")
-        invalid_targets = sorted(set(self.class_mapping.values()) - {"impact", "ignore"})
+        invalid_targets = sorted(set(self.class_mapping.values()) - SUPPORTED_CLASS_ROLES)
         if invalid_targets:
             raise ValueError(f"unsupported class mapping targets for {self.id}: {invalid_targets}")
+        geometry_roles = {"target_center", "target_face", "ring"} & set(self.class_mapping.values())
+        if geometry_roles and self.annotation_space != "image":
+            raise ValueError(
+                f"geometry annotations for {self.id} require annotation_space=image"
+            )
 
 
 @dataclass(frozen=True)

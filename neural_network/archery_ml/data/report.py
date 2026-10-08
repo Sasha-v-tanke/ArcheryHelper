@@ -5,13 +5,16 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from neural_network.archery_ml.contracts import DatasetSample
-from neural_network.archery_ml.data.deduplicate import deduplicate_samples
+from neural_network.archery_ml.data.deduplicate import DeduplicationResult, deduplicate_samples
 
 
 @dataclass(frozen=True)
 class DatasetReport:
     images: int
     impacts: int
+    canonical_impacts: int
+    raw_impacts: int
+    geometry_annotations: int
     source_distribution: dict[str, int]
     target_distribution: dict[str, int]
     split_sizes: dict[str, int]
@@ -23,6 +26,9 @@ class DatasetReport:
         return {
             "images": self.images,
             "impacts": self.impacts,
+            "canonical_impacts": self.canonical_impacts,
+            "raw_impacts": self.raw_impacts,
+            "geometry_annotations": self.geometry_annotations,
             "source_distribution": self.source_distribution,
             "target_distribution": self.target_distribution,
             "split_sizes": self.split_sizes,
@@ -35,15 +41,27 @@ class DatasetReport:
 def build_report(
     samples: Sequence[DatasetSample],
     perceptual_threshold: int = 4,
+    deduplication: DeduplicationResult | None = None,
 ) -> DatasetReport:
     sources = Counter(sample.source_id or "UNKNOWN" for sample in samples)
     splits = Counter(sample.split for sample in samples)
     targets = Counter(_target_key(sample) for sample in samples)
-    deduplication = deduplicate_samples(samples, perceptual_threshold=perceptual_threshold)
+    deduplication = deduplication or deduplicate_samples(
+        samples,
+        perceptual_threshold=perceptual_threshold,
+    )
+    canonical_impacts = sum(len(sample.annotations) for sample in samples)
+    raw_impacts = sum(len(sample.raw_annotations) for sample in samples)
 
     return DatasetReport(
         images=len(samples),
-        impacts=sum(len(sample.annotations) for sample in samples),
+        impacts=sum(
+            max(len(sample.annotations), len(sample.raw_annotations))
+            for sample in samples
+        ),
+        canonical_impacts=canonical_impacts,
+        raw_impacts=raw_impacts,
+        geometry_annotations=sum(len(sample.geometry_annotations) for sample in samples),
         source_distribution=dict(sorted(sources.items())),
         target_distribution=dict(sorted(targets.items())),
         split_sizes=dict(sorted(splits.items())),

@@ -18,7 +18,7 @@ def materialize_source(source: DatasetSource, workspace: str | Path) -> Path:
         return local.resolve()
 
     workspace_path = Path(workspace)
-    cache_dir = workspace_path / ".cache"
+    cache_dir = workspace_path / "dataset_pipeline" / "cache"
     source_dir = workspace_path / "sources" / source.id / source.version
     cache_dir.mkdir(parents=True, exist_ok=True)
 

@@ -23,7 +23,17 @@ from neural_network.archery_ml.data.registry import DatasetSource
 
 
 def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
-    annotation_path = _find_annotation_file(root, source)
+    samples: list[DatasetSample] = []
+    for annotation_path in _find_annotation_files(root, source):
+        samples.extend(_import_coco_file(root, annotation_path, source))
+    return samples
+
+
+def _import_coco_file(
+    root: Path,
+    annotation_path: Path,
+    source: DatasetSource,
+) -> list[DatasetSample]:
     payload = json.loads(annotation_path.read_text(encoding="utf-8"))
     categories = {
         int(item["id"]): str(item.get("name", item["id"]))
@@ -36,7 +46,7 @@ def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
     metadata = target_metadata(source)
     samples: list[DatasetSample] = []
     for image in sorted(payload.get("images", ()), key=lambda item: str(item["file_name"])):
-        image_path = _find_image(root, str(image["file_name"]))
+        image_path = _find_image(root, annotation_path.parent, str(image["file_name"]))
         width = float(image["width"])
         height = float(image["height"])
         impacts: list[ImpactAnnotation] = []
@@ -49,7 +59,7 @@ def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
             if role == "ignore":
                 continue
             if role == "impact":
-                x, y = _annotation_point(annotation)
+                x, y = _annotation_point(annotation, source)
                 x_fraction = x / width
                 y_fraction = y / height
                 if source.annotation_space == "image":
@@ -92,42 +102,73 @@ def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
     return samples
 
 
-def _find_annotation_file(root: Path, source: DatasetSource) -> Path:
+def _find_annotation_files(root: Path, source: DatasetSource) -> tuple[Path, ...]:
     configured = source.options.get("annotation_file")
     if configured:
         path = root / str(configured)
         if not path.exists():
             raise FileNotFoundError(path)
-        return path
+        return (path,)
 
     candidates = sorted(root.rglob("*.json"))
-    for candidate in candidates:
-        name = candidate.name.lower()
-        if "coco" in name or name == "_annotations.json":
-            return candidate
+    annotation_files = tuple(
+        candidate
+        for candidate in candidates
+        if "coco" in candidate.name.lower() or candidate.name == "_annotations.json"
+    )
+    if annotation_files:
+        return annotation_files
     if len(candidates) == 1:
-        return candidates[0]
+        return (candidates[0],)
     raise ValueError(f"could not identify COCO annotation file under {root}")
 
 
-def _find_image(root: Path, file_name: str) -> Path:
-    direct = root / file_name
-    if direct.exists():
-        return direct
+def _find_image(root: Path, annotation_dir: Path, file_name: str) -> Path:
+    for base in (annotation_dir, root):
+        direct = base / file_name
+        if direct.exists():
+            return direct
     matches = sorted(root.rglob(Path(file_name).name))
     if len(matches) != 1:
         raise FileNotFoundError(f"could not uniquely resolve COCO image {file_name}")
     return matches[0]
 
 
-def _annotation_point(annotation: dict) -> tuple[float, float]:
-    keypoints = annotation.get("keypoints")
-    if keypoints and len(keypoints) >= 3 and float(keypoints[2]) > 0:
-        return float(keypoints[0]), float(keypoints[1])
+def _annotation_point(annotation: dict, source: DatasetSource | None = None) -> tuple[float, float]:
+    mode = "auto" if source is None else str(source.options.get("impact_point", "auto"))
+    if mode == "keypoint":
+        return _keypoint(annotation, source)
+    if mode != "auto":
+        raise ValueError(f"unsupported impact_point mode for {source.id if source else 'coco'}: {mode}")
+    point = _visible_keypoint(annotation, 0)
+    if point is not None:
+        return point
     bbox = annotation.get("bbox")
     if bbox and len(bbox) >= 4:
         return float(bbox[0]) + float(bbox[2]) / 2.0, float(bbox[1]) + float(bbox[3]) / 2.0
     raise ValueError(f"unsupported COCO annotation id={annotation.get('id')}: expected keypoint or bbox")
+
+
+def _keypoint(annotation: dict, source: DatasetSource) -> tuple[float, float]:
+    keypoint_index = int(source.options.get("keypoint_index", 0))
+    point = _visible_keypoint(annotation, keypoint_index)
+    if point is None:
+        raise ValueError(
+            f"missing visible keypoint {keypoint_index} for COCO annotation id={annotation.get('id')}"
+        )
+    return point
+
+
+def _visible_keypoint(annotation: dict, keypoint_index: int) -> tuple[float, float] | None:
+    keypoints = annotation.get("keypoints")
+    if not keypoints:
+        return None
+    start = keypoint_index * 3
+    if len(keypoints) < start + 3:
+        return None
+    if float(keypoints[start + 2]) <= 0:
+        return None
+    return float(keypoints[start]), float(keypoints[start + 1])
 
 
 def _normalized_bbox(

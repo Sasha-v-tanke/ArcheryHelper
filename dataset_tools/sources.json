@@ -1,4 +1,26 @@
 {
   "registry_version": 1,
-  "sources": []
+  "sources": [
+    {
+      "id": "archery_scoring_keypoints",
+      "importer": "coco",
+      "url": "data/sources/archery_scoring_keypoints/v4",
+      "version": "4",
+      "license": "CC BY 4.0",
+      "author": "Roboflow user",
+      "homepage_url": "https://universe.roboflow.com/archery-scoring/archery-scoring-keypoints/dataset/4",
+      "allowed_tasks": [
+        "impact_detection"
+      ],
+      "annotation_space": "image",
+      "class_mapping": {
+        "arrow": "impact"
+      },
+      "options": {
+        "impact_point": "keypoint",
+        "keypoint_index": 0,
+        "group_regex": "([^/]+?)_jpg\\.rf\\."
+      }
+    }
+  ]
 }

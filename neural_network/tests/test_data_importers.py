@@ -73,6 +73,80 @@ class DatasetImportersTest(unittest.TestCase):
             self.assertAlmostEqual(0.5, samples[0].annotations[0].x_norm)
             self.assertAlmostEqual(-0.5, samples[0].annotations[0].y_norm)
 
+    def test_coco_importer_reads_roboflow_split_exports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for split, red in (("train", 64), ("valid", 128), ("test", 192)):
+                split_dir = root / split
+                split_dir.mkdir()
+                Image.new("RGB", (100, 100), (red, 0, 0)).save(split_dir / "same.jpg")
+                (split_dir / "_annotations.coco.json").write_text(
+                    json.dumps(
+                        {
+                            "images": [{"id": 1, "file_name": "same.jpg", "width": 100, "height": 100}],
+                            "categories": [{"id": 1, "name": "arrow"}],
+                            "annotations": [
+                                {
+                                    "id": 1,
+                                    "image_id": 1,
+                                    "category_id": 1,
+                                    "bbox": [1, 2, 3, 4],
+                                    "keypoints": [10, 20, 2, 30, 40, 2],
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            source = self._source(
+                "coco",
+                root,
+                class_mapping={"arrow": "impact"},
+                options={"impact_point": "keypoint", "keypoint_index": 0},
+            )
+
+            samples = import_coco(root, source)
+
+            self.assertEqual(3, len(samples))
+            self.assertEqual(["test", "train", "val"], sorted(sample.split for sample in samples))
+            self.assertEqual(3, len({sample.id for sample in samples}))
+            self.assertEqual(3, len({sample.image_path for sample in samples}))
+            for sample in samples:
+                self.assertEqual(1, len(sample.raw_annotations) + len(sample.annotations))
+
+    def test_coco_keypoint_mode_rejects_invisible_keypoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image = root / "sample.jpg"
+            Image.new("RGB", (100, 100), (128, 128, 128)).save(image)
+            (root / "_annotations.coco.json").write_text(
+                json.dumps(
+                    {
+                        "images": [{"id": 1, "file_name": "sample.jpg", "width": 100, "height": 100}],
+                        "categories": [{"id": 1, "name": "arrow"}],
+                        "annotations": [
+                            {
+                                "id": 1,
+                                "image_id": 1,
+                                "category_id": 1,
+                                "bbox": [70, 20, 10, 10],
+                                "keypoints": [10, 20, 0, 30, 40, 2],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            source = self._source(
+                "coco",
+                root,
+                class_mapping={"arrow": "impact"},
+                options={"impact_point": "keypoint", "keypoint_index": 0},
+            )
+
+            with self.assertRaisesRegex(ValueError, "missing visible keypoint 0"):
+                import_coco(root, source)
+
     def test_roboflow_importer_detects_yolo_export(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

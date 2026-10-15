@@ -144,12 +144,16 @@ Core:
 - `neural_network/archery_ml/geometry/detector.py`
 - `neural_network/archery_ml/geometry/normalize.py`
 - `neural_network/archery_ml/geometry/quality.py`
+- `neural_network/archery_ml/geometry/evaluate.py`
+- `neural_network/archery_ml/geometry/cli.py`
 - `neural_network/archery_ml/geometry/__init__.py`
 - `archery_ml/geometry/__init__.py`
 
 Tests and build:
 
 - `neural_network/tests/test_geometry_pipeline.py`
+- `neural_network/tests/test_geometry_diagnostics.py`
+- `neural_network/tests/test_geometry_evaluation.py`
 - `requirements.txt`
 - `.github/workflows/baseline.yml`
 
@@ -169,7 +173,24 @@ Synthetic tests cover:
 
 The geometric mapping assertion is expressed in normalized-coordinate error so it can be compared directly with later impact-localization tolerances.
 
-Real-photo validation is a separate data gate. The checked-in dataset registry currently contains no verified real source, so this change must not fabricate a fixture or provenance record. Once `mobile_real_test` contains verified photographs, geometry error must be measured on that split separately from model error.
+Real-photo validation is a separate data gate. The checked-in registry now contains `archery_scoring_keypoints`, but that source provides raw impact points and no geometry ground truth, so it cannot close the Stage 3 gate by itself.
+
+`GeometryEvaluator` consumes `DatasetView` samples with `geometry_annotations`, runs the detector and quality gate, and reports center and radial boundary errors in canonical normalized units. The report includes mean, median, P95, max, sample counts, READY count, and quality-status distribution.
+
+The evaluator is available through:
+
+~~~bash
+python -m archery_ml.geometry \
+  --manifest data/manifests/dataset_manifest.json \
+  --source <geometry_source_id> \
+  --split test \
+  --minimum-scoring-zone 1 \
+  --ten-ring-mode RECURVE
+~~~
+
+The current raw geometry candidate is tracked as `target_10_ring_instance`. It is not approved in `dataset_tools/sources.json` until the local version-9 COCO export, ring/impact annotation semantics, unknown numeric classes, and target configuration are reviewed. After approval and rebuild, the generated geometry report is the evidence for the real-photo Stage 3 gate.
+
+Real evaluation currently supports `SINGLE` targets only because `ImageGeometryAnnotation` does not carry `face_index`. Synthetic Stage 3 coverage still validates vertical and triangular triple geometry. Triple real-data evaluation requires an explicit face-association contract rather than inferred ordering.
 
 ## Agent implementation order
 
@@ -181,7 +202,8 @@ Real-photo validation is a separate data gate. The checked-in dataset registry c
 6. Implement the finite-status quality gate.
 7. Add synthetic target rendering tests and projective mapping assertions.
 8. Add OpenCV to the Python runtime/test dependencies and CI.
-9. Keep legacy manual normalization until a real-photo parity gate is available.
+9. Add manifest-based real geometry evaluation without changing dataset annotation space.
+10. Keep legacy manual normalization until the real-photo parity gate is passed.
 
 ## Definition of done
 
@@ -193,4 +215,5 @@ Stage 3 code is complete when:
 - every documented quality status is covered by a regression test;
 - geometry tests run in CI alongside the existing Stage 1/2 and Android baselines;
 - no ML model is required for target normalization;
+- manifest-based geometry evaluation reports normalization error separately from later ML localization error;
 - the remaining real-photo validation dependency is explicit and isolated as a data-quality gate rather than hidden in ML accuracy.

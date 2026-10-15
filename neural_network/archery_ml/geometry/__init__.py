@@ -4,6 +4,11 @@ from neural_network.archery_ml.geometry.detector import (
     GeometryResult,
     TargetGeometryDetector,
 )
+from neural_network.archery_ml.geometry.evaluate import (
+    GeometryErrorMetrics,
+    GeometryEvaluationReport,
+    GeometryEvaluator,
+)
 from neural_network.archery_ml.geometry.normalize import CanonicalFace, TargetNormalizer
 from neural_network.archery_ml.geometry.quality import (
     ImageQualityGate,
@@ -26,6 +31,9 @@ __all__ = [
     "CanonicalFace",
     "EllipseFit",
     "FaceGeometry",
+    "GeometryErrorMetrics",
+    "GeometryEvaluationReport",
+    "GeometryEvaluator",
     "GeometryResult",
     "GeometryTemplate",
     "ImageQualityGate",

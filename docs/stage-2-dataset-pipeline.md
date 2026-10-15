@@ -6,7 +6,7 @@ Stage 2 replaces the ad-hoc dataset ingestion, conversion, validation, deduplica
 
 The pipeline must make provenance explicit, preserve canonical impact coordinates, prevent train/evaluation leakage, and produce the same manifest for the same source data, registry, and split seed.
 
-This stage does not implement target-face geometry or homography. Raw-camera target normalization remains Stage 3. Importers in this stage therefore operate on datasets whose labels can already be interpreted in the canonical target/image frame.
+This stage does not implement target-face geometry or homography. Raw-camera target normalization remains Stage 3. Stage 2.5 extends this pipeline with explicit raw-image annotations and geometry ground truth so real camera datasets can be imported without pretending that image coordinates are already target-canonical.
 
 ## Scope
 
@@ -211,8 +211,10 @@ python -m archery_ml.data report
 Defaults:
 
 - registry: `dataset_tools/sources.json`;
-- manifest: `data/dataset_manifest.json`;
-- workspace/cache: `data/dataset_pipeline`.
+- manifest: `data/manifests/dataset_manifest.json`;
+- workspace root: `data/`;
+- source materialization: `data/sources/`;
+- download cache: `data/dataset_pipeline/cache/`.
 
 The `data/` directory remains excluded from Git.
 
@@ -333,3 +335,8 @@ Stage 2 implementation is complete when:
 - Python dataset tests and the existing Android baseline pass.
 
 Actual external source entries are a data-governance input, not something to guess in code: each entry must be added only after its license, version, author, source location, and checksum (for remote archives) are known.
+
+
+## Stage 2.5 extension
+
+Real-source onboarding, raw-image annotation preservation, deterministic dataset snapshots, `DatasetView`, and visual inspection tooling are documented in `docs/stage-2.5-dataset-infrastructure.md`.

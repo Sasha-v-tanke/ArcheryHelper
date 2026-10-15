@@ -122,4 +122,27 @@ def validate_dataset(
                         )
                     )
 
+        for index, annotation in enumerate(sample.raw_annotations):
+            if not 0.0 <= annotation.x_fraction <= 1.0 or not 0.0 <= annotation.y_fraction <= 1.0:
+                issues.append(
+                    ValidationIssue(
+                        "invalid_raw_coordinate",
+                        sample.id,
+                        f"raw annotation {index} is outside image bounds: "
+                        f"({annotation.x_fraction}, {annotation.y_fraction})",
+                    )
+                )
+
+        for index, annotation in enumerate(sample.geometry_annotations):
+            for point_index, (x_fraction, y_fraction) in enumerate(annotation.points):
+                if not 0.0 <= x_fraction <= 1.0 or not 0.0 <= y_fraction <= 1.0:
+                    issues.append(
+                        ValidationIssue(
+                            "invalid_geometry_coordinate",
+                            sample.id,
+                            f"geometry annotation {index} point {point_index} is outside image bounds: "
+                            f"({x_fraction}, {y_fraction})",
+                        )
+                    )
+
     return DatasetValidationReport(tuple(issues))

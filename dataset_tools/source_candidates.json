@@ -1,0 +1,48 @@
+{
+  "candidate_version": 1,
+  "sources": [
+    {
+      "id": "archery_xpert",
+      "homepage_url": "https://universe.roboflow.com/amrs-workspace-5ewyi/archeryxpert",
+      "author": "Amrs Workspace",
+      "license": "CC BY 4.0",
+      "expected_importer": "roboflow",
+      "expected_annotation_space": "image",
+      "candidate_class_mapping": {
+        "arrow_tip": "impact",
+        "arrow_shaft": "ignore",
+        "target_center": "target_center",
+        "target_face": "target_face"
+      },
+      "status": "needs_versioned_export_checksum_and_annotation_review"
+    },
+    {
+      "id": "arrow_target",
+      "homepage_url": "https://universe.roboflow.com/archery-arrow/arrow-target",
+      "author": "archery arrow",
+      "license": "CC BY 4.0",
+      "expected_importer": "roboflow",
+      "expected_annotation_space": "image",
+      "candidate_class_mapping": {
+        "impact": "impact",
+        "arrow": "ignore"
+      },
+      "status": "needs_versioned_export_checksum_and_annotation_review"
+    },
+    {
+      "id": "archeryeye",
+      "homepage_url": "https://universe.roboflow.com/flyingk/archeryeye",
+      "author": "flyingk",
+      "license": "CC BY 4.0",
+      "expected_importer": "roboflow",
+      "expected_annotation_space": "image",
+      "candidate_class_mapping": {
+        "arrow": "impact"
+      },
+      "candidate_options": {
+        "impact_point": "keypoint"
+      },
+      "status": "needs_keypoint_semantics_export_checksum_and_annotation_review"
+    }
+  ]
+}

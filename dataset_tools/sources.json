@@ -21,6 +21,43 @@
         "keypoint_index": 0,
         "group_regex": "([^/]+?)_jpg\\.rf\\."
       }
+    },
+    {
+      "id": "archery_aiscore_ounar",
+      "importer": "coco",
+      "url": "data/sources/archery_aiscore_ounar/v9",
+      "version": "9",
+      "license": "CC BY 4.0",
+      "author": "aiscore",
+      "homepage_url": "https://universe.roboflow.com/aiscore-ounar/target-10-ring-instance/dataset/9",
+      "allowed_tasks": [
+        "impact_detection",
+        "geometry_evaluation"
+      ],
+      "annotation_space": "image",
+      "class_mapping": {
+        "target": "ignore",
+        "Arrow": "ignore",
+        "Arrow-Hit-Point": "impact",
+        "Ring-1-Polygon": "ring",
+        "Ring-10-Polygon": "ring",
+        "Ring-2-Polygon": "ring",
+        "Ring-3-Polygon": "ring",
+        "Ring-4-Polygon": "ring",
+        "Ring-5-Polygon": "ring",
+        "Ring-6-Polygon": "ring",
+        "Ring-7-Polygon": "ring",
+        "Ring-8-Polygon": "ring",
+        "Ring-9-Polygon": "ring"
+      },
+      "options": {
+        "impact_point": "segmentation_centroid",
+        "target_metadata": {
+          "format": "SINGLE",
+          "minimum_scoring_zone": 1,
+          "ten_ring_mode": "RECURVE"
+        }
+      }
     }
   ]
 }

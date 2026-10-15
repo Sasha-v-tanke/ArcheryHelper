@@ -74,6 +74,50 @@ class DatasetStage25Test(unittest.TestCase):
                 sample.geometry_annotations[0].points,
             )
 
+    def test_coco_segmentation_centroid_preserves_hit_region_center(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            Image.new("RGB", (100, 100), (80, 80, 80)).save(root / "sample.jpg")
+            (root / "_annotations.coco.json").write_text(
+                json.dumps(
+                    {
+                        "images": [
+                            {
+                                "id": 1,
+                                "file_name": "sample.jpg",
+                                "width": 100,
+                                "height": 100,
+                            }
+                        ],
+                        "categories": [{"id": 1, "name": "Arrow-Hit-Point"}],
+                        "annotations": [
+                            {
+                                "id": 1,
+                                "image_id": 1,
+                                "category_id": 1,
+                                "bbox": [10, 10, 20, 30],
+                                "segmentation": [[10, 10, 30, 10, 10, 40]],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            source = self._source(
+                "coco",
+                root,
+                annotation_space="image",
+                class_mapping={"Arrow-Hit-Point": "impact"},
+                options={"impact_point": "segmentation_centroid"},
+            )
+
+            sample = import_coco(root, source)[0]
+
+            self.assertEqual(1, len(sample.raw_annotations))
+            self.assertAlmostEqual(1.0 / 6.0, sample.raw_annotations[0].x_fraction)
+            self.assertAlmostEqual(0.2, sample.raw_annotations[0].y_fraction)
+            self.assertEqual((0.1, 0.1, 0.2, 0.3), sample.raw_annotations[0].bbox)
+
     def test_yolo_keypoint_mode_uses_keypoint_not_bbox_center(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

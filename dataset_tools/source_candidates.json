@@ -43,6 +43,32 @@
         "impact_point": "keypoint"
       },
       "status": "needs_keypoint_semantics_export_checksum_and_annotation_review"
+    },
+    {
+      "id": "target_10_ring_instance",
+      "homepage_url": "https://universe.roboflow.com/aiscore-ounar/target-10-ring-instance",
+      "author": "aiscore",
+      "license": "CC BY 4.0",
+      "expected_version": "9",
+      "expected_importer": "coco",
+      "expected_annotation_space": "image",
+      "candidate_class_mapping": {
+        "Arrow": "ignore",
+        "19": "ignore",
+        "21": "ignore",
+        "Arrow-Hit-Point": "impact",
+        "Ring-1-Polygon": "ring",
+        "Ring-10-Polygon": "ring",
+        "Ring-2-Polygon": "ring",
+        "Ring-3-Polygon": "ring",
+        "Ring-4-Polygon": "ring",
+        "Ring-5-Polygon": "ring",
+        "Ring-6-Polygon": "ring",
+        "Ring-7-Polygon": "ring",
+        "Ring-8-Polygon": "ring",
+        "Ring-9-Polygon": "ring"
+      },
+      "status": "needs_local_v9_export_annotation_review_and_target_config"
     }
   ]
 }

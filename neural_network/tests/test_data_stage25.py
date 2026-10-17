@@ -18,6 +18,7 @@ from neural_network.archery_ml.data.importers.coco import import_coco
 from neural_network.archery_ml.data.importers.yolo import import_yolo
 from neural_network.archery_ml.data.pipeline import rebuild_dataset
 from neural_network.archery_ml.data.registry import DatasetSource
+from neural_network.archery_ml.data.split import assign_splits, assert_no_group_leakage
 from neural_network.archery_ml.data.snapshot import load_snapshot
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.data.workspace import DatasetWorkspace
@@ -208,6 +209,60 @@ class DatasetStage25Test(unittest.TestCase):
             self.assertEqual(1, snapshot.report.canonical_impacts)
             self.assertEqual(0, snapshot.report.raw_impacts)
             self.assertEqual(("local",), tuple(source.id for source in snapshot.sources))
+
+    def test_roboflow_variants_share_group_and_cannot_leak_across_splits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            variants = (
+                ("train", "10ring-fig10_png.rf.aaaaaaaa.jpg"),
+                ("valid", "10ring-fig10_png.rf.bbbbbbbb.jpg"),
+                ("test", "10ring-fig10_png.rf.cccccccc.jpg"),
+            )
+            for index, (split, file_name) in enumerate(variants, start=1):
+                split_dir = root / split
+                split_dir.mkdir()
+                Image.new("RGB", (64, 64), (40 * index, 0, 0)).save(split_dir / file_name)
+                (split_dir / "_annotations.coco.json").write_text(
+                    json.dumps(
+                        {
+                            "images": [
+                                {
+                                    "id": index,
+                                    "file_name": file_name,
+                                    "width": 64,
+                                    "height": 64,
+                                }
+                            ],
+                            "categories": [{"id": 1, "name": "Ring-1-Polygon"}],
+                            "annotations": [
+                                {
+                                    "id": index,
+                                    "image_id": index,
+                                    "category_id": 1,
+                                    "segmentation": [[4, 4, 60, 4, 60, 60, 4, 60]],
+                                    "bbox": [4, 4, 56, 56],
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            source = self._source(
+                "coco",
+                root,
+                annotation_space="image",
+                allowed_tasks=["geometry_evaluation"],
+                class_mapping={"Ring-1-Polygon": "ring"},
+                options={"group_regex": r"([^/]+?)_(?:jpg|jpeg|png)\.rf\."},
+            )
+
+            imported = import_coco(root, source)
+
+            self.assertEqual(3, len(imported))
+            self.assertEqual(1, len({sample.group_id for sample in imported}))
+            assigned = assign_splits(imported, seed=42)
+            assert_no_group_leakage(assigned)
+            self.assertEqual(1, len({sample.split for sample in assigned}))
 
     def test_dataset_view_filters_raw_geometry_and_split(self):
         samples = (

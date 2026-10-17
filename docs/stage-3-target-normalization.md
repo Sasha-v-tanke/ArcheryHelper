@@ -173,22 +173,25 @@ Synthetic tests cover:
 
 The geometric mapping assertion is expressed in normalized-coordinate error so it can be compared directly with later impact-localization tolerances.
 
-Real-photo validation is a separate data gate. The checked-in registry now contains `archery_scoring_keypoints`, but that source provides raw impact points and no geometry ground truth, so it cannot close the Stage 3 gate by itself.
+Real-photo validation is a separate data gate. The approved registry includes `archery_scoring_keypoints` (raw impacts only) and `archery_aiscore_ounar` v9 (raw impacts plus ten ring polygons), but neither replaces a separately collected `mobile_real_test` set.
 
-`GeometryEvaluator` consumes `DatasetView` samples with `geometry_annotations`, runs the detector and quality gate, and reports center and radial boundary errors in canonical normalized units. The report includes mean, median, P95, max, sample counts, READY count, and quality-status distribution.
+`GeometryEvaluator` consumes `DatasetView` samples with `geometry_annotations`, runs the detector and quality gate, and reports center and radial boundary errors in canonical normalized units. The report includes mean, median, P95, max, sample counts, READY count, quality-status distribution, ring-specific errors, and individual sample results.
 
-The evaluator is available through:
+Run diagnostics on validation images before evaluating the held-out test split:
 
 ~~~bash
 python -m archery_ml.geometry \
   --manifest data/manifests/dataset_manifest.json \
-  --source <geometry_source_id> \
-  --split test \
+  --source archery_aiscore_ounar \
+  --split val \
   --minimum-scoring-zone 1 \
-  --ten-ring-mode RECURVE
+  --ten-ring-mode RECURVE \
+  --preview-dir data/previews/geometry_val
 ~~~
 
-The current raw geometry candidate is tracked as `target_10_ring_instance`. It is not approved in `dataset_tools/sources.json` until the local version-9 COCO export, ring/impact annotation semantics, unknown numeric classes, and target configuration are reviewed. After approval and rebuild, the generated geometry report is the evidence for the real-photo Stage 3 gate.
+The preview images overlay COCO ring contours 1, 5 and 10 in green, detector-projected ring contours in orange, and ground-truth/detected centers as distinct crosses. For `WRONG_FACE_COUNT` samples, each candidate face center is marked so false detections can be inspected. These previews are diagnostic and never change source annotations or accepted test thresholds.
+
+The current dataset gives an initial real-image validation signal for single full ten-ring targets, but does not establish performance on mobile photographs or triple targets. Keep the held-out `test` split untouched during geometry changes.
 
 Real evaluation currently supports `SINGLE` targets only because `ImageGeometryAnnotation` does not carry `face_index`. Synthetic Stage 3 coverage still validates vertical and triangular triple geometry. Triple real-data evaluation requires an explicit face-association contract rather than inferred ordering.
 

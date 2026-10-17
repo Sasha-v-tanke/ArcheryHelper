@@ -28,7 +28,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ten_ring_mode=TenRingMode(args.ten_ring_mode),
         face_diameter_mm=args.face_diameter_mm,
     )
-    report = GeometryEvaluator().evaluate(view, config)
+    report = GeometryEvaluator().evaluate(view, config, preview_dir=args.preview_dir)
     payload = json.dumps(report.to_dict(), indent=2, sort_keys=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(payload + "\n", encoding="utf-8")
@@ -40,6 +40,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m archery_ml.geometry")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--preview-dir", type=Path, default=None)
     parser.add_argument("--source", action="append", default=None)
     parser.add_argument("--split", action="append", default=None)
     parser.add_argument(

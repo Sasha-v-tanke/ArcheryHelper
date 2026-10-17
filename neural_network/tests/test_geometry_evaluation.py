@@ -69,6 +69,7 @@ class GeometryEvaluationTest(unittest.TestCase):
             Image.fromarray(image).save(image_path, quality=100)
             manifest = root / "manifest.json"
             output = root / "geometry-report.json"
+            previews = root / "geometry-previews"
             save_manifest(
                 manifest,
                 [
@@ -98,6 +99,8 @@ class GeometryEvaluationTest(unittest.TestCase):
                     str(manifest),
                     "--output",
                     str(output),
+                    "--preview-dir",
+                    str(previews),
                     "--source",
                     "fixture",
                     "--split",
@@ -114,6 +117,9 @@ class GeometryEvaluationTest(unittest.TestCase):
             self.assertEqual(1, len(payload["sample_results"]))
             self.assertEqual("geometry", payload["sample_results"][0]["sample_id"])
             self.assertEqual({"5", "7", "9"}, set(payload["ring_error"]))
+            self.assertEqual(1, len(list(previews.glob("*.jpg"))))
+            with Image.open(next(previews.glob("*.jpg"))) as preview:
+                self.assertEqual((700, 700), preview.size)
 
     def test_evaluator_rejects_triple_until_geometry_annotations_have_face_index(self):
         image, annotations = self._fixture()

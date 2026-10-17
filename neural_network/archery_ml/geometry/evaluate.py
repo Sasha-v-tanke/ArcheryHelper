@@ -112,6 +112,7 @@ class GeometryEvaluator:
         self,
         view: DatasetView,
         target_config: TargetConfig,
+        preview_dir: Path | None = None,
     ) -> GeometryEvaluationReport:
         if target_config.format is not TargetFormat.SINGLE:
             raise ValueError(
@@ -130,8 +131,10 @@ class GeometryEvaluator:
         evaluated_samples = 0
         ready_samples = 0
         template = TargetTemplate.from_config(target_config)
+        if preview_dir is not None:
+            preview_dir.mkdir(parents=True, exist_ok=True)
 
-        for sample in samples:
+        for index, sample in enumerate(samples):
             image = _load_rgb(sample.image_path)
             geometry = self.detector.detect(image, target_config)
             quality = self.quality_gate.evaluate(image, geometry)
@@ -198,6 +201,15 @@ class GeometryEvaluator:
                     },
                 )
             )
+            if preview_dir is not None:
+                _render_preview(
+                    image,
+                    geometry.faces,
+                    status,
+                    sample.geometry_annotations,
+                    template,
+                    preview_dir / f"{index:03d}-{sample.image_path.stem}.jpg",
+                )
 
         return GeometryEvaluationReport(
             samples=len(samples),
@@ -310,6 +322,73 @@ def _to_canonical_norm(
         ],
         dtype=np.float64,
     )
+
+
+def _render_preview(
+    image: np.ndarray,
+    faces: tuple[FaceGeometry, ...],
+    status: str,
+    annotations: tuple[ImageGeometryAnnotation, ...],
+    template: TargetTemplate,
+    output_path: Path,
+) -> None:
+    canvas = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    height, width = image.shape[:2]
+    for annotation in annotations:
+        if _ring_score(annotation) not in {1, 5, 10}:
+            continue
+        points = np.asarray(annotation.points, dtype=np.float64)
+        if len(points) < 3:
+            continue
+        pixel_points = np.rint(points * (width, height)).astype(np.int32)
+        cv2.polylines(canvas, [pixel_points], True, (80, 210, 40), 2)
+
+    ground_truth_center = _ground_truth_center(annotations, template)
+    if ground_truth_center is not None:
+        point = (
+            int(round(ground_truth_center[0] * width)),
+            int(round(ground_truth_center[1] * height)),
+        )
+        cv2.drawMarker(canvas, point, (255, 255, 255), cv2.MARKER_CROSS, 18, 2)
+
+    angles = np.linspace(0.0, 2.0 * np.pi, 180, endpoint=False)
+    radii = {ring.score: ring.radius_norm for ring in template.ring_boundaries}
+    for face in faces:
+        point = tuple(int(round(value)) for value in face.center)
+        cv2.drawMarker(canvas, point, (0, 0, 255), cv2.MARKER_TILTED_CROSS, 18, 2)
+        inverse = np.asarray(face.inverse_homography, dtype=np.float64)
+        for score in (1, 5, 10):
+            radius = radii.get(score)
+            if radius is None:
+                continue
+            canonical_points = np.column_stack((
+                CANONICAL_CENTER_PX + CANONICAL_RADIUS_PX * radius * np.cos(angles),
+                CANONICAL_CENTER_PX + CANONICAL_RADIUS_PX * radius * np.sin(angles),
+            )).astype(np.float32).reshape(-1, 1, 2)
+            projected = cv2.perspectiveTransform(canonical_points, inverse).reshape(-1, 2)
+            if not np.isfinite(projected).all() or np.max(np.abs(projected)) > 1e7:
+                continue
+            cv2.polylines(
+                canvas,
+                [np.rint(projected).astype(np.int32)],
+                True,
+                (0, 165, 255),
+                2,
+            )
+
+    cv2.rectangle(canvas, (0, 0), (min(width, 520), 32), (0, 0, 0), -1)
+    cv2.putText(
+        canvas,
+        f"{status} faces={len(faces)} | green=GT orange=predicted",
+        (8, 22),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.49,
+        (255, 255, 255),
+        1,
+        cv2.LINE_AA,
+    )
+    if not cv2.imwrite(str(output_path), canvas):
+        raise OSError(f"could not write geometry preview: {output_path}")
 
 
 def _metrics(values: list[float]) -> GeometryErrorMetrics:

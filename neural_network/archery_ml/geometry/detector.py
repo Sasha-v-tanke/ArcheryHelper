@@ -140,7 +140,8 @@ class TargetGeometryDetector:
             orientation_axes,
         )
         if rings:
-            image_to_norm = _fit_projective_transform(image_to_norm, rings)
+            refined_transform = _fit_projective_transform(image_to_norm, rings)
+            image_to_norm = _stable_transform(image_to_norm, refined_transform, rings)
         fit_error = _ring_fit_error(image_to_norm, rings)
         canonical_transform = np.array(
             [
@@ -375,6 +376,24 @@ def _fit_projective_transform(
             break
         transform = fitted.astype(np.float64)
     return transform
+
+
+def _stable_transform(
+    initial: np.ndarray,
+    refined: np.ndarray,
+    rings: list[tuple[np.ndarray, float]],
+) -> np.ndarray:
+    if _ring_fit_error(refined, rings) <= 0.05:
+        return refined
+
+    angles = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
+    boundary = np.column_stack((np.cos(angles), np.sin(angles))).astype(np.float32)
+    source = _perspective_points(boundary, np.linalg.inv(initial))
+    refined_boundary = _perspective_points(source, refined)
+    deviation = np.linalg.norm(refined_boundary - boundary, axis=1)
+    if not np.isfinite(deviation).all() or float(np.max(deviation)) > 0.12:
+        return initial
+    return refined
 
 
 def _ring_fit_error(

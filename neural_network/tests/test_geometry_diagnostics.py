@@ -14,6 +14,7 @@ from neural_network.archery_ml.geometry import (
     TargetGeometryDetector,
     TargetNormalizer,
 )
+from neural_network.archery_ml.geometry.detector import _stable_transform
 from neural_network.archery_ml.targets import TargetConfig, TargetFormat, TenRingMode, TripleLayout
 
 
@@ -117,6 +118,48 @@ class GeometryDiagnosticsTest(unittest.TestCase):
                     self.assertLess(metrics["mean"], 0.08)
                     self.assertLess(metrics["p95"], 0.15)
                     self.assertLess(metrics["max"], 0.18)
+
+    def test_split_blue_region_still_represents_one_single_face(self):
+        image = np.full((700, 700, 3), 118, dtype=np.uint8)
+        self._draw_face(image, (350, 350), 220, minimum_zone=1)
+        cv2.line(image, (350, 218), (350, 482), (20, 20, 20), 18)
+
+        result = self.detector.detect(image, self._single_config(1))
+
+        self.assertEqual(1, len(result.faces))
+        self.assertTrue(result.layout_valid)
+        self.assertLess(
+            math.hypot(
+                result.faces[0].center[0] - 350,
+                result.faces[0].center[1] - 350,
+            ),
+            8.0,
+        )
+
+    def test_unreliable_projective_extrapolation_uses_affine_baseline(self):
+        initial = np.eye(3, dtype=np.float64)
+        angles = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
+        points = np.column_stack(
+            (0.6 * np.cos(angles), 0.6 * np.sin(angles))
+        ).astype(np.float32)
+        rings = [(points, 0.6)]
+        unstable = np.array(
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.3, 0.0, 1.0]],
+            dtype=np.float64,
+        )
+        stable = np.array(
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.03, 0.0, 1.0]],
+            dtype=np.float64,
+        )
+
+        np.testing.assert_allclose(
+            _stable_transform(initial, unstable, rings),
+            initial,
+        )
+        np.testing.assert_allclose(
+            _stable_transform(initial, stable, rings),
+            stable,
+        )
 
     def test_quality_status_precedence_and_contract_edges(self):
         image, _, _, _ = self._scenario(

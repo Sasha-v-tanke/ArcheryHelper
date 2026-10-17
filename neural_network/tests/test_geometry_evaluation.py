@@ -55,6 +55,11 @@ class GeometryEvaluationTest(unittest.TestCase):
             self.assertLess(report.center_error.p95, 0.03)
             self.assertLess(report.radial_error.p95, 0.04)
             self.assertEqual(72, report.radial_error.count)
+            self.assertEqual({"5", "7", "9"}, set(report.ring_error))
+            self.assertEqual(1, len(report.sample_results))
+            self.assertEqual("READY", report.sample_results[0].status)
+            self.assertEqual(1, report.sample_results[0].detected_face_count)
+            self.assertLess(report.sample_results[0].radial_error.p95, 0.04)
 
     def test_cli_filters_geometry_samples_and_writes_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -106,6 +111,9 @@ class GeometryEvaluationTest(unittest.TestCase):
             self.assertEqual(1, payload["evaluated_samples"])
             self.assertEqual(1, payload["ready_samples"])
             self.assertEqual("SINGLE", payload["target_config"]["format"])
+            self.assertEqual(1, len(payload["sample_results"]))
+            self.assertEqual("geometry", payload["sample_results"][0]["sample_id"])
+            self.assertEqual({"5", "7", "9"}, set(payload["ring_error"]))
 
     def test_evaluator_rejects_triple_until_geometry_annotations_have_face_index(self):
         image, annotations = self._fixture()

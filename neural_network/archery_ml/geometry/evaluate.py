@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import math
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,6 +42,35 @@ class GeometryErrorMetrics:
 
 
 @dataclass(frozen=True)
+class GeometrySampleResult:
+    sample_id: str
+    image_path: str
+    status: str
+    detected_face_count: int
+    geometry_confidence: float
+    fit_error: float
+    center_error: float | None
+    radial_error: GeometryErrorMetrics
+    ring_error: dict[str, GeometryErrorMetrics]
+
+    def to_dict(self) -> dict:
+        return {
+            "sample_id": self.sample_id,
+            "image_path": self.image_path,
+            "status": self.status,
+            "detected_face_count": self.detected_face_count,
+            "geometry_confidence": self.geometry_confidence,
+            "fit_error": self.fit_error,
+            "center_error": self.center_error,
+            "radial_error": self.radial_error.to_dict(),
+            "ring_error": {
+                key: value.to_dict()
+                for key, value in sorted(self.ring_error.items(), key=lambda item: int(item[0]))
+            },
+        }
+
+
+@dataclass(frozen=True)
 class GeometryEvaluationReport:
     samples: int
     evaluated_samples: int
@@ -50,6 +78,8 @@ class GeometryEvaluationReport:
     status_counts: dict[str, int]
     center_error: GeometryErrorMetrics
     radial_error: GeometryErrorMetrics
+    ring_error: dict[str, GeometryErrorMetrics]
+    sample_results: tuple[GeometrySampleResult, ...]
     target_config: dict[str, object]
 
     def to_dict(self) -> dict:
@@ -60,6 +90,11 @@ class GeometryEvaluationReport:
             "status_counts": self.status_counts,
             "center_error": self.center_error.to_dict(),
             "radial_error": self.radial_error.to_dict(),
+            "ring_error": {
+                key: value.to_dict()
+                for key, value in sorted(self.ring_error.items(), key=lambda item: int(item[0]))
+            },
+            "sample_results": [result.to_dict() for result in self.sample_results],
             "target_config": self.target_config,
         }
 
@@ -90,6 +125,8 @@ class GeometryEvaluator:
         status_counts: Counter[str] = Counter()
         center_errors: list[float] = []
         radial_errors: list[float] = []
+        ring_errors: dict[str, list[float]] = defaultdict(list)
+        sample_results: list[GeometrySampleResult] = []
         evaluated_samples = 0
         ready_samples = 0
         template = TargetTemplate.from_config(target_config)
@@ -98,44 +135,69 @@ class GeometryEvaluator:
             image = _load_rgb(sample.image_path)
             geometry = self.detector.detect(image, target_config)
             quality = self.quality_gate.evaluate(image, geometry)
-            status_counts[quality.status.value] += 1
-            if quality.status.value == "READY":
+            status = quality.status.value
+            status_counts[status] += 1
+            if status == "READY":
                 ready_samples += 1
-            if len(geometry.faces) != 1:
-                continue
 
-            face = geometry.faces[0]
-            sample_has_metric = False
-            ground_truth_center = _ground_truth_center(
-                sample.geometry_annotations,
-                template,
-            )
-            if ground_truth_center is not None:
-                center_norm = _to_canonical_norm(
-                    face,
-                    ground_truth_center,
-                    geometry.image_width,
-                    geometry.image_height,
+            sample_center_error: float | None = None
+            sample_radial_errors: list[float] = []
+            sample_ring_errors: dict[str, list[float]] = defaultdict(list)
+
+            if len(geometry.faces) == 1:
+                face = geometry.faces[0]
+                ground_truth_center = _ground_truth_center(
+                    sample.geometry_annotations,
+                    template,
                 )
-                center_errors.append(float(np.linalg.norm(center_norm)))
-                sample_has_metric = True
-
-            for annotation in sample.geometry_annotations:
-                expected_radius = _expected_radius(annotation, template)
-                if expected_radius is None:
-                    continue
-                for point in annotation.points:
-                    normalized = _to_canonical_norm(
+                if ground_truth_center is not None:
+                    center_norm = _to_canonical_norm(
                         face,
-                        point,
+                        ground_truth_center,
                         geometry.image_width,
                         geometry.image_height,
                     )
-                    radial_errors.append(abs(float(np.linalg.norm(normalized)) - expected_radius))
-                    sample_has_metric = True
+                    sample_center_error = float(np.linalg.norm(center_norm))
+                    center_errors.append(sample_center_error)
 
-            if sample_has_metric:
-                evaluated_samples += 1
+                for annotation in sample.geometry_annotations:
+                    expected_radius = _expected_radius(annotation, template)
+                    if expected_radius is None:
+                        continue
+                    ring_key = _ring_key(annotation)
+                    for point in annotation.points:
+                        normalized = _to_canonical_norm(
+                            face,
+                            point,
+                            geometry.image_width,
+                            geometry.image_height,
+                        )
+                        error = abs(float(np.linalg.norm(normalized)) - expected_radius)
+                        sample_radial_errors.append(error)
+                        radial_errors.append(error)
+                        if ring_key is not None:
+                            sample_ring_errors[ring_key].append(error)
+                            ring_errors[ring_key].append(error)
+
+                if sample_center_error is not None or sample_radial_errors:
+                    evaluated_samples += 1
+
+            sample_results.append(
+                GeometrySampleResult(
+                    sample_id=sample.id,
+                    image_path=str(sample.image_path),
+                    status=status,
+                    detected_face_count=len(geometry.faces),
+                    geometry_confidence=geometry.geometry_confidence,
+                    fit_error=geometry.fit_error,
+                    center_error=sample_center_error,
+                    radial_error=_metrics(sample_radial_errors),
+                    ring_error={
+                        key: _metrics(values)
+                        for key, values in sample_ring_errors.items()
+                    },
+                )
+            )
 
         return GeometryEvaluationReport(
             samples=len(samples),
@@ -144,6 +206,11 @@ class GeometryEvaluator:
             status_counts=dict(sorted(status_counts.items())),
             center_error=_metrics(center_errors),
             radial_error=_metrics(radial_errors),
+            ring_error={
+                key: _metrics(values)
+                for key, values in ring_errors.items()
+            },
+            sample_results=tuple(sample_results),
             target_config={
                 "format": target_config.format.value,
                 "minimum_scoring_zone": target_config.minimum_scoring_zone,
@@ -194,18 +261,29 @@ def _ground_truth_center(
     return float(center[0]), float(center[1])
 
 
+def _ring_score(annotation: ImageGeometryAnnotation) -> int | None:
+    if annotation.kind != "ring" or annotation.source_label is None:
+        return None
+    match = _RING_SCORE_RE.search(annotation.source_label)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def _ring_key(annotation: ImageGeometryAnnotation) -> str | None:
+    score = _ring_score(annotation)
+    return None if score is None else str(score)
+
+
 def _expected_radius(
     annotation: ImageGeometryAnnotation,
     template: TargetTemplate,
 ) -> float | None:
     if annotation.kind == "target_face":
         return float(template.visible_radius_norm)
-    if annotation.kind != "ring" or annotation.source_label is None:
+    score = _ring_score(annotation)
+    if score is None:
         return None
-    match = _RING_SCORE_RE.search(annotation.source_label)
-    if match is None:
-        return None
-    score = int(match.group(1))
     for boundary in template.ring_boundaries:
         if boundary.score == score:
             return float(boundary.radius_norm)

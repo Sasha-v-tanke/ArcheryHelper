@@ -439,8 +439,7 @@ def _reliable_inner_ring_transform(
             cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_NONE,
         )
-        contours.sort(key=cv2.contourArea, reverse=True)
-        for contour in contours:
+        for contour in sorted(contours, key=cv2.contourArea, reverse=True):
             if len(contour) < 5:
                 continue
             area = float(cv2.contourArea(contour))

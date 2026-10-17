@@ -136,6 +136,33 @@ class GeometryDiagnosticsTest(unittest.TestCase):
             8.0,
         )
 
+    def test_inner_ring_recovers_geometry_from_occluded_blue_zone(self):
+        size = 700
+        center = (350, 350)
+        radius = 220
+        image = np.full((size, size, 3), 118, dtype=np.uint8)
+        self._draw_face(image, center, radius, minimum_zone=1)
+        yy, xx = np.ogrid[:size, :size]
+        distance = np.hypot(xx - center[0], yy - center[1])
+        blue_occlusion = (
+            (distance > radius * 0.4)
+            & (distance < radius * 0.6)
+            & (xx < center[0] - 38)
+        )
+        image[blue_occlusion] = (118, 118, 118)
+
+        result = self.detector.detect(image, self._single_config(1))
+
+        self.assertEqual(1, len(result.faces))
+        metrics = self._coordinate_metrics(
+            result.faces[0],
+            np.eye(3, dtype=np.float64),
+            center,
+            radius,
+            self._sample_points(),
+        )
+        self.assertLess(metrics["p95"], 0.04)
+
     def test_unreliable_projective_extrapolation_uses_affine_baseline(self):
         initial = np.eye(3, dtype=np.float64)
         angles = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)

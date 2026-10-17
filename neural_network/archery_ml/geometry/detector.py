@@ -142,6 +142,10 @@ class TargetGeometryDetector:
         if rings:
             refined_transform = _fit_projective_transform(image_to_norm, rings)
             image_to_norm = _stable_transform(image_to_norm, refined_transform, rings)
+        if _ring_fit_error(image_to_norm, rings) > 0.06:
+            fallback_transform = _reliable_inner_ring_transform(candidate, masks, template)
+            if fallback_transform is not None:
+                image_to_norm = fallback_transform
         fit_error = _ring_fit_error(image_to_norm, rings)
         canonical_transform = np.array(
             [
@@ -404,6 +408,87 @@ def _stable_transform(
     if not np.isfinite(deviation).all() or float(np.max(deviation)) > 0.12:
         return initial
     return refined
+
+
+def _reliable_inner_ring_transform(
+    candidate: _Candidate,
+    masks: dict[str, np.ndarray],
+    template: GeometryTemplate,
+) -> np.ndarray | None:
+    reference_radius_px = (
+        candidate.ellipse.major_axis_px / (2.0 * template.colored_outer_radius_norm)
+    )
+    center = np.asarray(
+        (candidate.ellipse.center_x, candidate.ellipse.center_y),
+        dtype=np.float64,
+    )
+    height, width = masks["red"].shape
+    yy, xx = np.ogrid[:height, :width]
+
+    for color, radius_norm, minimum_fill in (
+        ("red", 0.4, 0.92),
+        ("yellow", 0.2, 0.88),
+    ):
+        search_radius = reference_radius_px * radius_norm * 1.2 + 6.0
+        within_search = (
+            (xx - center[0]) ** 2 + (yy - center[1]) ** 2
+        ) <= search_radius ** 2
+        cropped_mask = np.where(within_search, masks[color], 0).astype(np.uint8)
+        contours, _ = cv2.findContours(
+            cropped_mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_NONE,
+        )
+        contours.sort(key=cv2.contourArea, reverse=True)
+        for contour in contours:
+            if len(contour) < 5:
+                continue
+            area = float(cv2.contourArea(contour))
+            if area < 80.0:
+                continue
+            ellipse = _ellipse_from_cv(cv2.fitEllipse(contour))
+            if math.hypot(
+                ellipse.center_x - center[0],
+                ellipse.center_y - center[1],
+            ) > 0.25 * candidate.ellipse.major_axis_px:
+                continue
+            ellipse_radius_px = (
+                (ellipse.diameter_x + ellipse.diameter_y) / (4.0 * radius_norm)
+            )
+            if not 0.85 <= ellipse_radius_px / reference_radius_px <= 1.15:
+                continue
+            ellipse_area = math.pi * ellipse.diameter_x * ellipse.diameter_y / 4.0
+            if area / max(ellipse_area, 1.0) < minimum_fill:
+                continue
+
+            angle = math.radians(ellipse.angle_deg)
+            rotation = np.array(
+                [
+                    [math.cos(angle), -math.sin(angle)],
+                    [math.sin(angle), math.cos(angle)],
+                ],
+                dtype=np.float64,
+            )
+            scaling = np.diag(
+                [
+                    2.0 * radius_norm / ellipse.diameter_x,
+                    2.0 * radius_norm / ellipse.diameter_y,
+                ]
+            )
+            linear = rotation @ scaling @ rotation.T
+            translation = -linear @ np.array(
+                [ellipse.center_x, ellipse.center_y],
+                dtype=np.float64,
+            )
+            return np.array(
+                [
+                    [linear[0, 0], linear[0, 1], translation[0]],
+                    [linear[1, 0], linear[1, 1], translation[1]],
+                    [0.0, 0.0, 1.0],
+                ],
+                dtype=np.float64,
+            )
+    return None
 
 
 def _ring_fit_error(

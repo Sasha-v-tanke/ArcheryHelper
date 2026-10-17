@@ -255,17 +255,27 @@ def _face_candidates(
     for candidate in primary:
         if candidate.area < area_floor:
             continue
-        duplicate = False
-        for existing in selected:
+        overlapping_index = None
+        for index, existing in enumerate(selected):
             distance = math.hypot(
                 candidate.ellipse.center_x - existing.ellipse.center_x,
                 candidate.ellipse.center_y - existing.ellipse.center_y,
             )
-            if distance < 0.25 * max(candidate.ellipse.major_axis_px, existing.ellipse.major_axis_px):
-                duplicate = True
+            if distance < 0.55 * max(candidate.ellipse.major_axis_px, existing.ellipse.major_axis_px):
+                overlapping_index = index
                 break
-        if not duplicate:
+        if overlapping_index is None:
             selected.append(candidate)
+            continue
+
+        existing = selected[overlapping_index]
+        if candidate.area >= 0.45 * existing.area:
+            contour = np.concatenate((existing.contour, candidate.contour), axis=0)
+            selected[overlapping_index] = _Candidate(
+                contour=contour,
+                ellipse=_ellipse_from_cv(cv2.fitEllipse(contour)),
+                area=existing.area + candidate.area,
+            )
     return selected
 
 

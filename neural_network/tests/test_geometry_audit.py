@@ -16,6 +16,8 @@ class GeometrySplitAuditTest(unittest.TestCase):
         self.assertEqual("original", original_family(Path("train/Original_jpg.rf.aaa.jpg")))
         self.assertEqual("original", original_family(Path("test/original_PNG.rf.bbb.jpg")))
         self.assertEqual("target", original_family(Path("target.png")))
+        self.assertEqual("photo.1", original_family(Path("photo.1_jpg.rf.aaa.jpg")))
+        self.assertNotEqual(original_family(Path("photo.1.jpg")), original_family(Path("photo.2.jpg")))
         self.assertNotEqual(original_family(Path("Fig11.jpg")), original_family(Path("10ring-fig11.jpg")))
 
     def test_audit_catches_leaks_even_when_manifest_group_ids_disagree(self):

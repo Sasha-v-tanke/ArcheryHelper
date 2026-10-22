@@ -24,12 +24,13 @@ jobs:
             'test_data_*.py' \
             test_evaluation.py \
             'test_geometry_*.py' \
+            'test_stage3_*.py' \
             test_predictions.py \
             test_scoring_v2.py \
             test_splits.py \
             test_training_config.py
           do
-            python -m unittest discover -s neural_network/tests -p "$test_file"
+            python -m unittest discover -s neural_network/tests -p "$test_file" -v
           done
 
   android:

@@ -188,6 +188,95 @@ class GeometryDiagnosticsTest(unittest.TestCase):
             stable,
         )
 
+        # A tiny residual on a small inner ring must not bypass the guard.
+        inner_rings = [(points / 12.0, 0.05)]
+        np.testing.assert_allclose(
+            _stable_transform(initial, unstable, inner_rings), initial,
+        )
+
+    def test_tinted_black_rings_and_cyan_do_not_change_target_scale(self):
+        for black in ((75, 85, 105), (100, 78, 65)):
+            for radius in (140, 220):
+                with self.subTest(black=black, radius=radius):
+                    image = np.full((700, 700, 3), 118, dtype=np.uint8)
+                    self._draw_face(image, (350, 350), radius, minimum_zone=1)
+                    image[np.all(image == (28, 28, 28), axis=2)] = black
+                    image[np.all(image == (28, 92, 210), axis=2)] = (20, 205, 220)
+                    image[np.all(image == (220, 30, 45), axis=2)] = (220, 80, 140)
+                    cv2.line(image, (350, 130), (350, 350), (30, 30, 30), 10)
+                    result = self.detector.detect(image, self._single_config(1))
+                    self.assertEqual(QualityStatus.READY, self.gate.evaluate(image, result).status)
+                    metrics = self._coordinate_metrics(
+                        result.faces[0], np.eye(3), (350, 350), radius, self._sample_points(),
+                    )
+                    self.assertLess(metrics["p95"], 0.035)
+
+    def test_final_homography_owns_center_and_visible_bounds(self):
+        image = np.full((700, 700, 3), 118, dtype=np.uint8)
+        self._draw_face(image, (350, 350), 220, minimum_zone=1)
+        cv2.rectangle(image, (218, 250), (255, 450), (118, 118, 118), -1)
+        face = self.detector.detect(image, self._single_config(1)).faces[0]
+        angles = np.linspace(0, 2 * np.pi, 360, endpoint=False)
+        canonical = np.column_stack((
+            CANONICAL_CENTER_PX + CANONICAL_RADIUS_PX * np.cos(angles),
+            CANONICAL_CENTER_PX + CANONICAL_RADIUS_PX * np.sin(angles),
+        )).astype(np.float32)
+        projected = cv2.perspectiveTransform(
+            canonical.reshape(-1, 1, 2), np.asarray(face.inverse_homography),
+        ).reshape(-1, 2)
+        np.testing.assert_allclose(face.visible_bounds, (
+            projected[:, 0].min(), projected[:, 1].min(),
+            projected[:, 0].max(), projected[:, 1].max(),
+        ), atol=1e-3)
+        center = cv2.perspectiveTransform(
+            np.float32([[[CANONICAL_CENTER_PX, CANONICAL_CENTER_PX]]]),
+            np.asarray(face.inverse_homography),
+        ).reshape(2)
+        np.testing.assert_allclose(face.center, center, atol=1e-3)
+
+    def test_physically_clipped_target_is_rejected_before_normalization(self):
+        image = np.full((700, 700, 3), 118, dtype=np.uint8)
+        self._draw_face(image, (180, 350), 220, minimum_zone=1)
+        result = self.detector.detect(image, self._single_config(1))
+        self.assertEqual(QualityStatus.TARGET_CLIPPED, self.gate.evaluate(image, result).status)
+        with self.assertRaisesRegex(ValueError, "TARGET_CLIPPED"):
+            self.normalizer.normalize(image, result)
+
+    def test_uncertain_geometry_cannot_reach_canonical_inference(self):
+        image = self._triple_photo(((320, 320),), minimum_zone=1)
+        result = self.detector.detect(image, self._single_config(1))
+        for fit_error, ring_count in ((0.08, 3), (float("nan"), 3), (0.001, 1)):
+            uncertain = replace(result, faces=(replace(
+                result.faces[0], fit_error=fit_error, ring_count=ring_count, coverage=0.5,
+            ),))
+            self.assertEqual(
+                QualityStatus.GEOMETRY_UNCERTAIN, self.gate.evaluate(image, uncertain).status,
+            )
+            with self.assertRaisesRegex(ValueError, "GEOMETRY_UNCERTAIN"):
+                self.normalizer.normalize(image, uncertain)
+
+    def test_all_triple_zone_and_ten_ring_configs_preserve_coordinates(self):
+        for layout, centers in (
+            (TripleLayout.VERTICAL, ((350, 180), (350, 450), (350, 720))),
+            (TripleLayout.TRIANGULAR, ((350, 170), (215, 470), (485, 470))),
+        ):
+            for zone in (1, 5, 6):
+                image = np.full((900, 700, 3), 118, dtype=np.uint8)
+                for center in centers:
+                    self._draw_face(image, center, 115, zone)
+                for mode in TenRingMode:
+                    with self.subTest(layout=layout, zone=zone, mode=mode):
+                        config = replace(self._triple_config(layout, zone), ten_ring_mode=mode)
+                        result = self.detector.detect(image, config)
+                        self.assertEqual(3, len(result.faces))
+                        self.assertTrue(result.layout_valid)
+                        self.assertEqual(QualityStatus.READY, self.gate.evaluate(image, result).status)
+                        for face, center in zip(result.faces, centers):
+                            metrics = self._coordinate_metrics(
+                                face, np.eye(3), center, 115, self._sample_points(),
+                            )
+                            self.assertLess(metrics["p95"], 0.05)
+
     def test_quality_status_precedence_and_contract_edges(self):
         image, _, _, _ = self._scenario(
             image_size=(700, 700),

@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 
 from neural_network.archery_ml.geometry.detector import GeometryResult
+from neural_network.archery_ml.geometry.quality import ImageQualityGate, QualityStatus
 from neural_network.archery_ml.geometry.target_templates import CANONICAL_SIZE
 
 
@@ -17,9 +18,15 @@ class CanonicalFace:
 
 
 class TargetNormalizer:
+    def __init__(self, quality_gate: ImageQualityGate | None = None):
+        self.quality_gate = quality_gate or ImageQualityGate()
+
     def normalize(self, image: np.ndarray, geometry_result: GeometryResult) -> list[CanonicalFace]:
         if not isinstance(image, np.ndarray) or image.ndim != 3 or image.shape[2] != 3:
             raise ValueError("image must have shape H x W x 3")
+        quality = self.quality_gate.evaluate(image, geometry_result)
+        if quality.status is not QualityStatus.READY:
+            raise ValueError(f"target normalization requires READY: {quality.status.value}")
         faces = []
         for face in geometry_result.faces:
             transform = np.asarray(face.homography, dtype=np.float64)

@@ -264,6 +264,11 @@ class GeometryDiagnosticsTest(unittest.TestCase):
                 image = np.full((900, 700, 3), 118, dtype=np.uint8)
                 for center in centers:
                     self._draw_face(image, center, 115, zone)
+                camera = cv2.getPerspectiveTransform(
+                    np.float32([[0, 0], [699, 0], [699, 899], [0, 899]]),
+                    np.float32([[18, 12], [680, 26], [687, 875], [10, 889]]),
+                )
+                image = cv2.warpPerspective(image, camera, (700, 900), borderValue=(118, 118, 118))
                 for mode in TenRingMode:
                     with self.subTest(layout=layout, zone=zone, mode=mode):
                         config = replace(self._triple_config(layout, zone), ten_ring_mode=mode)
@@ -273,7 +278,7 @@ class GeometryDiagnosticsTest(unittest.TestCase):
                         self.assertEqual(QualityStatus.READY, self.gate.evaluate(image, result).status)
                         for face, center in zip(result.faces, centers):
                             metrics = self._coordinate_metrics(
-                                face, np.eye(3), center, 115, self._sample_points(),
+                                face, camera, center, 115, self._sample_points(),
                             )
                             self.assertLess(metrics["p95"], 0.05)
 

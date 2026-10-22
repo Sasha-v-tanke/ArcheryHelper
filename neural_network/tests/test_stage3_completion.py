@@ -10,12 +10,15 @@ import numpy as np
 import cv2
 from PIL import Image
 
-from neural_network.archery_ml.contracts import DatasetSample, ImageGeometryAnnotation, TargetMetadata
+from neural_network.archery_ml.contracts import DatasetSample, ImageGeometryAnnotation, TargetMetadata, save_manifest
+from neural_network.archery_ml.data.snapshot import build_snapshot, DatasetSnapshot
+from neural_network.archery_ml.data.report import build_report
 from neural_network.archery_ml.data.importers.coco import import_coco
 from neural_network.archery_ml.data.importers.mobile_geometry import import_mobile_geometry
 from neural_network.archery_ml.data.registry import DatasetRegistry, DatasetSource
 from neural_network.archery_ml.data.split import assign_splits
 from neural_network.archery_ml.data.view import DatasetView
+from neural_network.archery_ml.data.geometry_provenance import annotation_digest, verify_mobile_gt
 from neural_network.archery_ml.geometry.detector import TargetGeometryDetector, _stable_transform
 from neural_network.archery_ml.geometry.evaluate import GeometryEvaluator, _annotation_issues, _equal_group_metrics
 from neural_network.archery_ml.geometry.normalize import TargetNormalizer
@@ -48,6 +51,7 @@ class Stage3CompletionTest(unittest.TestCase):
         fixture = fixtures.GeometryEvaluationTest()
         image, _ = fixture._fixture()
         result = TargetGeometryDetector().detect(image, fixture._config())
+        self.assertEqual("unanchored_image_or_layout_axes", result.orientation_reference)
         for change in ({"homography": ((0, 0, 0),) * 3},
                        {"inverse_homography": ((1, 0, 0), (0, 1, 0), (0, 0, 1))},
                        {"geometry_confidence": float("nan")}):
@@ -140,11 +144,24 @@ class Stage3CompletionTest(unittest.TestCase):
             sample = DatasetSample("test", Path("target.png"), None, split="mobile_dev",
                 target_metadata=TargetMetadata("SINGLE", 1, "RECURVE"),
                 geometry_annotations=(center, annotation), capture_metadata=meta)
+            meta["gt_annotations_sha256"] = annotation_digest(sample)
             source = DatasetSource("mobile", "mobile_geometry", str(root), "1", "private", "test", None, ("geometry_evaluation",), annotation_space="image")
             path = root / "geometry.json"
             path.write_text(json.dumps({"samples": [sample.to_dict()]}))
             imported = import_mobile_geometry(root, source)
             self.assertEqual("mobile:session-1", imported[0].group_id)
+            self.assertEqual("manual-v1", verify_mobile_gt(imported[0])["revision"])
+            manifest = root / "manifest.json"
+            save_manifest(manifest, imported)
+            snapshot = build_snapshot(manifest_path=manifest, registry_path=Path("dataset_tools/sources.json"),
+                registry=DatasetRegistry((source,)), source_ids=[source.id], report=build_report(imported),
+                split_seed=42, train_ratio=.8, val_ratio=.1, test_ratio=.1, perceptual_threshold=4)
+            self.assertEqual(snapshot, DatasetSnapshot.from_dict(snapshot.to_dict()))
+            self.assertEqual("manual-v1", snapshot.sources[0].gt_revision)
+            self.assertTrue(snapshot.sources[0].annotation_manifests_sha256)
+            meta.pop("gt_annotations_sha256")
+            path.write_text(json.dumps({"samples": [sample.to_dict()]}))
+            self.assertEqual("manual-v1", verify_mobile_gt(import_mobile_geometry(root, source)[0])["revision"])
             path.write_text(json.dumps({"samples": [sample.to_dict(), replace(sample, id="other", split="mobile_real_test").to_dict()]}))
             with self.assertRaisesRegex(ValueError, "cross-split"):
                 import_mobile_geometry(root, source)
@@ -185,6 +202,8 @@ class Stage3CompletionTest(unittest.TestCase):
                 self.assertEqual(12, report["point_error_2d"]["count"])
                 self.assertLess(report["point_error_2d"]["p95"], 0.08)
                 self.assertEqual({"0", "1", "2"}, set(report["sample_results"][0]["face_error"]))
+                self.assertTrue(all(face["orientation_reference"] == "unanchored_image_or_layout_axes"
+                                    for face in report["sample_results"][0]["face_error"].values()))
 
     def test_negative_without_geometry_remains_in_false_accept_denominator(self):
         with tempfile.TemporaryDirectory() as tmp:

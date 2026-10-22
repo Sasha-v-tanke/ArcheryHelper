@@ -43,8 +43,8 @@ def group_id(source: DatasetSource, root: Path, image_path: Path) -> str:
 
 def split_name(source: DatasetSource, image_path: Path) -> SplitName:
     default = str(source.options.get("default_split", "train"))
-    if default == "mobile_real_test":
-        return "mobile_real_test"
+    if default in {"mobile_dev", "mobile_real_test"}:
+        return default
 
     parts = {part.lower() for part in image_path.parts}
     if "test" in parts:
@@ -53,7 +53,7 @@ def split_name(source: DatasetSource, image_path: Path) -> SplitName:
         return "val"
     if "train" in parts:
         return "train"
-    if default not in {"train", "val", "test", "mobile_real_test"}:
+    if default not in {"train", "val", "test", "mobile_dev", "mobile_real_test"}:
         raise ValueError(f"unsupported default split for {source.id}: {default}")
     return default  # type: ignore[return-value]
 

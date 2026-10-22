@@ -15,6 +15,7 @@ class CanonicalFace:
     original_to_canonical: tuple[tuple[float, float, float], ...]
     canonical_to_original: tuple[tuple[float, float, float], ...]
     geometry_confidence: float
+    orientation_reference: str = "unanchored_image_or_layout_axes"
 
 
 class TargetNormalizer:
@@ -45,6 +46,7 @@ class TargetNormalizer:
                     original_to_canonical=face.homography,
                     canonical_to_original=face.inverse_homography,
                     geometry_confidence=face.geometry_confidence,
+                    orientation_reference=geometry_result.orientation_reference,
                 )
             )
         return faces

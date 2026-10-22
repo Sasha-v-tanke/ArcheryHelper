@@ -8,11 +8,13 @@ from neural_network.archery_ml.data.importers.coco import import_coco
 from neural_network.archery_ml.data.importers.legacy import import_legacy
 from neural_network.archery_ml.data.importers.roboflow import import_roboflow
 from neural_network.archery_ml.data.importers.yolo import import_yolo
+from neural_network.archery_ml.data.importers.mobile_geometry import import_mobile_geometry
 from neural_network.archery_ml.data.registry import DatasetSource
 
 
 Importer = Callable[[Path, DatasetSource], list[DatasetSample]]
 IMPORTERS: dict[str, Importer] = {
+    "mobile_geometry": import_mobile_geometry,
     "legacy": import_legacy,
     "yolo": import_yolo,
     "coco": import_coco,

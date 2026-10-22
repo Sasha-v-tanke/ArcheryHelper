@@ -190,7 +190,7 @@ class GeometryEvaluationTest(unittest.TestCase):
                 triple_layout=TripleLayout.VERTICAL,
             )
 
-            with self.assertRaisesRegex(ValueError, "requires SINGLE"):
+            with self.assertRaisesRegex(ValueError, "requires explicit face_index"):
                 GeometryEvaluator().evaluate(DatasetView.from_samples((sample,)), config)
 
     def _fixture(self):

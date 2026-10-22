@@ -1,0 +1,12 @@
+{
+  "policy_revision": "stage3-draft-1",
+  "status": "development-proposal-not-final-holdout-approval",
+  "maximum_median_2d": 0.0075,
+  "maximum_p95_2d": 0.015,
+  "maximum_ready_error_2d": 0.035,
+  "maximum_false_accept_fraction": 0.01,
+  "maximum_false_reject_fraction": 0.2,
+  "minimum_sessions": 6,
+  "minimum_devices": 3,
+  "minimum_originals": 200
+}

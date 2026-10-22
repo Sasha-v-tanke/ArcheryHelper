@@ -20,11 +20,19 @@ from neural_network.archery_ml.data.importers.common import (
     target_metadata,
 )
 from neural_network.archery_ml.data.registry import DatasetSource
+from neural_network.archery_ml.data.corrections import corrected_coco
 
 
 def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
     samples: list[DatasetSample] = []
-    for annotation_path in _find_annotation_files(root, source):
+    files = _find_annotation_files(root, source)
+    configured = source.options.get("corrections_file")
+    if configured:
+        corrections = json.loads(Path(configured).read_text(encoding="utf-8"))
+        expected = {change["annotation_file"] for change in corrections["changes"]}
+        if not expected.issubset({path.relative_to(root).as_posix() for path in files}):
+            raise ValueError("GT correction refers to missing annotation file")
+    for annotation_path in files:
         samples.extend(_import_coco_file(root, annotation_path, source))
     return samples
 
@@ -34,7 +42,7 @@ def _import_coco_file(
     annotation_path: Path,
     source: DatasetSource,
 ) -> list[DatasetSample]:
-    payload = json.loads(annotation_path.read_text(encoding="utf-8"))
+    payload = corrected_coco(root, annotation_path, source)
     categories = {
         int(item["id"]): str(item.get("name", item["id"]))
         for item in payload.get("categories", ())
@@ -251,6 +259,7 @@ def _geometry_annotations(
                 kind="target_center",
                 points=((x / width, y / height),),
                 source_label=source_label,
+                face_index=annotation.get("face_index"),
             )
         ]
 
@@ -269,6 +278,7 @@ def _geometry_annotations(
                     kind=role,
                     points=points,
                     source_label=source_label,
+                    face_index=annotation.get("face_index"),
                 )
             )
         if polygons:
@@ -290,5 +300,6 @@ def _geometry_annotations(
                 (x, y + box_height),
             ),
             source_label=source_label,
+            face_index=annotation.get("face_index"),
         )
     ]

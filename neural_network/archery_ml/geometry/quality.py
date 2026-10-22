@@ -5,7 +5,7 @@ from enum import Enum
 import cv2
 import numpy as np
 
-from neural_network.archery_ml.geometry.detector import GeometryResult
+from neural_network.archery_ml.geometry.detector import GeometryResult, _checked_inverse
 
 
 class QualityStatus(str, Enum):
@@ -53,6 +53,27 @@ class ImageQualityGate:
     def evaluate(self, image: np.ndarray, geometry_result: GeometryResult) -> QualityResult:
         if not isinstance(image, np.ndarray) or image.ndim != 3 or image.shape[2] != 3:
             raise ValueError("image must have shape H x W x 3")
+        for face in geometry_result.faces:
+            try:
+                inverse = _checked_inverse(np.asarray(face.homography))
+                supplied = np.asarray(face.inverse_homography, dtype=np.float64)
+                _checked_inverse(supplied)
+                inverse /= np.max(np.abs(inverse))
+                supplied = supplied / np.max(np.abs(supplied))
+                values = (*face.center, *face.visible_bounds, face.coverage,
+                          face.geometry_confidence, face.ellipse.center_x, face.ellipse.center_y,
+                          face.ellipse.diameter_x, face.ellipse.diameter_y, face.ellipse.angle_deg)
+                if (not np.isfinite(values).all() or not math.isfinite(geometry_result.geometry_confidence)
+                        or face.ellipse.diameter_x <= 0 or face.ellipse.diameter_y <= 0
+                        or not 0 <= face.coverage <= 1 or not 0 <= face.geometry_confidence <= 1
+                        or not (np.allclose(inverse, supplied, atol=1e-7) or np.allclose(inverse, -supplied, atol=1e-7))):
+                    raise np.linalg.LinAlgError("invalid face geometry")
+            except np.linalg.LinAlgError:
+                return self._result(QualityStatus.GEOMETRY_UNCERTAIN, geometry_result, {
+                    "blur_score": 0.0, "mean_luma": 0.0, "clipped_fraction": 0.0,
+                    "minimum_coverage": 0.0, "minimum_perspective_ratio": 0.0,
+                    "minimum_target_diameter_fraction": 0.0,
+                })
         metrics = self._metrics(image, geometry_result)
         if not geometry_result.faces:
             return self._result(QualityStatus.TARGET_NOT_FOUND, geometry_result, metrics)

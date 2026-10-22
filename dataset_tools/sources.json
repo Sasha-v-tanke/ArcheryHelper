@@ -52,6 +52,7 @@
       },
       "options": {
         "impact_point": "segmentation_centroid",
+        "corrections_file": "dataset_tools/corrections/archery_aiscore_ounar_v9.json",
         "target_metadata": {
           "format": "SINGLE",
           "minimum_scoring_zone": 1,

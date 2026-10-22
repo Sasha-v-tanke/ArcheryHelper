@@ -8,7 +8,7 @@ from typing import Any
 
 
 DEFAULT_REGISTRY_PATH = Path("dataset_tools/sources.json")
-SUPPORTED_IMPORTERS = frozenset({"legacy", "yolo", "coco", "roboflow"})
+SUPPORTED_IMPORTERS = frozenset({"legacy", "yolo", "coco", "roboflow", "mobile_geometry"})
 SUPPORTED_TASKS = frozenset({"impact_detection", "geometry_evaluation"})
 SUPPORTED_ANNOTATION_SPACES = frozenset({"canonical", "image"})
 SUPPORTED_CLASS_ROLES = frozenset(

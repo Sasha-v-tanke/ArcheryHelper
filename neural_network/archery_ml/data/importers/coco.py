@@ -20,11 +20,19 @@ from neural_network.archery_ml.data.importers.common import (
     target_metadata,
 )
 from neural_network.archery_ml.data.registry import DatasetSource
+from neural_network.archery_ml.data.corrections import corrected_coco
 
 
 def import_coco(root: Path, source: DatasetSource) -> list[DatasetSample]:
     samples: list[DatasetSample] = []
-    for annotation_path in _find_annotation_files(root, source):
+    files = _find_annotation_files(root, source)
+    configured = source.options.get("corrections_file")
+    if configured:
+        corrections = json.loads(Path(configured).read_text(encoding="utf-8"))
+        expected = {change["annotation_file"] for change in corrections["changes"]}
+        if not expected.issubset({path.relative_to(root).as_posix() for path in files}):
+            raise ValueError("GT correction refers to missing annotation file")
+    for annotation_path in files:
         samples.extend(_import_coco_file(root, annotation_path, source))
     return samples
 
@@ -34,7 +42,7 @@ def _import_coco_file(
     annotation_path: Path,
     source: DatasetSource,
 ) -> list[DatasetSample]:
-    payload = json.loads(annotation_path.read_text(encoding="utf-8"))
+    payload = corrected_coco(root, annotation_path, source)
     categories = {
         int(item["id"]): str(item.get("name", item["id"]))
         for item in payload.get("categories", ())
@@ -138,6 +146,8 @@ def _annotation_point(annotation: dict, source: DatasetSource | None = None) -> 
     mode = "auto" if source is None else str(source.options.get("impact_point", "auto"))
     if mode == "keypoint":
         return _keypoint(annotation, source)
+    if mode == "segmentation_centroid":
+        return _segmentation_centroid(annotation)
     if mode != "auto":
         raise ValueError(f"unsupported impact_point mode for {source.id if source else 'coco'}: {mode}")
     point = _visible_keypoint(annotation, 0)
@@ -171,6 +181,55 @@ def _visible_keypoint(annotation: dict, keypoint_index: int) -> tuple[float, flo
     return float(keypoints[start]), float(keypoints[start + 1])
 
 
+def _segmentation_centroid(annotation: dict) -> tuple[float, float]:
+    segmentation = annotation.get("segmentation")
+    if not isinstance(segmentation, list):
+        raise ValueError(
+            f"missing polygon segmentation for COCO annotation id={annotation.get('id')}"
+        )
+
+    weighted_x = 0.0
+    weighted_y = 0.0
+    total_weight = 0.0
+    fallback_points: list[tuple[float, float]] = []
+    for polygon in segmentation:
+        if not isinstance(polygon, list) or len(polygon) < 6 or len(polygon) % 2 != 0:
+            continue
+        points = [
+            (float(polygon[index]), float(polygon[index + 1]))
+            for index in range(0, len(polygon), 2)
+        ]
+        fallback_points.extend(points)
+        area_twice = 0.0
+        centroid_x_numerator = 0.0
+        centroid_y_numerator = 0.0
+        for index, (x0, y0) in enumerate(points):
+            x1, y1 = points[(index + 1) % len(points)]
+            cross = x0 * y1 - x1 * y0
+            area_twice += cross
+            centroid_x_numerator += (x0 + x1) * cross
+            centroid_y_numerator += (y0 + y1) * cross
+        if abs(area_twice) <= 1e-9:
+            continue
+        centroid_x = centroid_x_numerator / (3.0 * area_twice)
+        centroid_y = centroid_y_numerator / (3.0 * area_twice)
+        weight = abs(area_twice)
+        weighted_x += centroid_x * weight
+        weighted_y += centroid_y * weight
+        total_weight += weight
+
+    if total_weight > 0.0:
+        return weighted_x / total_weight, weighted_y / total_weight
+    if fallback_points:
+        return (
+            sum(point[0] for point in fallback_points) / len(fallback_points),
+            sum(point[1] for point in fallback_points) / len(fallback_points),
+        )
+    raise ValueError(
+        f"missing valid polygon segmentation for COCO annotation id={annotation.get('id')}"
+    )
+
+
 def _normalized_bbox(
     bbox: list | tuple | None,
     width: float,
@@ -200,6 +259,7 @@ def _geometry_annotations(
                 kind="target_center",
                 points=((x / width, y / height),),
                 source_label=source_label,
+                face_index=annotation.get("face_index"),
             )
         ]
 
@@ -218,6 +278,7 @@ def _geometry_annotations(
                     kind=role,
                     points=points,
                     source_label=source_label,
+                    face_index=annotation.get("face_index"),
                 )
             )
         if polygons:
@@ -239,5 +300,6 @@ def _geometry_annotations(
                 (x, y + box_height),
             ),
             source_label=source_label,
+            face_index=annotation.get("face_index"),
         )
     ]

@@ -2,6 +2,7 @@ import json
 import math
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 import cv2
@@ -15,7 +16,8 @@ from neural_network.archery_ml.contracts import (
 )
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.geometry.cli import main
-from neural_network.archery_ml.geometry.evaluate import GeometryEvaluator
+from neural_network.archery_ml.geometry.evaluate import GeometryEvaluator, _annotation_issues
+from neural_network.archery_ml.geometry.quality import ImageQualityGate, QualityStatus
 from neural_network.archery_ml.targets import (
     TargetConfig,
     TargetFormat,
@@ -25,6 +27,15 @@ from neural_network.archery_ml.targets import (
 
 
 class GeometryEvaluationTest(unittest.TestCase):
+    def test_swapped_cumulative_ring_labels_are_flagged_without_relabeling(self):
+        outer = self._ring_annotation("Ring-2-Polygon", (350, 350), 220, 700)
+        inner = self._ring_annotation("Ring-1-Polygon", (350, 350), 198, 700)
+        self.assertEqual(
+            ("cumulative ring 1 is not larger than ring 2",),
+            _annotation_issues((outer, inner)),
+        )
+        self.assertEqual("Ring-2-Polygon", outer.source_label)
+
     def test_evaluator_measures_real_manifest_geometry_in_canonical_units(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -60,6 +71,45 @@ class GeometryEvaluationTest(unittest.TestCase):
             self.assertEqual("READY", report.sample_results[0].status)
             self.assertEqual(1, report.sample_results[0].detected_face_count)
             self.assertLess(report.sample_results[0].radial_error.p95, 0.04)
+            payload = report.to_dict()
+            ready = payload["breakdowns"]["acceptance"]["ready"]
+            self.assertEqual(1, ready["samples"])
+            self.assertEqual(payload["radial_error"], ready["radial_error"])
+            self.assertEqual({"fixture:target"}, set(payload["breakdowns"]["family"]))
+            self.assertEqual("test", payload["sample_results"][0]["split"])
+
+    def test_report_keeps_rejected_images_in_metrics_and_partitions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image, annotations = self._fixture()
+            ready_path = root / "ready.png"
+            rejected_path = root / "rejected.png"
+            Image.fromarray(image).save(ready_path)
+            # Control statuses independently of the metric aggregation.
+            Image.fromarray(image).save(rejected_path)
+
+            class AlternatingGate(ImageQualityGate):
+                calls = 0
+
+                def evaluate(self, image, geometry):
+                    result = super().evaluate(image, geometry)
+                    self.calls += 1
+                    return result if self.calls == 1 else replace(result, status=QualityStatus.GEOMETRY_UNCERTAIN)
+
+            samples = [DatasetSample(
+                id=str(index), image_path=path, annotation_path=None, split=split, source_id="fixture",
+                group_id=str(index), geometry_annotations=annotations,
+            ) for index, (path, split) in enumerate(((ready_path, "val"), (rejected_path, "test")))]
+            payload = GeometryEvaluator(quality_gate=AlternatingGate()).evaluate(
+                DatasetView.from_samples(samples), self._config(),
+            ).to_dict()
+            self.assertEqual(2, payload["evaluated_samples"])
+            self.assertEqual(144, payload["radial_error"]["count"])
+            for acceptance in ("ready", "rejected"):
+                part = payload["breakdowns"]["acceptance"][acceptance]
+                self.assertEqual(1, part["samples"])
+                self.assertEqual(72, part["radial_error"]["count"])
+            self.assertEqual({"val", "test"}, set(payload["breakdowns"]["split"]))
 
     def test_cli_filters_geometry_samples_and_writes_report(self):
         with tempfile.TemporaryDirectory() as tmp:

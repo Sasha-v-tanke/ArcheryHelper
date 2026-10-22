@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 from pathlib import Path
 from typing import Sequence
 
@@ -29,7 +30,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         face_diameter_mm=args.face_diameter_mm,
     )
     report = GeometryEvaluator().evaluate(view, config, preview_dir=args.preview_dir)
-    payload = json.dumps(report.to_dict(), indent=2, sort_keys=True)
+    result = report.to_dict()
+    result["provenance"] = {
+        "manifest_sha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
+        "sources": args.source,
+        "splits": args.split,
+        "metric_weighting": "radial: annotation vertices; center: images; no rejected samples excluded",
+        "center_reference": "explicit target_center, otherwise outer GT ellipse center (a perspective-biased proxy)",
+    }
+    payload = json.dumps(result, indent=2, sort_keys=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(payload + "\n", encoding="utf-8")
     print(payload)

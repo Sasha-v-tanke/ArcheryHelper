@@ -11,6 +11,7 @@ from PIL import Image
 
 from neural_network.archery_ml.contracts import ImageGeometryAnnotation
 from neural_network.archery_ml.data.view import DatasetView
+from neural_network.archery_ml.geometry.lineage import original_family
 from neural_network.archery_ml.geometry.detector import FaceGeometry, TargetGeometryDetector
 from neural_network.archery_ml.geometry.quality import ImageQualityGate
 from neural_network.archery_ml.geometry.target_templates import (
@@ -52,10 +53,18 @@ class GeometrySampleResult:
     center_error: float | None
     radial_error: GeometryErrorMetrics
     ring_error: dict[str, GeometryErrorMetrics]
+    split: str
+    group_id: str
+    family: str
+    annotation_issues: tuple[str, ...]
 
     def to_dict(self) -> dict:
         return {
             "sample_id": self.sample_id,
+            "split": self.split,
+            "group_id": self.group_id,
+            "family": self.family,
+            "annotation_issues": list(self.annotation_issues),
             "image_path": self.image_path,
             "status": self.status,
             "detected_face_count": self.detected_face_count,
@@ -81,6 +90,7 @@ class GeometryEvaluationReport:
     ring_error: dict[str, GeometryErrorMetrics]
     sample_results: tuple[GeometrySampleResult, ...]
     target_config: dict[str, object]
+    breakdowns: dict[str, dict]
 
     def to_dict(self) -> dict:
         return {
@@ -96,6 +106,8 @@ class GeometryEvaluationReport:
             },
             "sample_results": [result.to_dict() for result in self.sample_results],
             "target_config": self.target_config,
+            "breakdowns": self.breakdowns,
+            "annotation_issue_samples": sum(bool(sample.annotation_issues) for sample in self.sample_results),
         }
 
 
@@ -131,6 +143,7 @@ class GeometryEvaluator:
         evaluated_samples = 0
         ready_samples = 0
         template = TargetTemplate.from_config(target_config)
+        buckets: dict[str, dict[str, dict]] = defaultdict(dict)
         if preview_dir is not None:
             preview_dir.mkdir(parents=True, exist_ok=True)
 
@@ -199,8 +212,31 @@ class GeometryEvaluator:
                         key: _metrics(values)
                         for key, values in sample_ring_errors.items()
                     },
+                    split=sample.split,
+                    group_id=sample.group_id or sample.id,
+                    family=f"{sample.source_id}:{original_family(sample.image_path)}",
+                    annotation_issues=_annotation_issues(sample.geometry_annotations),
                 )
             )
+            for dimension, key in (
+                ("acceptance", "ready" if status == "READY" else "rejected"),
+                ("status", status),
+                ("split", sample.split),
+                ("family", sample_results[-1].family),
+                ("group", sample.group_id or sample.id),
+            ):
+                bucket = buckets[dimension].setdefault(key, {
+                    "samples": 0, "evaluated_samples": 0, "ready_samples": 0,
+                    "center": [], "radial": [], "rings": defaultdict(list),
+                })
+                bucket["samples"] += 1
+                bucket["evaluated_samples"] += int(sample_center_error is not None or bool(sample_radial_errors))
+                bucket["ready_samples"] += int(status == "READY")
+                if sample_center_error is not None:
+                    bucket["center"].append(sample_center_error)
+                bucket["radial"].extend(sample_radial_errors)
+                for ring_key, errors in sample_ring_errors.items():
+                    bucket["rings"][ring_key].extend(errors)
             if preview_dir is not None:
                 _render_preview(
                     image,
@@ -234,7 +270,37 @@ class GeometryEvaluator:
                     else target_config.triple_layout.value
                 ),
             },
+            breakdowns={
+                dimension: {key: _bucket_metrics(bucket) for key, bucket in sorted(values.items())}
+                for dimension, values in sorted(buckets.items())
+            },
         )
+
+
+def _bucket_metrics(bucket: dict) -> dict:
+    return {
+        "samples": bucket["samples"],
+        "evaluated_samples": bucket["evaluated_samples"],
+        "ready_samples": bucket["ready_samples"],
+        "center_error": _metrics(bucket["center"]).to_dict(),
+        "radial_error": _metrics(bucket["radial"]).to_dict(),
+        "ring_error": {key: _metrics(values).to_dict() for key, values in sorted(bucket["rings"].items())},
+    }
+
+
+def _annotation_issues(annotations: tuple[ImageGeometryAnnotation, ...]) -> tuple[str, ...]:
+    """Flag contradictory cumulative zones without repairing or excluding GT."""
+    areas: dict[int, float] = defaultdict(float)
+    for annotation in annotations:
+        score = _ring_score(annotation)
+        if score is not None and len(annotation.points) >= 3:
+            areas[score] += abs(cv2.contourArea(np.asarray(annotation.points, dtype=np.float32)))
+    issues = []
+    ordered = sorted(areas)
+    for outer, inner in zip(ordered, ordered[1:]):
+        if areas[outer] <= areas[inner]:
+            issues.append(f"cumulative ring {outer} is not larger than ring {inner}")
+    return tuple(issues)
 
 
 def _load_rgb(path: Path) -> np.ndarray:

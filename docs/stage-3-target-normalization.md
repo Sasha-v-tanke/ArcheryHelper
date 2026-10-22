@@ -44,7 +44,7 @@ The visible radius may be smaller than `1.0` for cropped target faces. The trans
 
 `TargetGeometryDetector` owns detection and fitting. It does not modify the image.
 
-`TargetNormalizer` only applies geometry returned by the detector. It does not re-detect a target or silently repair bad geometry.
+`TargetNormalizer` applies geometry returned by the detector after checking `ImageQualityGate`. It raises `ValueError` with the rejection status unless the frame is READY. It does not re-detect or repair geometry. A custom gate can be injected through its constructor; use the same gate in evaluation and inference.
 
 `ImageQualityGate` owns acceptance/rejection. It receives the image and the already computed geometry result and returns exactly one finite status.
 
@@ -77,6 +77,7 @@ ImageQualityGate.evaluate(image, geometry_result) -> QualityResult
 - `READY`;
 - `TARGET_NOT_FOUND`;
 - `WRONG_FACE_COUNT`;
+- `GEOMETRY_UNCERTAIN`;
 - `TARGET_CLIPPED`;
 - `EXCESSIVE_PERSPECTIVE`;
 - `TOO_BLURRY`;
@@ -88,16 +89,16 @@ ImageQualityGate.evaluate(image, geometry_result) -> QualityResult
 1. Convert the RGB image to HSV and Lab.
 2. Build robust yellow, red, and blue masks using HSV hue/saturation ranges with Lab chroma hints.
 3. Apply small morphology operations to suppress isolated noise and reconnect ring fragments.
-4. Find plausible outer blue-ring contours. Fall back to the union of target-color masks when blue segmentation is incomplete.
-5. Fit ellipses and reject candidates with implausible area or axis ratio.
-6. Associate yellow, red, and blue ring contours with each face candidate.
+4. Exclude low-chroma cool/warm black from blue/red masks; blue also requires blue greater than red. Find blue contours and associate fragments through their red interior. Fall back to the color union if no blue contour exists.
+5. Fit ellipse consensus with 96 deterministic five-point proposals (seed 42), retaining measured boundary inliers, and reject implausible area or axis ratio.
+6. Associate outer arcs of yellow/red rings across disconnected components, excluding inner boundaries and distant arrow parts using the candidate ellipse. Fit only measured contour points, never COCO points.
 7. Initialize an image-to-normalized transform from the detected outer ellipse.
 8. Iteratively fit a projective transform against known ring radii:
    - yellow outer boundary: 0.2;
    - red outer boundary: 0.4;
    - blue outer boundary: `min(0.6, visible_radius_norm)`.
 9. Measure normalized radial residuals after projection.
-10. Extrapolate the visible-face ellipse from the detected colored radius.
+10. Check outer extrapolation even when inner-ring residuals are small. Reject a projective horizon through the nominal face. Derive the visible ellipse, bounds, and physical center from the final inverse homography, including after inner-ring fallback.
 11. Validate and deterministically order triple-face centers according to `TripleLayout`.
 12. Build the original-to-canonical 512x512 homography for each face.
 
@@ -119,12 +120,15 @@ The gate evaluates rejection conditions in deterministic order:
 
 1. no usable geometry or invalid expected layout -> `TARGET_NOT_FOUND`;
 2. detected count differs from expected -> `WRONG_FACE_COUNT`;
-3. visible target bounds leave the image -> `TARGET_CLIPPED`;
-4. ellipse axis ratio is below the perspective threshold -> `EXCESSIVE_PERSPECTIVE`;
-5. target diameter is below the minimum frame fraction -> `TARGET_TOO_SMALL`;
-6. Laplacian variance is below the blur threshold -> `TOO_BLURRY`;
-7. mean luminance or clipped-pixel fraction is outside exposure limits -> `BAD_EXPOSURE`;
-8. otherwise -> `READY`.
+3. any face has a non-finite/RMS ring error above 0.03 normalized units or fewer than two associated rings -> `GEOMETRY_UNCERTAIN`;
+4. final visible bounds have coverage below 0.97 -> `TARGET_CLIPPED`;
+5. ellipse axis ratio is below the perspective threshold -> `EXCESSIVE_PERSPECTIVE`;
+6. target diameter is below the minimum frame fraction -> `TARGET_TOO_SMALL`;
+7. Laplacian variance is below the blur threshold -> `TOO_BLURRY`;
+8. mean luminance or clipped-pixel fraction is outside exposure limits -> `BAD_EXPOSURE`;
+9. otherwise -> `READY`.
+
+Focus and exposure are measured inside the union of visible face ellipses. Coverage remains the fraction of the predicted axis-aligned bounding box inside the image, not visible target area. The existing 0.97 threshold is unchanged and tolerates small edge loss. `GEOMETRY_UNCERTAIN` precedes clipping because an unreliable extrapolation cannot establish physical clipping.
 
 Thresholds are centralized in `QualityThresholds`, not duplicated across detector and tests.
 
@@ -133,7 +137,7 @@ Thresholds are centralized in `QualityThresholds`, not duplicated across detecto
 - Invalid image shape raises `ValueError`; this is a programmer/input-contract error.
 - Failure to find a target is represented by an empty/low-confidence `GeometryResult`, not an exception.
 - Missing ring colors reduce confidence and fitting precision but do not crash detection if a valid face contour remains.
-- The normalizer returns one canonical image per detected face and never invents missing faces.
+- The normalizer returns one canonical image per READY face and never invents missing faces. Rejected geometry remains available for diagnostics, but cannot be normalized through the public API.
 - A failed quality gate must prevent downstream impact inference.
 
 ## Files
@@ -175,7 +179,7 @@ The geometric mapping assertion is expressed in normalized-coordinate error so i
 
 Real-photo validation is a separate data gate. The approved registry includes `archery_scoring_keypoints` (raw impacts only) and `archery_aiscore_ounar` v9 (raw impacts plus ten ring polygons), but neither replaces a separately collected `mobile_real_test` set.
 
-`GeometryEvaluator` consumes `DatasetView` samples with `geometry_annotations`, runs the detector and quality gate, and reports center and radial boundary errors in canonical normalized units. The report includes mean, median, P95, max, sample counts, READY count, quality-status distribution, ring-specific errors, and individual sample results.
+`GeometryEvaluator` consumes `DatasetView` samples with `geometry_annotations`, runs the detector and quality gate, and reports center and radial boundary errors in canonical normalized units. The report includes mean, median, P95, max, sample counts, READY count, quality-status distribution, ring-specific errors, individual sample results, and partitions by acceptance, status, split, original family, and manifest group. Radial metrics pool annotation vertices; center metrics pool images. Rejected samples remain in the aggregate metrics. The CLI records the manifest SHA-256 and metric provenance. `annotation_issues` flags contradictions in cumulative ring areas without changing labels or excluding samples. When no explicit target center exists, center error uses the outer GT ellipse center, a perspective-biased proxy rather than an exact bullseye reference.
 
 Run diagnostics on validation images before evaluating the held-out test split:
 
@@ -191,7 +195,22 @@ python -m archery_ml.geometry \
 
 The preview images overlay COCO ring contours 1, 5 and 10 in green, detector-projected ring contours in orange, and ground-truth/detected centers as distinct crosses. For `WRONG_FACE_COUNT` samples, each candidate face center is marked so false detections can be inspected. These previews are diagnostic and never change source annotations or accepted test thresholds.
 
-The current dataset gives an initial real-image validation signal for single full ten-ring targets, but does not establish performance on mobile photographs or triple targets. Keep the held-out `test` split untouched during geometry changes.
+The current dataset gives a real-image development signal for single full ten-ring targets. Its `test` split has been diagnosed and is now development/regression data, not an independent holdout. The audit below does not establish performance on independent mobile photographs or real triples.
+
+### Reproducible split audit
+
+~~~bash
+python -m neural_network.archery_ml.geometry.audit \
+  --manifest data/manifests/dataset_manifest.json \
+  --source archery_aiscore_ounar \
+  --output data/reports/geometry_split_audit.json
+~~~
+
+The command returns nonzero for a cross-split manifest group, Roboflow original-family, exact-image, or dHash-distance-at-most-4 leak. Export folders are provenance: `assign_splits` intentionally reassigns complete deduplicated groups. The audit does not certify capture-session or cross-source independence. To evaluate every split without overwriting prior reports, run the geometry CLI separately with `--split train`, `--split val`, and `--split test`, setting a different `--output` each time.
+
+### 2026-10-22 audit and readiness
+
+See [the validation report](stage-3-validation-2026-10-22.md) and [the metric snapshot](reports/stage-3-validation-2026-10-22.json) for baseline comparisons, family metrics, rejected filenames, COCO integrity, and limitations. The implementation passes local Python and Android checks, but **Stage 3 remains blocked on an independent mobile geometry set and real triple/configuration coverage**. READY is an internal consistency/quality decision, not a proof of a scoring-error bound. Stage 4's geometry gate is not closed by this audit.
 
 Real evaluation currently supports `SINGLE` targets only because `ImageGeometryAnnotation` does not carry `face_index`. Synthetic Stage 3 coverage still validates vertical and triangular triple geometry. Triple real-data evaluation requires an explicit face-association contract rather than inferred ordering.
 

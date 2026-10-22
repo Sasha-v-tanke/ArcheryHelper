@@ -156,10 +156,16 @@ class TargetGeometryDetector:
             dtype=np.float64,
         ) @ image_to_norm
         inverse_transform = np.linalg.inv(canonical_transform)
-        visible_ellipse = candidate.ellipse.scaled(
-            template.visible_radius_norm / template.colored_outer_radius_norm
+        angles = np.linspace(0.0, 2.0 * np.pi, 360, endpoint=False)
+        boundary = template.visible_radius_norm * np.column_stack((np.cos(angles), np.sin(angles)))
+        norm_to_image = np.linalg.inv(image_to_norm)
+        projected = _perspective_points(boundary, norm_to_image)
+        visible_ellipse = _ellipse_from_cv(cv2.fitEllipse(projected.astype(np.float32)))
+        visible_bounds = (
+            float(projected[:, 0].min()), float(projected[:, 1].min()),
+            float(projected[:, 0].max()), float(projected[:, 1].max()),
         )
-        visible_bounds = _ellipse_bounds(visible_ellipse)
+        center = _perspective_points(np.zeros((1, 2)), norm_to_image)[0]
         coverage = _bounds_coverage(visible_bounds, image_width, image_height)
         scale_fraction = visible_ellipse.major_axis_px / max(1.0, min(image_width, image_height))
         fit_score = math.exp(-fit_error / 0.03)
@@ -176,7 +182,7 @@ class TargetGeometryDetector:
         )
         return FaceGeometry(
             face_index=face_index,
-            center=(candidate.ellipse.center_x, candidate.ellipse.center_y),
+            center=(float(center[0]), float(center[1])),
             ellipse=visible_ellipse,
             homography=_matrix_tuple(canonical_transform),
             inverse_homography=_matrix_tuple(inverse_transform),
@@ -235,6 +241,15 @@ def _target_color_masks(image: np.ndarray) -> dict[str, np.ndarray]:
         "red": cv2.bitwise_or(red_hsv, red_lab),
         "blue": cv2.bitwise_or(blue_hsv, blue_lab),
     }
+    # Hue is unstable near neutral: a cool black ring can have the same HSV
+    # hue as blue. Require actual chroma before interpreting it as radius 0.6.
+    chroma = np.hypot(
+        a_channel.astype(np.float32) - 128.0,
+        b_channel.astype(np.float32) - 128.0,
+    )
+    blue_dominant = image[:, :, 2].astype(np.int16) > image[:, :, 0].astype(np.int16)
+    masks["blue"][(chroma < 25.0) | ~blue_dominant] = 0
+    masks["red"][chroma < 25.0] = 0
     kernel = np.ones((3, 3), dtype=np.uint8)
     for name, mask in tuple(masks.items()):
         closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
@@ -248,6 +263,31 @@ def _face_candidates(
     image_height: int,
 ) -> list[_Candidate]:
     primary = _candidates_from_mask(masks["blue"], image_width, image_height)
+    # A split annulus has displaced component centers. Associate its pieces
+    # through a common red interior rather than treating them as extra faces.
+    inner_candidates = _candidates_from_mask(masks["red"], image_width, image_height)
+    grouped: dict[int, list[_Candidate]] = {}
+    unmatched = []
+    for candidate in primary:
+        matches = [
+            (math.hypot(candidate.ellipse.center_x - inner.ellipse.center_x,
+                        candidate.ellipse.center_y - inner.ellipse.center_y), index)
+            for index, inner in enumerate(inner_candidates)
+            if 0.5 <= candidate.ellipse.major_axis_px / inner.ellipse.major_axis_px <= 2.0
+        ]
+        distance, index = min(matches, default=(float("inf"), -1))
+        if index >= 0 and distance < 0.75 * inner_candidates[index].ellipse.major_axis_px:
+            grouped.setdefault(index, []).append(candidate)
+        else:
+            unmatched.append(candidate)
+    primary = unmatched
+    for fragments in grouped.values():
+        if len(fragments) == 1:
+            primary.extend(fragments)
+        else:
+            contour = cv2.convexHull(np.concatenate([part.contour for part in fragments]).astype(np.float32))
+            primary.append(_Candidate(contour, _ellipse_from_cv(cv2.fitEllipse(contour)),
+                                      sum(part.area for part in fragments)))
     if not primary:
         union = cv2.bitwise_or(masks["yellow"], cv2.bitwise_or(masks["red"], masks["blue"]))
         primary = _candidates_from_mask(union, image_width, image_height)
@@ -274,7 +314,7 @@ def _face_candidates(
 
         existing = selected[overlapping_index]
         if candidate.area >= 0.45 * existing.area:
-            contour = np.concatenate((existing.contour, candidate.contour), axis=0)
+            contour = cv2.convexHull(np.concatenate((existing.contour, candidate.contour), axis=0).astype(np.float32))
             selected[overlapping_index] = _Candidate(
                 contour=contour,
                 ellipse=_ellipse_from_cv(cv2.fitEllipse(contour)),
@@ -295,6 +335,7 @@ def _candidates_from_mask(
         area = float(cv2.contourArea(contour))
         if area < min_area or len(contour) < 5:
             continue
+        contour = _ellipse_inliers(contour)
         ellipse_raw = cv2.fitEllipse(contour)
         ellipse = _ellipse_from_cv(ellipse_raw)
         if ellipse.minor_axis_px < 12.0 or ellipse.axis_ratio < 0.2:
@@ -310,32 +351,64 @@ def _associated_rings(
 ) -> list[tuple[np.ndarray, float]]:
     rings = []
     for color, radius in template.ring_outer_radii:
+        if color == "blue":
+            rings.append((_sample_contour(candidate.contour, 96), radius))
+            continue
         contours, _ = cv2.findContours(masks[color], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        expected_diameter = candidate.ellipse.major_axis_px * radius / template.colored_outer_radius_norm
-        best = None
-        best_score = float("inf")
-        for contour in contours:
-            if len(contour) < 5:
-                continue
-            ellipse = _ellipse_from_cv(cv2.fitEllipse(contour))
-            center_distance = math.hypot(
-                ellipse.center_x - candidate.ellipse.center_x,
-                ellipse.center_y - candidate.ellipse.center_y,
-            )
-            if center_distance > 0.3 * candidate.ellipse.major_axis_px:
-                continue
-            size_ratio = ellipse.major_axis_px / max(expected_diameter, 1.0)
-            if not 0.45 <= size_ratio <= 1.75:
-                continue
-            score = center_distance / max(candidate.ellipse.major_axis_px, 1.0) + abs(
-                math.log(max(size_ratio, 1e-6))
-            )
-            if score < best_score:
-                best_score = score
-                best = contour
-        if best is not None:
-            rings.append((_sample_contour(best, 96), radius))
+        if not contours:
+            continue
+        points = np.concatenate(contours).reshape(-1, 2).astype(np.float32)
+        ellipse = candidate.ellipse
+        angle = math.radians(ellipse.angle_deg)
+        delta = points - (ellipse.center_x, ellipse.center_y)
+        x = delta[:, 0] * math.cos(angle) + delta[:, 1] * math.sin(angle)
+        y = -delta[:, 0] * math.sin(angle) + delta[:, 1] * math.cos(angle)
+        relative_radius = np.hypot(2 * x / ellipse.diameter_x, 2 * y / ellipse.diameter_y)
+        relative_radius *= template.colored_outer_radius_norm / radius
+        # Gather all outer arcs, including disconnected pieces, but exclude
+        # the inner boundary and shafts/fletchings outside this color zone.
+        points = points[(relative_radius >= 0.75) & (relative_radius <= 1.25)]
+        if len(points) < 12:
+            continue
+        inliers = _ellipse_inliers(points.reshape(-1, 1, 2))
+        rings.append((_sample_contour(inliers, 96), radius))
     return rings
+
+
+def _ellipse_inliers(contour: np.ndarray) -> np.ndarray:
+    """Discard arrow edges and the inner edge of an interrupted color annulus.
+
+    The outer arc supplies the largest ellipse consensus. A fixed seed keeps
+    detection reproducible; points remain measured pixels, not ellipse samples.
+    """
+    points = _sample_contour(contour, 384)
+    if len(points) < 12:
+        return contour
+    reference = _ellipse_from_cv(cv2.fitEllipse(points))
+    rng = np.random.default_rng(42)
+    best = np.ones(len(points), dtype=bool)
+    best_count = 0
+    for _ in range(96):
+        ellipse = _ellipse_from_cv(cv2.fitEllipse(points[rng.choice(len(points), 5, replace=False)]))
+        if ellipse.minor_axis_px <= 0 or ellipse.axis_ratio < 0.2:
+            continue
+        if not 0.65 <= ellipse.major_axis_px / max(reference.major_axis_px, 1.0) <= 1.5:
+            continue
+        if math.hypot(ellipse.center_x - reference.center_x,
+                      ellipse.center_y - reference.center_y) > 0.3 * reference.major_axis_px:
+            continue
+        angle = math.radians(ellipse.angle_deg)
+        delta = points - (ellipse.center_x, ellipse.center_y)
+        x = delta[:, 0] * math.cos(angle) + delta[:, 1] * math.sin(angle)
+        y = -delta[:, 0] * math.sin(angle) + delta[:, 1] * math.cos(angle)
+        residual = np.abs(np.hypot(2 * x / ellipse.diameter_x, 2 * y / ellipse.diameter_y) - 1)
+        inliers = residual < 0.035
+        count = int(inliers.sum())
+        if count > best_count:
+            best, best_count = inliers, count
+    if best_count < max(12, len(points) * 0.45):
+        return contour
+    return points[best].reshape(-1, 1, 2)
 
 
 def _initial_image_to_norm(
@@ -397,12 +470,14 @@ def _stable_transform(
     refined: np.ndarray,
     rings: list[tuple[np.ndarray, float]],
 ) -> np.ndarray:
-    if _ring_fit_error(refined, rings) <= 0.05:
-        return refined
-
     angles = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
     boundary = np.column_stack((np.cos(angles), np.sin(angles))).astype(np.float32)
     source = _perspective_points(boundary, np.linalg.inv(initial))
+    inverse = np.linalg.inv(refined)
+    # Low residuals on inner rings do not prove a safe outer extrapolation.
+    # Reject a projective horizon through the full canonical face.
+    if abs(inverse[2, 2]) <= float(np.linalg.norm(inverse[2, :2])):
+        return initial
     refined_boundary = _perspective_points(source, refined)
     deviation = np.linalg.norm(refined_boundary - boundary, axis=1)
     if not np.isfinite(deviation).all() or float(np.max(deviation)) > 0.12:

@@ -30,13 +30,13 @@ def assign_splits(
     assignments: dict[str, str] = {}
     mutable_groups: list[tuple[str, list[DatasetSample]]] = []
     for group_id, members in groups.items():
-        mobile_flags = [sample.split == "mobile_real_test" for sample in members]
+        mobile_flags = [sample.split in {"mobile_dev", "mobile_real_test"} for sample in members]
         if any(mobile_flags):
-            if not all(mobile_flags):
+            if not all(mobile_flags) or len({sample.split for sample in members}) != 1:
                 raise ValueError(
                     f"group {group_id} mixes mobile_real_test with tuning samples"
                 )
-            assignments[group_id] = "mobile_real_test"
+            assignments[group_id] = members[0].split
         else:
             mutable_groups.append((group_id, members))
 

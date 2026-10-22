@@ -25,6 +25,8 @@ class DatasetSourceSnapshot:
     annotation_space: str
     allowed_tasks: tuple[str, ...]
     homepage_url: str | None
+    corrections_sha256: str | None = None
+    gt_revision: str | None = None
 
     @staticmethod
     def from_source(source: DatasetSource) -> "DatasetSourceSnapshot":
@@ -37,6 +39,10 @@ class DatasetSourceSnapshot:
             annotation_space=source.annotation_space,
             allowed_tasks=tuple(sorted(source.allowed_tasks)),
             homepage_url=source.homepage_url,
+            corrections_sha256=(None if not source.options.get("corrections_file") else
+                                hashlib.sha256(Path(source.options["corrections_file"]).read_bytes()).hexdigest()),
+            gt_revision=(None if not source.options.get("corrections_file") else
+                         json.loads(Path(source.options["corrections_file"]).read_text())["gt_revision"]),
         )
 
     def to_dict(self) -> dict:
@@ -49,6 +55,8 @@ class DatasetSourceSnapshot:
             "annotation_space": self.annotation_space,
             "allowed_tasks": list(self.allowed_tasks),
             "homepage_url": self.homepage_url,
+            "corrections_sha256": self.corrections_sha256,
+            "gt_revision": self.gt_revision,
         }
 
     @staticmethod
@@ -62,6 +70,8 @@ class DatasetSourceSnapshot:
             annotation_space=str(data["annotation_space"]),
             allowed_tasks=tuple(str(value) for value in data.get("allowed_tasks", ())),
             homepage_url=data.get("homepage_url"),
+            corrections_sha256=data.get("corrections_sha256"),
+            gt_revision=data.get("gt_revision"),
         )
 
 

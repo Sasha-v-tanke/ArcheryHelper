@@ -79,6 +79,7 @@ class GeometryResult:
     layout_valid: bool
     image_width: int
     image_height: int
+    orientation_reference: str = "unanchored_image_or_layout_axes"
 
     @property
     def face_centers(self) -> tuple[tuple[float, float], ...]:
@@ -101,10 +102,16 @@ class TargetGeometryDetector:
         candidates = _face_candidates(masks, width, height)
         ordered_candidates, layout_valid = _order_candidates(candidates, template)
         orientation_axes = _layout_axes(ordered_candidates, template)
-        faces = tuple(
-            self._fit_face(index, candidate, masks, template, width, height, orientation_axes)
-            for index, candidate in enumerate(ordered_candidates)
-        )
+        fitted_faces = []
+        for index, candidate in enumerate(ordered_candidates):
+            try:
+                fitted_faces.append(self._fit_face(
+                    index, candidate, masks, template, width, height, orientation_axes,
+                ))
+            except (np.linalg.LinAlgError, cv2.error, FloatingPointError):
+                # Preserve indices; incomplete geometry is rejected by the quality gate.
+                layout_valid = False
+        faces = tuple(fitted_faces)
         bounds = _aggregate_bounds(faces)
         fit_error = float(np.mean([face.fit_error for face in faces])) if faces else 1.0
         confidence = float(np.mean([face.geometry_confidence for face in faces])) if faces else 0.0
@@ -155,11 +162,13 @@ class TargetGeometryDetector:
             ],
             dtype=np.float64,
         ) @ image_to_norm
-        inverse_transform = np.linalg.inv(canonical_transform)
+        inverse_transform = _checked_inverse(canonical_transform)
         angles = np.linspace(0.0, 2.0 * np.pi, 360, endpoint=False)
         boundary = template.visible_radius_norm * np.column_stack((np.cos(angles), np.sin(angles)))
-        norm_to_image = np.linalg.inv(image_to_norm)
+        norm_to_image = _checked_inverse(image_to_norm)
         projected = _perspective_points(boundary, norm_to_image)
+        if not np.isfinite(projected).all() or np.max(np.abs(projected)) > 1e7:
+            raise np.linalg.LinAlgError("invalid projected target boundary")
         visible_ellipse = _ellipse_from_cv(cv2.fitEllipse(projected.astype(np.float32)))
         visible_bounds = (
             float(projected[:, 0].min()), float(projected[:, 1].min()),
@@ -203,6 +212,8 @@ def _validate_image(image: np.ndarray) -> np.ndarray:
         raise ValueError("image is too small for target geometry")
     if image.dtype == np.uint8:
         return image
+    if not np.isfinite(image).all():
+        raise ValueError("image pixels must be finite")
     return np.clip(image, 0, 255).astype(np.uint8)
 
 
@@ -472,8 +483,12 @@ def _stable_transform(
 ) -> np.ndarray:
     angles = np.linspace(0.0, 2.0 * np.pi, 32, endpoint=False)
     boundary = np.column_stack((np.cos(angles), np.sin(angles))).astype(np.float32)
-    source = _perspective_points(boundary, np.linalg.inv(initial))
-    inverse = np.linalg.inv(refined)
+    initial_inverse = _checked_inverse(initial)
+    try:
+        inverse = _checked_inverse(refined)
+    except np.linalg.LinAlgError:
+        return initial
+    source = _perspective_points(boundary, initial_inverse)
     # Low residuals on inner rings do not prove a safe outer extrapolation.
     # Reject a projective horizon through the full canonical face.
     if abs(inverse[2, 2]) <= float(np.linalg.norm(inverse[2, :2])):
@@ -483,6 +498,22 @@ def _stable_transform(
     if not np.isfinite(deviation).all() or float(np.max(deviation)) > 0.12:
         return initial
     return refined
+
+
+def _checked_inverse(transform: np.ndarray) -> np.ndarray:
+    matrix = np.asarray(transform, dtype=np.float64)
+    if matrix.shape != (3, 3) or not np.isfinite(matrix).all():
+        raise np.linalg.LinAlgError("non-finite homography")
+    scale = float(np.max(np.abs(matrix)))
+    if scale == 0:
+        raise np.linalg.LinAlgError("zero homography")
+    matrix = matrix / scale
+    if np.linalg.cond(matrix) > 1e12:
+        raise np.linalg.LinAlgError("ill-conditioned homography")
+    inverse = np.linalg.inv(matrix)
+    if not np.isfinite(inverse).all() or not np.allclose(matrix @ inverse, np.eye(3), atol=1e-7):
+        raise np.linalg.LinAlgError("inconsistent inverse homography")
+    return inverse / scale
 
 
 def _reliable_inner_ring_transform(

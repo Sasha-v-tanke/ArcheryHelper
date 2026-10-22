@@ -8,7 +8,7 @@ from neural_network.archery_ml.contracts import DatasetSample
 from neural_network.archery_ml.data.registry import DatasetRegistry
 
 
-ALLOWED_SPLITS = {"train", "val", "test", "mobile_real_test"}
+ALLOWED_SPLITS = {"train", "val", "test", "mobile_dev", "mobile_real_test"}
 MAX_CANONICAL_AXIS = 1.05
 SUPPORTED_ANNOTATION_SUFFIXES = {".json", ".txt"}
 
@@ -43,8 +43,15 @@ def validate_dataset(
     seen_ids: set[str] = set()
     seen_images: dict[Path, str] = {}
     registry_ids = {source.id for source in registry.sources} if registry else None
+    provenance_splits: dict[tuple[str, str], str] = {}
 
     for sample in samples:
+        for key in ("capture_session_id", "original_id", "original_sha256"):
+            identity = (sample.capture_metadata or {}).get(key)
+            if identity is not None:
+                previous = provenance_splits.setdefault((key, str(identity)), sample.split)
+                if previous != sample.split:
+                    issues.append(ValidationIssue("capture_leakage", sample.id, f"{key} crosses splits"))
         if sample.id in seen_ids:
             issues.append(ValidationIssue("duplicate_id", sample.id, "sample id is duplicated"))
         seen_ids.add(sample.id)

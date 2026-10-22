@@ -30,6 +30,9 @@ def corrected_coco(root: Path, path: Path, source: DatasetSource) -> dict:
         if key in seen:
             raise ValueError("duplicate GT correction")
         seen.add(key)
+        if (key not in annotations or change["image_id"] not in images
+                or change["old_label"] not in categories or change["new_label"] not in categories):
+            raise ValueError("GT correction identity/label missing")
         annotation = annotations[key]
         image = images[change["image_id"]]
         if (annotation["image_id"] != image["id"] or image["file_name"] != change["file_name"]

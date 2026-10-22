@@ -11,7 +11,7 @@
       "annotation_id": 814,
       "old_label": "Ring-2-Polygon",
       "new_label": "Ring-1-Polygon",
-      "reason": "Confirmed swapped cumulative outer boundaries; Ring-1 must enclose Ring-2. See stage-3-validation-2026-10-22.md."
+      "reason": "Swapped cumulative outer boundary labels in this image: the larger polygon encloses the smaller polygon and is Ring-1 (radius 1.0); the smaller is Ring-2 (radius 0.9). Change category only; preserve all polygon coordinates."
     },
     {
       "annotation_file": "train/_annotations.coco.json",
@@ -21,7 +21,7 @@
       "annotation_id": 830,
       "old_label": "Ring-1-Polygon",
       "new_label": "Ring-2-Polygon",
-      "reason": "Confirmed swapped cumulative outer boundaries; Ring-1 must enclose Ring-2. See stage-3-validation-2026-10-22.md."
+      "reason": "Swapped cumulative outer boundary labels in this image: the larger polygon encloses the smaller polygon and is Ring-1 (radius 1.0); the smaller is Ring-2 (radius 0.9). Change category only; preserve all polygon coordinates."
     },
     {
       "annotation_file": "train/_annotations.coco.json",
@@ -31,7 +31,7 @@
       "annotation_id": 835,
       "old_label": "Ring-2-Polygon",
       "new_label": "Ring-1-Polygon",
-      "reason": "Confirmed swapped cumulative outer boundaries; Ring-1 must enclose Ring-2. See stage-3-validation-2026-10-22.md."
+      "reason": "Swapped cumulative outer boundary labels in this image: the larger polygon encloses the smaller polygon and is Ring-1 (radius 1.0); the smaller is Ring-2 (radius 0.9). Change category only; preserve all polygon coordinates."
     },
     {
       "annotation_file": "train/_annotations.coco.json",
@@ -41,7 +41,7 @@
       "annotation_id": 851,
       "old_label": "Ring-1-Polygon",
       "new_label": "Ring-2-Polygon",
-      "reason": "Confirmed swapped cumulative outer boundaries; Ring-1 must enclose Ring-2. See stage-3-validation-2026-10-22.md."
+      "reason": "Swapped cumulative outer boundary labels in this image: the larger polygon encloses the smaller polygon and is Ring-1 (radius 1.0); the smaller is Ring-2 (radius 0.9). Change category only; preserve all polygon coordinates."
     },
     {
       "annotation_file": "train/_annotations.coco.json",
@@ -51,7 +51,7 @@
       "annotation_id": 1998,
       "old_label": "Ring-2-Polygon",
       "new_label": "Ring-1-Polygon",
-      "reason": "Confirmed swapped cumulative outer boundaries; Ring-1 must enclose Ring-2. See stage-3-validation-2026-10-22.md."
+      "reason": "Swapped cumulative outer boundary labels in this image: the larger polygon encloses the smaller polygon and is Ring-1 (radius 1.0); the smaller is Ring-2 (radius 0.9). Change category only; preserve all polygon coordinates."
     },
     {
       "annotation_file": "train/_annotations.coco.json",
@@ -61,7 +61,7 @@
       "annotation_id": 2014,
       "old_label": "Ring-1-Polygon",
       "new_label": "Ring-2-Polygon",
-      "reason": "Confirmed swapped cumulative outer boundaries; Ring-1 must enclose Ring-2. See stage-3-validation-2026-10-22.md."
+      "reason": "Swapped cumulative outer boundary labels in this image: the larger polygon encloses the smaller polygon and is Ring-1 (radius 1.0); the smaller is Ring-2 (radius 0.9). Change category only; preserve all polygon coordinates."
     }
   ]
 }

@@ -9,6 +9,7 @@ from PIL import Image
 
 from neural_network.archery_ml.contracts import DatasetSample
 from neural_network.archery_ml.data.registry import DatasetSource
+from neural_network.archery_ml.data.geometry_provenance import annotation_digest
 from neural_network.archery_ml.data.importers.common import portable_path
 
 
@@ -20,13 +21,19 @@ def import_mobile_geometry(root: Path, source: DatasetSource) -> list[DatasetSam
     ids = set()
     for record in payload["samples"]:
         sample = DatasetSample.from_dict(record)
-        meta = sample.capture_metadata or {}
+        meta = dict(sample.capture_metadata or {})
         for key in ("capture_session_id", "original_id", "device_model", "original_sha256",
                     "gt_revision", "annotator", "reviewer", "orientation_reference", "suitability"):
             if not meta.get(key):
                 raise ValueError(f"missing mobile provenance: {key}")
         if meta["annotator"] == meta["reviewer"]:
             raise ValueError("geometry GT requires independent review")
+        digest = annotation_digest(sample)
+        if meta.get("gt_annotations_sha256", digest) != digest:
+            raise ValueError("GT annotation checksum mismatch")
+        # Older mobile records remain importable: freeze actual content at import.
+        meta["gt_annotations_sha256"] = digest
+        meta["gt_manifest_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         if meta["suitability"] not in {"usable", "unusable"}:
             raise ValueError("suitability must be usable or unusable")
         if sample.id in ids or sample.split not in {"mobile_dev", "mobile_real_test"}:
@@ -68,8 +75,8 @@ def import_mobile_geometry(root: Path, source: DatasetSource) -> list[DatasetSam
                     raise ValueError("geometry landmarks require reviewed quality and uncertainty")
                 for values in (points, image_points):
                     array = np.asarray(values)
-                    if np.linalg.matrix_rank(array - array.mean(axis=0)) < 2:
+                    if len(set(map(tuple, values))) < 4 or np.linalg.matrix_rank(array - array.mean(axis=0)) < 2:
                         raise ValueError("geometry landmarks must be non-collinear")
         samples.append(replace(sample, image_path=portable_path(image_path), annotation_path=portable_path(path),
-                               source_id=source.id, group_id=f"{source.id}:{meta['capture_session_id']}"))
+                               source_id=source.id, group_id=f"{source.id}:{meta['capture_session_id']}", capture_metadata=meta))
     return samples

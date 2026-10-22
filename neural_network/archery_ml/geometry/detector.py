@@ -79,6 +79,8 @@ class GeometryResult:
     layout_valid: bool
     image_width: int
     image_height: int
+    # SINGLE and both TRIPLE layouts use image/layout axes. Concentric rings do
+    # not establish physical board orientation; an external calibration API is required.
     orientation_reference: str = "unanchored_image_or_layout_axes"
 
     @property

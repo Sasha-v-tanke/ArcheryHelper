@@ -1,5 +1,5 @@
 {
-  "policy_revision": "stage3-draft-1",
+  "policy_revision": "stage3-draft-2",
   "status": "development-proposal-not-final-holdout-approval",
   "maximum_median_2d": 0.0075,
   "maximum_p95_2d": 0.015,
@@ -8,5 +8,189 @@
   "maximum_false_reject_fraction": 0.2,
   "minimum_sessions": 6,
   "minimum_devices": 3,
-  "minimum_originals": 200
+  "minimum_originals": 200,
+  "require_physical_orientation": true,
+  "configuration_scope": "All combinations supported by TargetConfig and TargetTemplate; subgroup sizes remain draft pending independent calibration.",
+  "required_configurations": [
+    {
+      "format": "SINGLE",
+      "triple_layout": null,
+      "minimum_scoring_zone": 1,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "SINGLE",
+      "triple_layout": null,
+      "minimum_scoring_zone": 1,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "SINGLE",
+      "triple_layout": null,
+      "minimum_scoring_zone": 5,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "SINGLE",
+      "triple_layout": null,
+      "minimum_scoring_zone": 5,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "SINGLE",
+      "triple_layout": null,
+      "minimum_scoring_zone": 6,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "SINGLE",
+      "triple_layout": null,
+      "minimum_scoring_zone": 6,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "VERTICAL",
+      "minimum_scoring_zone": 1,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "VERTICAL",
+      "minimum_scoring_zone": 1,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "VERTICAL",
+      "minimum_scoring_zone": 5,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "VERTICAL",
+      "minimum_scoring_zone": 5,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "VERTICAL",
+      "minimum_scoring_zone": 6,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "VERTICAL",
+      "minimum_scoring_zone": 6,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "TRIANGULAR",
+      "minimum_scoring_zone": 1,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "TRIANGULAR",
+      "minimum_scoring_zone": 1,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "TRIANGULAR",
+      "minimum_scoring_zone": 5,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "TRIANGULAR",
+      "minimum_scoring_zone": 5,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "TRIANGULAR",
+      "minimum_scoring_zone": 6,
+      "ten_ring_mode": "RECURVE",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    },
+    {
+      "format": "TRIPLE",
+      "triple_layout": "TRIANGULAR",
+      "minimum_scoring_zone": 6,
+      "ten_ring_mode": "COMPOUND",
+      "minimum_originals": 10,
+      "minimum_sessions": 2,
+      "minimum_ready": 8,
+      "minimum_acceptance_rate": 0.8
+    }
+  ]
 }

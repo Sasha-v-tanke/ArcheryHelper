@@ -11,6 +11,7 @@ from PIL import Image
 
 from neural_network.archery_ml.contracts import ImageGeometryAnnotation
 from neural_network.archery_ml.data.view import DatasetView
+from neural_network.archery_ml.data.geometry_provenance import verify_mobile_gt
 from neural_network.archery_ml.geometry.lineage import original_family
 from neural_network.archery_ml.geometry.detector import FaceGeometry, TargetGeometryDetector
 from neural_network.archery_ml.geometry.quality import ImageQualityGate
@@ -62,6 +63,7 @@ class GeometrySampleResult:
     capture_metadata: dict = field(default_factory=dict)
     point_values: tuple[float, ...] = ()
     radial_values: tuple[float, ...] = ()
+    gt_provenance: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -81,6 +83,8 @@ class GeometrySampleResult:
             "point_error_ring_widths": _scaled_metrics(self.point_error),
             "face_error": self.face_error,
             "capture_metadata": self.capture_metadata,
+            "gt_provenance": self.gt_provenance,
+            "point_values_2d": list(self.point_values),
             "ring_error": {
                 key: value.to_dict()
                 for key, value in sorted(self.ring_error.items(), key=lambda item: int(item[0]))
@@ -137,6 +141,7 @@ class GeometryEvaluationReport:
             "breakdowns": self.breakdowns,
             "annotation_issue_samples": sum(bool(sample.annotation_issues) for sample in self.sample_results),
             "coverage": _coverage(self.sample_results),
+            "metrics_version": "stage3-2d-v2",
         }
 
 
@@ -174,6 +179,8 @@ class GeometryEvaluator:
             preview_dir.mkdir(parents=True, exist_ok=True)
 
         for index, sample in enumerate(samples):
+            gt_provenance = (verify_mobile_gt(sample)
+                             if (sample.capture_metadata or {}).get("gt_annotations_sha256") else {})
             expected_count = 1 if target_config.format is TargetFormat.SINGLE else 3
             for annotation in sample.geometry_annotations:
                 if expected_count > 1 and annotation.face_index is None:
@@ -211,6 +218,8 @@ class GeometryEvaluator:
                 face_points: list[float] = []
                 face_radial: list[float] = []
                 face_ring_points: dict[str, list[float]] = defaultdict(list)
+                matched_image_points = set()
+                matched_canonical_points = set()
                 ground_truth_center = _ground_truth_center(
                     annotations,
                     template,
@@ -232,6 +241,9 @@ class GeometryEvaluator:
                         if not np.isfinite(error):
                             raise ValueError("non-finite landmark projection")
                         face_points.append(error)
+                        if annotation.annotation_quality == "reviewed" and annotation.uncertainty_norm is not None:
+                            matched_image_points.add(tuple(point))
+                            matched_canonical_points.add(tuple(expected))
                         ring_key = _ring_key(annotation)
                         if ring_key is not None:
                             face_ring_points[ring_key].append(error)
@@ -262,6 +274,7 @@ class GeometryEvaluator:
                     "ring_point_error_2d": {key: _metrics(values).to_dict() for key, values in face_ring_points.items()},
                     "center_reference": "physical_gt" if any(a.kind == "target_center" for a in annotations) else "ellipse_proxy",
                     "orientation_reference": geometry.orientation_reference,
+                    "independent_landmarks": _independent_landmarks(matched_image_points, matched_canonical_points),
                 }
 
             if face_centers:
@@ -293,6 +306,7 @@ class GeometryEvaluator:
                     capture_metadata=sample.capture_metadata or {},
                     point_values=tuple(sample_point_errors),
                     radial_values=tuple(sample_radial_errors),
+                    gt_provenance=gt_provenance,
                 )
             )
             for dimension, key in (
@@ -358,6 +372,14 @@ class GeometryEvaluator:
             point_errors=tuple(point_errors),
             face_point_values=tuple(face_point_values),
         )
+
+
+def _independent_landmarks(image_points: set, canonical_points: set) -> int:
+    for points in (image_points, canonical_points):
+        array = np.asarray(list(points))
+        if len(points) < 4 or np.linalg.matrix_rank(array - array.mean(axis=0)) < 2:
+            return 0
+    return min(len(image_points), len(canonical_points))
 
 
 def _bucket_metrics(bucket: dict) -> dict:

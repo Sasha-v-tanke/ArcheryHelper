@@ -14,7 +14,8 @@ import numpy as np
 
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.geometry.evaluate import GeometryEvaluator
-from neural_network.archery_ml.geometry.validation import validate_holdout, session_bootstrap
+from neural_network.archery_ml.geometry.validation import validate_holdout, session_bootstrap, aggregate_reports
+from neural_network.archery_ml.data.geometry_provenance import verify_mobile_gt
 from neural_network.archery_ml.targets import TargetConfig, TargetFormat, TenRingMode, TripleLayout
 
 
@@ -25,7 +26,24 @@ DEFAULT_OUTPUT = Path("data/reports/geometry_evaluation.json")
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    view = DatasetView.load(args.manifest).select(
+    if args.aggregate_report:
+        if args.policy is None:
+            parser.error("--aggregate-report requires --policy")
+        result = aggregate_reports([json.loads(path.read_text()) for path in args.aggregate_report],
+                                   json.loads(args.policy.read_text()))
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n")
+        print(json.dumps(result["validation"], indent=2))
+        return int(result["validation"]["status"] != "PASS")
+    full_view = DatasetView.load(args.manifest)
+    gt = [verify_mobile_gt(s) for s in full_view if (s.capture_metadata or {}).get("gt_annotations_sha256")]
+    revisions = {item["revision"] for item in gt}
+    if len(revisions) > 1:
+        raise ValueError("mixed GT revisions are not supported for consolidated validation")
+    revision = next(iter(revisions), None)
+    if args.gt_revision is not None and args.gt_revision != revision:
+        raise ValueError("declared GT revision differs from verified annotations")
+    view = full_view.select(
         splits=args.split,
         source_ids=args.source,
     )
@@ -50,8 +68,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "working_tree_dirty": working_tree_dirty,
         "dependencies": {"python": platform.python_version(), "numpy": np.__version__, "opencv": cv2.__version__},
         "quality_thresholds": asdict(evaluator.quality_gate.thresholds),
-        "gt_revision": args.gt_revision,
-        "policy_sha256": None if args.policy is None else hashlib.sha256(args.policy.read_bytes()).hexdigest(),
+        "gt_revision": revision,
+        "gt_sources": sorted({item["annotation_manifest_sha256"] for item in gt}),
+        "policy_sha256": None if args.policy is None else hashlib.sha256(json.dumps(
+            json.loads(args.policy.read_text()), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
     }
     result["session_bootstrap_mean_2d"] = session_bootstrap(result["sample_results"])
     if args.policy is not None:
@@ -88,6 +108,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--triple-layout", choices=("VERTICAL", "TRIANGULAR"))
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--gt-revision")
+    parser.add_argument("--aggregate-report", type=Path, action="append",
+                        help="combine configuration reports for one independent holdout decision")
     parser.add_argument(
         "--minimum-scoring-zone",
         type=int,

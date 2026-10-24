@@ -37,7 +37,7 @@ def capture_plan(policy):
             "instructions": "Assign real session_id, device_model and split before registration. Keep a never-used reserve holdout. READY counts are measured, never promised by this plan."}
 
 
-def register(root, photo, plan_path, session_id, metadata, annotator, revision, normalize_exif=False):
+def register(root, photo, plan_path, session_id, metadata, annotator, revision, normalize_exif=False, normalize_rgb=False):
     plan = load(plan_path)
     sessions = [s for s in plan["sessions"] if s["capture_session_id"] == session_id]
     if (plan.get("status") != "approved-before-capture" or len(sessions) != 1
@@ -65,7 +65,10 @@ def register(root, photo, plan_path, session_id, metadata, annotator, revision, 
             raise ValueError("invalid EXIF orientation")
         if orientation != 1 and not normalize_exif:
             raise ValueError("nontrivial EXIF requires explicit --normalize-exif")
-        rgb = ImageOps.exif_transpose(image).convert("RGB") if normalize_exif else image.convert("RGB")
+        source_mode = image.mode
+        if source_mode != "RGB" and not normalize_rgb:
+            raise ValueError("non-RGB original requires explicit --normalize-rgb")
+        rgb = ImageOps.exif_transpose(image).convert("RGB")
         size = list(rgb.size)
     record_path = root / "drafts" / (checksum + ".json")
     if record_path.exists():
@@ -78,17 +81,17 @@ def register(root, photo, plan_path, session_id, metadata, annotator, revision, 
             stream.write(raw)
     image_path = original
     transform = "identity"
-    if orientation != 1:
+    if orientation != 1 or source_mode != "RGB":
         image_path = root / "derivatives" / (checksum + ".png")
         image_path.parent.mkdir(parents=True, exist_ok=True)
         if image_path.exists():
             raise ValueError("EXIF derivative already exists")
         rgb.save(image_path)
-        transform = "PIL.ImageOps.exif_transpose"
+        transform = "PIL.ImageOps.exif_transpose+RGB"
     meta = {**session, "original_id": checksum, "original_sha256": checksum,
             "original_path": original.relative_to(root).as_posix(), "image_size": size,
             "image_sha256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
-            "exif_orientation": orientation, "image_transform": transform,
+            "exif_orientation": orientation, "original_mode": source_mode, "image_transform": transform,
             "capture_plan_sha256": hashlib.sha256(plan_path.read_bytes()).hexdigest(),
             "gt_revision": revision, "annotator": annotator, "reviewer": None,
             "orientation_reference": "unknown", "suitability": "unknown", "annotation_state": "draft",
@@ -237,6 +240,7 @@ def main(argv=None):
     parser.add_argument("--review-notes", default="")
     parser.add_argument("--gt-revision")
     parser.add_argument("--normalize-exif", action="store_true")
+    parser.add_argument("--normalize-rgb", action="store_true")
     parser.add_argument("--format", choices=["SINGLE", "TRIPLE"], default="SINGLE")
     parser.add_argument("--triple-layout", choices=["VERTICAL", "TRIANGULAR"])
     parser.add_argument("--minimum-scoring-zone", type=int, choices=[1,5,6], default=1)
@@ -250,7 +254,7 @@ def main(argv=None):
             parser.error("register requires --image --plan --session --annotator --gt-revision")
         print(register(args.root, args.image, args.plan, args.session,
             TargetMetadata(args.format, args.minimum_scoring_zone, args.ten_ring_mode, triple_layout=args.triple_layout),
-            args.annotator, args.gt_revision, args.normalize_exif))
+            args.annotator, args.gt_revision, args.normalize_exif, args.normalize_rgb))
     elif args.command == "review":
         if not args.record or not args.reviewer:
             parser.error("review requires --record --reviewer --review-notes")

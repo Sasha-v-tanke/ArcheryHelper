@@ -60,6 +60,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         sample.target_metadata.format == config.format.value
         and sample.target_metadata.triple_layout == (None if config.triple_layout is None else config.triple_layout.value)
         and sample.target_metadata.minimum_scoring_zone == config.minimum_scoring_zone
+        and sample.target_metadata.face_diameter_mm in (None, config.face_diameter_mm)
         and sample.target_metadata.ten_ring_mode == config.ten_ring_mode.value)])
     calibrator = None
     if args.board_template:

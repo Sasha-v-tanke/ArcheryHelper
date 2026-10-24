@@ -4,15 +4,27 @@ import json
 
 from neural_network.archery_ml.contracts import DatasetSample
 from pathlib import Path
+from PIL import Image, ImageOps
 
 
 def verify_image_content(image_path: Path, meta: dict, root: Path) -> None:
     if hashlib.sha256(image_path.read_bytes()).hexdigest() != meta.get("image_sha256", meta.get("original_sha256")):
         raise ValueError("mobile original checksum mismatch")
+    derivative = meta.get("image_sha256", meta.get("original_sha256")) != meta.get("original_sha256")
+    if derivative and not meta.get("original_path"):
+        raise ValueError("derivative requires an original source path")
     if meta.get("original_path"):
         original = (root / meta["original_path"]).resolve()
         if not original.is_relative_to(root.resolve()) or hashlib.sha256(original.read_bytes()).hexdigest() != meta.get("original_sha256"):
             raise ValueError("mobile source original checksum/path mismatch")
+        if derivative:
+            if meta.get("image_transform") not in {"PIL.ImageOps.exif_transpose", "PIL.ImageOps.exif_transpose+RGB"}:
+                raise ValueError("unsupported derivative transform")
+            with Image.open(original) as source, Image.open(image_path) as actual:
+                expected = ImageOps.exif_transpose(source).convert("RGB")
+                if (source.getexif().get(274,1) != meta.get("exif_orientation") or expected.size != actual.size
+                        or expected.tobytes() != actual.convert("RGB").tobytes()):
+                    raise ValueError("derivative pixels do not match declared original transformation")
 
 
 def annotation_digest(sample: DatasetSample) -> str:

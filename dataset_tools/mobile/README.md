@@ -84,6 +84,9 @@ python -m archery_ml.data.mobile_workflow register --root data/mobile-v1 \
 создаёт отдельный PNG в `derivatives/`; оригинал, его SHA и EXIF сохраняются.
 `original_sha256` всегда относится к оригиналу, `image_sha256` — к используемому изображению.
 Coordinates GT задаются в пространстве используемого изображения, размеры — после EXIF.
+Для не-RGB оригинала требуется явный `--normalize-rgb`. Import проверяет не только
+оба checksum, но и совпадение pixels производного изображения с заявленным
+EXIF/RGB преобразованием оригинала; подменить derivative новым checksum недостаточно.
 
 Редактируйте `drafts/<sha>.json` обычным JSON-редактором. Нужны suitability,
 orientation_reference, независимый метод GT и annotations. Draft не проходит importer

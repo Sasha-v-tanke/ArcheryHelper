@@ -151,6 +151,40 @@ class MobileWorkflowTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"changed after independent review"):
             export(self.root)
 
+    def test_unrelated_derivative_is_rejected_even_with_updated_file_checksum(self):
+        photo = Path(self.tmp.name) / "rotated.jpg"
+        exif = Image.Exif()
+        exif[274] = 6
+        Image.new("RGB",(60,40),(90,90,90)).save(photo,exif=exif)
+        path = self.draft(usable=False,photo=photo,normalize=True)
+        review(self.root,path,"fixture-reviewer","notes",self.policy)
+        export(self.root)
+        data = json.loads((self.root / "geometry.json").read_text())
+        record = data["samples"][0]
+        image = self.root / record["image_path"]
+        Image.new("RGB",(40,60),(120,80,20)).save(image)
+        record["capture_metadata"]["image_sha256"] = hashlib.sha256(image.read_bytes()).hexdigest()
+        (self.root / "geometry.json").write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError,"derivative pixels"):
+            import_mobile_geometry(self.root,source_for(self.root))
+
+    def test_rgb_normalization_is_explicit_and_original_is_preserved(self):
+        photo = Path(self.tmp.name) / "gray.png"
+        Image.new("L",(40,60),100).save(photo)
+        original = photo.read_bytes()
+        metadata = TargetMetadata("SINGLE",1,"RECURVE")
+        with self.assertRaisesRegex(ValueError,"normalize-rgb"):
+            register(self.root,photo,self.plan_path,"dev-1",metadata,"fixture-annotator","fixture-v1")
+        path = register(self.root,photo,self.plan_path,"dev-1",metadata,"fixture-annotator","fixture-v1",normalize_rgb=True)
+        record = json.loads(path.read_text())
+        record["capture_metadata"].update(suitability="unusable",independent_gt_method="independent_suitability_review")
+        path.write_text(json.dumps(record))
+        review(self.root,path,"fixture-reviewer","RGB conversion checked",self.policy)
+        export(self.root)
+        imported = import_mobile_geometry(self.root,source_for(self.root))[0]
+        verify_mobile_gt(imported)
+        self.assertEqual(original,photo.read_bytes())
+
     def test_coverage_has_both_splits_and_all_required_configurations(self):
         empty = coverage(self.root,self.policy)
         self.assertEqual("BLOCKED: EXTERNAL CAPTURE REQUIRED",empty["status"])

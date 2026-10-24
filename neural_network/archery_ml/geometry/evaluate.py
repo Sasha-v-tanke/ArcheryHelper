@@ -203,6 +203,8 @@ class GeometryEvaluator:
                     target_config.format.value, target_config.minimum_scoring_zone, target_config.ten_ring_mode.value, layout
                 ):
                     raise ValueError("sample target configuration differs from evaluation configuration")
+                if metadata.face_diameter_mm is not None and metadata.face_diameter_mm != target_config.face_diameter_mm:
+                    raise ValueError("sample physical face diameter differs from evaluation configuration")
             geometry = self.detector.detect(image, target_config)
             quality = self.quality_gate.evaluate(image, geometry)
             status = quality.status.value

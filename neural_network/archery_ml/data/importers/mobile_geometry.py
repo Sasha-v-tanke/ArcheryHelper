@@ -9,7 +9,7 @@ from PIL import Image
 
 from neural_network.archery_ml.contracts import DatasetSample
 from neural_network.archery_ml.data.registry import DatasetSource
-from neural_network.archery_ml.data.geometry_provenance import annotation_digest
+from neural_network.archery_ml.data.geometry_provenance import annotation_digest, verify_image_content
 from neural_network.archery_ml.data.importers.common import portable_path
 
 
@@ -34,6 +34,7 @@ def import_mobile_geometry(root: Path, source: DatasetSource) -> list[DatasetSam
         # Older mobile records remain importable: freeze actual content at import.
         meta["gt_annotations_sha256"] = digest
         meta["gt_manifest_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        meta["source_root"] = str(root.resolve())
         if meta["suitability"] not in {"usable", "unusable"}:
             raise ValueError("suitability must be usable or unusable")
         if sample.id in ids or sample.split not in {"mobile_dev", "mobile_real_test"}:
@@ -47,9 +48,10 @@ def import_mobile_geometry(root: Path, source: DatasetSource) -> list[DatasetSam
         image_path = (root / sample.image_path).resolve()
         if not image_path.is_relative_to(root.resolve()):
             raise ValueError("mobile image outside source directory")
-        if hashlib.sha256(image_path.read_bytes()).hexdigest() != meta["original_sha256"]:
-            raise ValueError("mobile image checksum mismatch")
+        verify_image_content(image_path, meta, root)
         with Image.open(image_path) as image:
+            if image.getexif().get(274, 1) != 1:
+                raise ValueError("mobile EXIF orientation requires a tracked derivative")
             if list(image.size) != meta.get("image_size"):
                 raise ValueError("mobile image dimensions mismatch")
         if sample.target_metadata is None:

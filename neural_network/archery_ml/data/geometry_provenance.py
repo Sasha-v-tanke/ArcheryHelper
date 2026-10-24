@@ -3,6 +3,16 @@ import hashlib
 import json
 
 from neural_network.archery_ml.contracts import DatasetSample
+from pathlib import Path
+
+
+def verify_image_content(image_path: Path, meta: dict, root: Path) -> None:
+    if hashlib.sha256(image_path.read_bytes()).hexdigest() != meta.get("image_sha256", meta.get("original_sha256")):
+        raise ValueError("mobile original checksum mismatch")
+    if meta.get("original_path"):
+        original = (root / meta["original_path"]).resolve()
+        if not original.is_relative_to(root.resolve()) or hashlib.sha256(original.read_bytes()).hexdigest() != meta.get("original_sha256"):
+            raise ValueError("mobile source original checksum/path mismatch")
 
 
 def annotation_digest(sample: DatasetSample) -> str:
@@ -33,11 +43,10 @@ def verify_mobile_gt(sample: DatasetSample) -> dict:
     matches = [DatasetSample.from_dict(r) for r in records if r["id"] == sample.id]
     if len(matches) != 1 or annotation_digest(matches[0]) != digest:
         raise ValueError("GT differs from versioned annotation manifest")
-    derived = {"gt_annotations_sha256", "gt_manifest_sha256"}
+    derived = {"gt_annotations_sha256", "gt_manifest_sha256", "source_root"}
     if ({k: v for k, v in (matches[0].capture_metadata or {}).items() if k not in derived}
             != {k: v for k, v in meta.items() if k not in derived}):
         raise ValueError("GT capture provenance differs from annotation manifest")
-    if hashlib.sha256(sample.image_path.read_bytes()).hexdigest() != meta.get("original_sha256"):
-        raise ValueError("mobile original checksum mismatch")
+    verify_image_content(sample.image_path, meta, Path(meta.get("source_root", path.parent)))
     return {"revision": meta["gt_revision"], "annotations_sha256": digest,
             "annotation_manifest_sha256": manifest_digest}

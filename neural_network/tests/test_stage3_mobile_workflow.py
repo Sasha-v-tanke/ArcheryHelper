@@ -16,6 +16,7 @@ from dataset_tools.mobile.validate_all import run
 from dataset_tools.mobile.make_example import create
 from neural_network.archery_ml.data.registry import DatasetRegistry
 from neural_network.archery_ml.contracts import save_manifest
+from neural_network.archery_ml.data.annotation_editor import write_editor
 
 
 class MobileWorkflowTest(unittest.TestCase):
@@ -202,6 +203,24 @@ class MobileWorkflowTest(unittest.TestCase):
         self.assertEqual("BLOCKED",result["status"])
         self.assertFalse(result["final_holdout_executed"])
         evaluator.assert_not_called()
+
+    def test_offline_editor_embeds_correct_image_and_escapes_record_text(self):
+        path = self.draft()
+        original = self.photo.read_bytes()
+        data = json.loads(path.read_text())
+        data["capture_metadata"]["review_notes"] = "</textarea><script>window.evil=true</script>"
+        path.write_text(json.dumps(data))
+        output = Path(self.tmp.name) / "annotate.html"
+        write_editor(self.root,path,output)
+        content = output.read_text()
+        self.assertIn("data:image/png;base64,",content)
+        self.assertNotIn("</textarea><script>window.evil",content)
+        self.assertNotIn("https://",content)
+        self.assertIn("annotation_state='draft'",content)
+        self.assertEqual(original,self.photo.read_bytes())
+        reviewed = review(self.root,path,"fixture-reviewer","notes",self.policy)
+        with self.assertRaisesRegex(ValueError,"only draft"):
+            write_editor(self.root,reviewed,output.with_name("reviewed.html"))
 
     def test_development_matrix_runner_preserves_failures_and_never_claims_closure(self):
         example = Path(self.tmp.name) / "example"

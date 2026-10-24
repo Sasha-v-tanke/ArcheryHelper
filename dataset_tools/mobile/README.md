@@ -98,6 +98,19 @@ orientation_reference, независимый метод GT и annotations. Draf
 - обоснованную `uncertainty_norm` в единицах полного canonical radius;
 - `evaluation_landmark_ids`, отдельно от `calibration_landmark_ids`.
 
+Для ввода image points кликами можно создать автономный HTML-редактор:
+
+```sh
+python -m archery_ml.data.mobile_workflow annotate --root data/mobile-v1 \
+  --record data/mobile-v1/drafts/IMAGE_SHA.json --output /tmp/annotate.html
+```
+
+Откройте HTML локально. Введите физический face ID, независимо измеренные canonical
+X/Y и uncertainty, затем кликните соответствующую точку изображения. Для центра
+выберите «Физический центр». Скачанный draft JSON заменяет только соответствующий
+файл drafts/. Фото не изменяется, сеть не используется, review автоматически не ставится.
+Для grouped annotations или исправлений полного payload можно редактировать JSON вручную.
+
 Пример одной точки контракта:
 
 ```json

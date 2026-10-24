@@ -227,7 +227,7 @@ def preview(root, record, output):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["plan", "register", "review", "export", "coverage", "preview"])
+    parser.add_argument("command", choices=["plan", "register", "review", "export", "coverage", "preview", "annotate"])
     parser.add_argument("--root", type=Path, default=Path("data/mobile"))
     parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
     parser.add_argument("--output", type=Path)
@@ -270,6 +270,11 @@ def main(argv=None):
         if not args.record or not args.output:
             parser.error("preview requires --record --output")
         preview(args.root, args.record, args.output)
+    elif args.command == "annotate":
+        if not args.record or not args.output:
+            parser.error("annotate requires --record --output")
+        from neural_network.archery_ml.data.annotation_editor import write_editor
+        write_editor(args.root,args.record,args.output)
     return 0
 
 

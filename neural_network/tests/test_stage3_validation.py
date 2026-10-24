@@ -8,7 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from neural_network.archery_ml.geometry.validation import aggregate_reports, validate_holdout
+from neural_network.archery_ml.geometry.validation import aggregate_reports, validate_holdout, _sample_metrics, METRICS_VERSION
 from neural_network.archery_ml.geometry.cli import main
 from neural_network.archery_ml.targets import TargetConfig, TargetTemplate, TargetFormat, TenRingMode, TripleLayout
 from neural_network.archery_ml.data.corrections import corrected_coco
@@ -42,7 +42,7 @@ class HoldoutValidationTest(unittest.TestCase):
                         capture_session_id=f"session-{j % 2}", device_model="camera", suitability="usable" if j < 4 else "unusable",
                         gt_revision="reviewed-v1", gt_annotations_sha256="annotation-checksum"),
                     gt_provenance=dict(revision="reviewed-v1", annotations_sha256="annotation-checksum", annotation_manifest_sha256="gt-manifest")))
-            self.reports.append(dict(target_config=config.copy(), metrics_version="stage3-2d-v2", sample_results=samples,
+            self.reports.append(dict(target_config=config.copy(), metrics_version=METRICS_VERSION, sample_results=samples,
                 provenance=dict(algorithm_sha="algorithm", working_tree_dirty=False, manifest_sha256="manifest",
                     policy_sha256=sha, gt_revision="reviewed-v1", gt_sources=["gt-manifest"], dependencies={"python": "test"})))
 
@@ -60,6 +60,74 @@ class HoldoutValidationTest(unittest.TestCase):
                                   400, None if c["triple_layout"] is None else TripleLayout(c["triple_layout"]))
             self.assertTrue(TargetTemplate.from_config(config).ring_boundaries)
         self.assertEqual("PASS", self.result()["status"])
+
+    def _population(self, usable_statuses, unusable_statuses):
+        report = self.reports[0]
+        prototype = report["sample_results"][0]
+        report["sample_results"] = []
+        for i, (suitability, status) in enumerate(
+                [("usable", s) for s in usable_statuses] + [("unusable", s) for s in unusable_statuses]):
+            sample = copy.deepcopy(prototype)
+            identity = f"replacement-{i}"
+            sample.update(sample_id=identity, status=status)
+            sample["capture_metadata"].update(suitability=suitability, original_id=identity,
+                capture_session_id=f"session-{i % 2}",
+                original_sha256=hashlib.sha256(identity.encode()).hexdigest())
+            report["sample_results"].append(sample)
+
+    def _first_group(self):
+        return next(iter(self.result()["configurations"].values()))
+
+    def test_dense_ideal_photo_cannot_hide_seven_bad_photos(self):
+        self._population(["READY"] * 8, ["REJECTED"] * 2)
+        for i, sample in enumerate(self.reports[0]["sample_results"][:8]):
+            values = [0.] * 1000 if i == 0 else [0.] * 15 + [.034]
+            sample["point_values_2d"] = values
+            sample["point_error_2d"] = dict(mean=sum(values) / len(values), median=0.,
+                p95=0. if i == 0 else .0085, max=max(values), count=len(values))
+            sample["face_error"]["0"]["point_error_2d"] = sample["point_error_2d"].copy()
+        result = self.result()
+        group = next(iter(result["configurations"].values()))
+        self.assertEqual(0., group["landmark_weighted_point_error_2d"]["p95"])
+        self.assertEqual(.034, group["point_error_2d"]["p95"])
+        self.assertEqual(.034, _sample_metrics(self.reports[0]["sample_results"][:8])["p95"])
+        self.assertLess(result["ready_point_error_2d"]["p95"], self.policy["maximum_p95_2d"])
+        self.assertFails("SINGLE:SINGLE:1:RECURVE p95")
+
+    def test_density_cannot_change_weighted_metrics(self):
+        samples = [{"point_values_2d": [.0, .01]}, {"point_values_2d": [.02, .034]}]
+        baseline = _sample_metrics(samples)
+        for factor in (2, 100, 1000):
+            repeated = copy.deepcopy(samples)
+            repeated[0]["point_values_2d"] *= factor
+            for metric in ("median", "p95", "max", "mean"):
+                self.assertAlmostEqual(baseline[metric], _sample_metrics(repeated)[metric])
+
+    def test_missing_ready_points_are_not_silently_dropped(self):
+        self.reports[0]["sample_results"][0]["point_values_2d"] = []
+        self.assertFails("READY p95")
+
+    def test_rejected_negatives_do_not_reduce_usable_acceptance(self):
+        self._population(["READY"] * 10, ["REJECTED"] * 10)
+        self.assertEqual(1., self._first_group()["usable_acceptance_rate"])
+        self.assertEqual(0., self._first_group()["false_accept_rate"])
+        self.assertEqual("PASS", self.result()["status"])
+
+    def test_eight_of_ten_usable_ready_is_eighty_percent(self):
+        self._population(["READY"] * 8 + ["REJECTED"] * 2, ["REJECTED"] * 10)
+        self.assertEqual(.8, self._first_group()["usable_acceptance_rate"])
+        self.assertEqual("PASS", self.result()["status"])
+
+    def test_unusable_ready_increases_false_acceptance(self):
+        self._population(["READY"] * 10, ["READY"] + ["REJECTED"] * 9)
+        self.assertEqual(.1, self._first_group()["false_accept_rate"])
+        self.assertEqual(1., self._first_group()["usable_acceptance_rate"])
+        self.assertFails("false_accept_fraction")
+
+    def test_no_usable_samples_cannot_pass(self):
+        self._population([], ["REJECTED"] * 10)
+        self.assertIsNone(self._first_group()["usable_acceptance_rate"])
+        self.assertFails("insufficient configuration coverage")
 
     def test_200_single_cannot_pass_without_triple(self):
         report = self.reports[0]

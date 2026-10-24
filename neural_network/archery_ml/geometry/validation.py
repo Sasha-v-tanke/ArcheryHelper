@@ -6,6 +6,11 @@ import json
 
 import numpy as np
 
+from neural_network.archery_ml.geometry.evaluate import _equal_group_metrics
+
+
+METRICS_VERSION = "stage3-2d-v3-equal-image"
+
 def configuration_key(config: dict) -> str:
     return ":".join(str(config.get(k) or "SINGLE") for k in
                     ("format", "triple_layout", "minimum_scoring_zone", "ten_ring_mode"))
@@ -23,7 +28,7 @@ def aggregate_reports(reports: list[dict], policy: dict) -> dict:
                     "gt_revision", "gt_sources", "dependencies", "quality_thresholds"):
             if provenance.get(key) != first.get(key):
                 reasons.append(f"incompatible provenance: {key}")
-        if report.get("metrics_version") != "stage3-2d-v2":
+        if report.get("metrics_version") != METRICS_VERSION:
             reasons.append("incompatible metrics version")
         if report.get("coverage", {}).get("unknown_suitability_samples", 0) > 0:
             reasons.append("unknown suitability in input report")
@@ -35,7 +40,7 @@ def aggregate_reports(reports: list[dict], policy: dict) -> dict:
                 continue
             seen.update(identities)
             samples.append({**sample, "target_config": report.get("target_config", sample.get("target_config", {}))})
-    result = {"sample_results": samples, "provenance": first, "metrics_version": "stage3-2d-v2"}
+    result = {"sample_results": samples, "provenance": first, "metrics_version": METRICS_VERSION}
     result["validation"] = validate_holdout(result, policy)
     result["validation"]["reasons"].extend(reasons)
     if reasons:
@@ -78,7 +83,7 @@ def validate_holdout(report: dict, policy: dict) -> dict:
     policy_sha = hashlib.sha256(json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     if provenance.get("policy_sha256") != policy_sha:
         reasons.append("policy checksum mismatch")
-    if report.get("metrics_version") != "stage3-2d-v2":
+    if report.get("metrics_version") != METRICS_VERSION:
         reasons.append("missing or incompatible metrics version")
     if report.get("coverage", {}).get("unknown_suitability_samples", 0) > 0:
         reasons.append("unknown suitability in coverage")
@@ -136,14 +141,21 @@ def validate_holdout(report: dict, policy: dict) -> dict:
         key = configuration_key(requirement)
         group = [s for s in samples if configuration_key(s.get("target_config", report.get("target_config", {}))) == key]
         accepted = [s for s in group if s["status"] == "READY"]
+        usable = [s for s in group if s.get("capture_metadata", {}).get("suitability") == "usable"]
+        unusable = [s for s in group if s.get("capture_metadata", {}).get("suitability") == "unusable"]
         originals = {s.get("capture_metadata", {}).get("original_id") for s in group} - {None}
         sessions = {s.get("capture_metadata", {}).get("capture_session_id") for s in group} - {None}
-        rate = len(accepted) / len(group) if group else 0
+        rate = sum(s["status"] == "READY" for s in usable) / len(usable) if usable else None
+        false_accept = sum(s["status"] == "READY" for s in unusable) / len(unusable) if unusable else None
         metrics = _sample_metrics(accepted)
         groups[key] = {"originals": len(originals), "sessions": len(sessions), "ready": len(accepted),
-                       "acceptance_rate": rate, "point_error_2d": metrics}
+                       "acceptance_rate": rate, "usable_acceptance_rate": rate,
+                       "usable_samples": len(usable), "unusable_samples": len(unusable),
+                       "false_accept_rate": false_accept, "point_error_2d": metrics,
+                       "landmark_weighted_point_error_2d": _landmark_metrics(accepted)}
         if (len(originals) < requirement["minimum_originals"] or len(sessions) < requirement["minimum_sessions"]
-                or len(accepted) < requirement["minimum_ready"] or rate < requirement["minimum_acceptance_rate"]):
+                or len(accepted) < requirement["minimum_ready"] or rate is None
+                or rate < requirement["minimum_acceptance_rate"]):
             reasons.append(f"insufficient configuration coverage: {key}")
         _check_errors(metrics, policy, reasons, key)
     sessions = {s.get("capture_metadata", {}).get("capture_session_id") for s in samples}
@@ -156,6 +168,9 @@ def validate_holdout(report: dict, policy: dict) -> dict:
             reasons.append(f"insufficient independent {name}")
     return {"status": "FAIL" if reasons else "PASS", "reasons": reasons,
             "configurations": groups,
+            "ready_point_error_2d": _sample_metrics(ready),
+            "ready_landmark_weighted_point_error_2d": _landmark_metrics(ready),
+            "metric_weighting": "equal image mass; equal landmark mass within image; inverse empirical CDF quantiles",
             "session_bootstrap_mean_2d": session_bootstrap(ready)}
 
 
@@ -168,6 +183,19 @@ def _check_errors(metrics: dict, policy: dict, reasons: list, label: str) -> Non
 
 
 def _sample_metrics(samples: list[dict]) -> dict:
+    """Each independent READY photo has mass 1; its n points each have mass 1/n.
+
+    Quantiles are the smallest error whose weighted empirical CDF reaches q.
+    Missing/non-finite READY points invalidate metrics instead of losing a photo.
+    """
+    groups = [s.get("point_values_2d", []) for s in samples]
+    if not groups or any(not values or not np.all(np.isfinite(values)) for values in groups):
+        return {}
+    return _equal_group_metrics(groups)
+
+
+def _landmark_metrics(samples: list[dict]) -> dict:
+    """Unweighted diagnostic only; never used to approve a holdout."""
     values = [v for s in samples for v in s.get("point_values_2d", [])]
     if not values or not np.all(np.isfinite(values)):
         return {}

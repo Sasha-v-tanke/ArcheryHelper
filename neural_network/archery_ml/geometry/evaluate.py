@@ -141,7 +141,7 @@ class GeometryEvaluationReport:
             "breakdowns": self.breakdowns,
             "annotation_issue_samples": sum(bool(sample.annotation_issues) for sample in self.sample_results),
             "coverage": _coverage(self.sample_results),
-            "metrics_version": "stage3-2d-v2",
+            "metrics_version": "stage3-2d-v3-equal-image",
         }
 
 
@@ -618,14 +618,17 @@ def _coverage(samples: tuple[GeometrySampleResult, ...]) -> dict:
 
 
 def _equal_group_metrics(groups) -> dict:
+    """Equal mass per group and equal mass per point within it; inverse-CDF quantiles."""
     groups = [values for values in groups if values]
     if not groups:
         return {**_metrics([]).to_dict(), "groups": 0}
     values = np.concatenate([np.asarray(group) for group in groups])
     weights = np.concatenate([np.full(len(group), 1 / len(group)) for group in groups])
-    order = np.argsort(values, kind="stable")
-    cumulative = np.cumsum(weights[order]) / weights.sum()
+    distinct, inverse = np.unique(values, return_inverse=True)
+    masses = np.bincount(inverse, weights=weights)
+    cumulative = np.cumsum(masses) / masses.sum()
     def quantile(q):
-        return float(values[order[min(np.searchsorted(cumulative, q), len(order) - 1)]])
+        # Coalesce ties and tolerate probability rounding at exact CDF boundaries.
+        return float(distinct[min(np.searchsorted(cumulative, q - 1e-12), len(distinct) - 1)])
     return {"mean": float(np.average(values, weights=weights)), "median": quantile(0.5),
             "p95": quantile(0.95), "max": float(values.max()), "count": len(values), "groups": len(groups)}

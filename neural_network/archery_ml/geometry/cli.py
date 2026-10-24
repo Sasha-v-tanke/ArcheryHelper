@@ -54,7 +54,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         ten_ring_mode=TenRingMode(args.ten_ring_mode),
         face_diameter_mm=args.face_diameter_mm,
     )
-    evaluator = GeometryEvaluator()
+    # Evaluate one configuration from a shared manifest, keeping its hash stable
+    # across all reports that will be consolidated.
+    view = DatasetView.from_samples([sample for sample in view if sample.target_metadata is None or (
+        sample.target_metadata.format == config.format.value
+        and sample.target_metadata.triple_layout == (None if config.triple_layout is None else config.triple_layout.value)
+        and sample.target_metadata.minimum_scoring_zone == config.minimum_scoring_zone
+        and sample.target_metadata.ten_ring_mode == config.ten_ring_mode.value)])
+    calibrator = None
+    if args.board_template:
+        from neural_network.archery_ml.geometry.calibration import BoardTemplate, TargetOrientationCalibrator
+        board = BoardTemplate.load(args.board_template)
+        if (board.payload["format"] != config.format.value
+                or board.payload["triple_layout"] != (None if config.triple_layout is None else config.triple_layout.value)
+                or any(2 * f["radius_mm"] != config.face_diameter_mm for f in board.payload["faces"])):
+            raise ValueError("board template differs from target configuration")
+        calibrator = TargetOrientationCalibrator(board)
+    evaluator = GeometryEvaluator(orientation_calibrator=calibrator)
     report = evaluator.evaluate(view, config, preview_dir=args.preview_dir)
     result = report.to_dict()
     algorithm_sha, working_tree_dirty = _git_state()
@@ -70,6 +86,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "quality_thresholds": asdict(evaluator.quality_gate.thresholds),
         "gt_revision": revision,
         "gt_sources": sorted({item["annotation_manifest_sha256"] for item in gt}),
+        "board_template_sha256": None if calibrator is None else calibrator.template.sha256,
+        "calibration_revision": None if calibrator is None else "aruco-board-orientation-v1",
         "policy_sha256": None if args.policy is None else hashlib.sha256(json.dumps(
             json.loads(args.policy.read_text()), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
     }
@@ -86,9 +104,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _git_state() -> tuple[str | None, bool]:
     try:
         sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
-        diff = subprocess.check_output(["git", "diff", "HEAD", "--", "neural_network", "dataset_tools"], stderr=subprocess.DEVNULL)
+        diff = subprocess.check_output(["git", "diff", "HEAD", "--", "neural_network", "dataset_tools", "archery_ml", "requirements.txt", ".python-version"], stderr=subprocess.DEVNULL)
         untracked = subprocess.check_output(
-            ["git", "ls-files", "--others", "--exclude-standard", "--", "neural_network", "dataset_tools"],
+            ["git", "ls-files", "--others", "--exclude-standard", "--", "neural_network", "dataset_tools", "archery_ml"],
             text=True, stderr=subprocess.DEVNULL,
         ).splitlines()
         return sha, bool(diff) or any(Path(path).suffix in {".py", ".json"} for path in untracked)
@@ -108,6 +126,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--triple-layout", choices=("VERTICAL", "TRIANGULAR"))
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--gt-revision")
+    parser.add_argument("--board-template", type=Path)
     parser.add_argument("--aggregate-report", type=Path, action="append",
                         help="combine configuration reports for one independent holdout decision")
     parser.add_argument(

@@ -36,7 +36,7 @@ def write_viewer(output,inventory,detections,selections,results,reviews):
 <script id="payload" type="application/json">__PAYLOAD__</script>
 <script>
 const data=JSON.parse(document.getElementById('payload').textContent), $=id=>document.getElementById(id);
-const rows=data.inventory.images;let current=0,chosen=[],highlight=null,directory=null;
+const rows=data.inventory.images;let current=Math.min(rows.length-1,Math.max(0,(Number(new URL(location.href).searchParams.get('photo'))||1)-1)),chosen=[],highlight=null,directory=null;
 const storage='archery-pilot-'+rows.map(r=>r.original_id||r.filename).join('').slice(0,80);
 try{const saved=JSON.parse(localStorage.getItem(storage)||'null');if(location.protocol==='file:'&&saved){Object.assign(data.selections,saved.selections);Object.assign(data.reviews,saved.reviews);}}catch{}
 function esc(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

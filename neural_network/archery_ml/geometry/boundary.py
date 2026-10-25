@@ -4,7 +4,7 @@ import hashlib
 import cv2
 import numpy as np
 
-from neural_network.archery_ml.geometry.detector import _target_color_masks, _ellipse_inliers
+from neural_network.archery_ml.geometry.detector import _target_color_masks
 from neural_network.archery_ml.geometry.target_templates import CANONICAL_CENTER_PX, CANONICAL_RADIUS_PX
 
 
@@ -45,15 +45,22 @@ def canonical_display(image, minimum_scoring_zone):
         if valid.sum()>=12:
             edge=CANONICAL_CENTER_PX+directions*observed[:,None]
             try:
-                center,axes,angle=cv2.fitEllipse(_ellipse_inliers(edge[valid].astype(np.float32).reshape(-1,1,2)))
-                if not np.isfinite([*center,*axes,angle]).all() or min(axes)<=0:
-                    raise ValueError("invalid boundary ellipse")
-                angle=np.deg2rad(angle);delta=edge-center
-                rotated=np.column_stack((delta[:,0]*np.cos(angle)+delta[:,1]*np.sin(angle),
-                                         -delta[:,0]*np.sin(angle)+delta[:,1]*np.cos(angle)))
-                residual=(np.linalg.norm(rotated/(np.asarray(axes)/2),axis=1)-1)*np.mean(axes)/2
-                median=np.median(residual[valid]);mad=np.median(np.abs(residual[valid]-median))
-                valid &= np.abs(residual-median)<=max(1.5,4*1.4826*mad)
+                supported=valid.copy()
+                # Use all supported points, avoiding ill-conditioned five-point
+                # ellipse hypotheses and their sensitivity to earlier fit calls.
+                for _ in range(3):
+                    if valid.sum()<12:
+                        valid[:]=False
+                        break
+                    center,axes,angle=cv2.fitEllipse(edge[valid].astype(np.float32).reshape(-1,1,2))
+                    if not np.isfinite([*center,*axes,angle]).all() or min(axes)<=0:
+                        raise ValueError("invalid boundary ellipse")
+                    angle=np.deg2rad(angle);delta=edge-center
+                    rotated=np.column_stack((delta[:,0]*np.cos(angle)+delta[:,1]*np.sin(angle),
+                                             -delta[:,0]*np.sin(angle)+delta[:,1]*np.cos(angle)))
+                    residual=(np.linalg.norm(rotated/(np.asarray(axes)/2),axis=1)-1)*np.mean(axes)/2
+                    median=np.median(residual[valid]);mad=np.median(np.abs(residual[valid]-median))
+                    valid = supported & (np.abs(residual-median)<=max(1.5,4*1.4826*mad))
             except (cv2.error,FloatingPointError,ValueError):
                 valid[:]=False
         indices=np.flatnonzero(valid)

@@ -1,12 +1,25 @@
 import unittest
+import io
 
 import cv2
 import numpy as np
+from PIL import Image
 
 from neural_network.archery_ml.geometry.boundary import canonical_display
 
 
 class BoundaryTest(unittest.TestCase):
+    def test_mask_repeats_after_png_roundtrip_and_other_images(self):
+        image=self.target()
+        cv2.line(image,(90,230),(240,260),(20,20,20),7)
+        first,info=canonical_display(image,6)
+        encoded=io.BytesIO();Image.fromarray(image).save(encoded,format="PNG");encoded.seek(0)
+        decoded=np.array(Image.open(encoded))
+        canonical_display(np.roll(image,9,axis=0),6)
+        second,repeated=canonical_display(decoded,6)
+        self.assertEqual(info,repeated)
+        np.testing.assert_array_equal(first,second)
+
     def target(self):
         image=np.full((512,512,3),245,np.uint8)
         for radius,color in [(128,(20,150,230)),(102,(230,40,40)),(51,(245,220,30))]:

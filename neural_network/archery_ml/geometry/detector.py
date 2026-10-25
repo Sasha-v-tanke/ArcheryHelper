@@ -506,17 +506,21 @@ def _initial_image_to_norm(
         dtype=np.float64,
     )
     ellipse_angle = math.radians(candidate.ellipse.angle_deg)
-    first = np.array([math.cos(ellipse_angle),math.sin(ellipse_angle)])
-    second = np.array([-math.sin(ellipse_angle),math.cos(ellipse_angle)])
+    rotation = np.array([[math.cos(ellipse_angle),-math.sin(ellipse_angle)],
+                         [math.sin(ellipse_angle),math.cos(ellipse_angle)]])
+    # Symmetric whitening removes the ellipse's off-axis shear as well as scale.
+    # Its principal angle describes anisotropy, never the canonical orientation:
+    # the two rotations cancel for a circle; the layout basis still defines up.
+    whitening = rotation @ np.diag([
+        2.0 * radius_norm / candidate.ellipse.diameter_x,
+        2.0 * radius_norm / candidate.ellipse.diameter_y,
+    ]) @ rotation.T
     linear_rows = []
     for axis in orientation_axes:
         unit = np.asarray(axis, dtype=np.float64)
         unit /= max(float(np.linalg.norm(unit)), 1e-6)
-        # Surviving contour arcs need not contain both extrema after occlusion.
-        # Use the robust fitted ellipse's support, preserving the layout axes.
-        diameter = max(math.hypot(candidate.ellipse.diameter_x*float(unit@first),
-                                  candidate.ellipse.diameter_y*float(unit@second)),1e-6)
-        linear_rows.append(unit * (2.0 * radius_norm / diameter))
+        # Surviving arcs need not contain both extrema after occlusion.
+        linear_rows.append(unit @ whitening)
     linear = np.vstack(linear_rows)
     translation = -linear @ center
     return np.array(

@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageOps, ImageDraw
 
 from neural_network.archery_ml.contracts import DatasetSample, TargetMetadata
-from neural_network.archery_ml.data.geometry_provenance import annotation_digest
+from neural_network.archery_ml.data.geometry_provenance import annotation_digest, verify_landmark_ids
 from neural_network.archery_ml.data.importers.mobile_geometry import import_mobile_geometry
 from neural_network.archery_ml.data.registry import DatasetSource
 from neural_network.archery_ml.geometry.validation import configuration_key
@@ -124,6 +124,7 @@ def review(root, record_path, reviewer, notes, policy):
         raise ValueError("calibration and evaluation landmarks must be independent")
     if meta.get("suitability") == "usable" and not evaluation_ids:
         raise ValueError("independent evaluation landmark identities required")
+    verify_landmark_ids(sample)
     maximum = policy["maximum_gt_uncertainty_norm"]
     for annotation in sample.geometry_annotations:
         if annotation.canonical_points or annotation.kind == "target_center":

@@ -45,9 +45,18 @@ class MobileWorkflowTest(unittest.TestCase):
             payload["geometry_annotations"] = [
                 ImageGeometryAnnotation("target_center",((.5,.5),),face_index=0,uncertainty_norm=.002).to_dict(),
                 ImageGeometryAnnotation("landmark",((.2,.2),(.8,.2),(.8,.8),(.2,.8)),face_index=0,
-                    canonical_points=((-.6,-.6),(.6,-.6),(.6,.6),(-.6,.6)),uncertainty_norm=.002).to_dict()]
+                    canonical_points=((-.6,-.6),(.6,-.6),(.6,.6),(-.6,.6)),uncertainty_norm=.002,
+                    landmark_ids=("a","b","c","d")).to_dict()]
         path.write_text(json.dumps(payload))
         return path
+
+    def test_phantom_evaluation_ids_are_rejected(self):
+        path = self.draft()
+        payload = json.loads(path.read_text())
+        payload["capture_metadata"]["evaluation_landmark_ids"] = ["phantom-a","phantom-b"]
+        path.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(ValueError,"actual annotations"):
+            review(self.root,path,"fixture-reviewer","notes",self.policy)
 
     def test_register_review_export_rebuild_is_deterministic_and_original_unchanged(self):
         original = self.photo.read_bytes()

@@ -67,7 +67,7 @@ canvas.onclick=e=>{try{
   const x=Number($('cx').value),y=Number($('cy').value),id=$('pointid').value.trim();
   if($('cx').value===''||$('cy').value===''||!Number.isFinite(x)||!Number.isFinite(y)||!id) throw Error('Введите независимые canonical X/Y и landmark ID');
   if(sample.geometry_annotations.some(a=>a.source_label===id)) throw Error('Landmark ID уже используется');
-  annotation.canonical_points=[[x,y]];annotation.source_label=id;
+  annotation.canonical_points=[[x,y]];annotation.source_label=id;annotation.landmark_ids=[id];
  }else{sample.geometry_annotations=sample.geometry_annotations.filter(a=>!(a.kind==='target_center'&&a.face_index===face));}
  sample.geometry_annotations.push(annotation);$('message').textContent='Draft point добавлена; независимый review ещё не выполнен';draw();
 }catch(error){$('message').textContent=error.message;}};
@@ -75,7 +75,7 @@ $('undo').onclick=()=>{sample.geometry_annotations.pop();draw();};
 $('save').onclick=()=>{try{
  const edited=JSON.parse($('record').value);edited.capture_metadata.suitability=$('suitability').value;
  edited.capture_metadata.orientation_reference=$('orientation').value;edited.capture_metadata.independent_gt_method=$('method').value;
- edited.capture_metadata.evaluation_landmark_ids=(edited.geometry_annotations||[]).filter(a=>a.canonical_points?.length).map(a=>a.source_label).filter(Boolean);
+ edited.capture_metadata.evaluation_landmark_ids=(edited.geometry_annotations||[]).filter(a=>a.canonical_points?.length).flatMap(a=>a.landmark_ids||(a.canonical_points.length===1?[a.source_label]:[])).filter(Boolean);
  edited.capture_metadata.annotation_state='draft';edited.capture_metadata.reviewer=null;
  delete edited.capture_metadata.gt_annotations_sha256;delete edited.capture_metadata.gt_manifest_sha256;
  const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([JSON.stringify(edited,null,2)+'\\n'],{type:'application/json'}));

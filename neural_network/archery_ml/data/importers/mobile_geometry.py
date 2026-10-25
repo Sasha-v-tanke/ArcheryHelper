@@ -9,7 +9,7 @@ from PIL import Image
 
 from neural_network.archery_ml.contracts import DatasetSample
 from neural_network.archery_ml.data.registry import DatasetSource
-from neural_network.archery_ml.data.geometry_provenance import annotation_digest, verify_image_content
+from neural_network.archery_ml.data.geometry_provenance import annotation_digest, verify_image_content, verify_landmark_ids
 from neural_network.archery_ml.data.importers.common import portable_path
 
 
@@ -22,6 +22,8 @@ def import_mobile_geometry(root: Path, source: DatasetSource) -> list[DatasetSam
     for record in payload["samples"]:
         sample = DatasetSample.from_dict(record)
         meta = dict(sample.capture_metadata or {})
+        if "evaluation_landmark_ids" in meta:
+            verify_landmark_ids(sample)
         for key in ("capture_session_id", "original_id", "device_model", "original_sha256",
                     "gt_revision", "annotator", "reviewer", "orientation_reference", "suitability"):
             if not meta.get(key):

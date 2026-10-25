@@ -9,6 +9,16 @@ from neural_network.archery_ml.geometry.boundary import canonical_display
 
 
 class BoundaryTest(unittest.TestCase):
+    def test_small_print_boundary_bulge_is_not_trimmed_to_fitted_ellipse(self):
+        image=np.full((512,512,3),245,np.uint8)
+        theta=np.linspace(-np.pi,np.pi,720,endpoint=False)
+        radii=128+2.5*np.exp(-(theta/.1)**2)
+        points=np.rint(255.5+np.column_stack((np.cos(theta),np.sin(theta)))*radii[:,None]).astype(np.int32)
+        cv2.fillPoly(image,[points],(20,150,230))
+        display,info=canonical_display(image,6)
+        self.assertEqual("OBSERVED_BOUNDARY",info["status"])
+        np.testing.assert_array_equal(display[256,385],image[256,385])
+
     def test_mask_repeats_after_png_roundtrip_and_other_images(self):
         image=self.target()
         cv2.line(image,(90,230),(240,260),(20,20,20),7)

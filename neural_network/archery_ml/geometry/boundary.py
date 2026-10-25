@@ -60,7 +60,10 @@ def canonical_display(image, minimum_scoring_zone):
                                              -delta[:,0]*np.sin(angle)+delta[:,1]*np.cos(angle)))
                     residual=(np.linalg.norm(rotated/(np.asarray(axes)/2),axis=1)-1)*np.mean(axes)/2
                     median=np.median(residual[valid]);mad=np.median(np.abs(residual[valid]-median))
-                    valid = supported & (np.abs(residual-median)<=max(1.5,4*1.4826*mad))
+                    # The colour mask uses a 3x3 closing/opening kernel. Keep
+                    # small raster/print irregularities instead of forcing the
+                    # measured silhouette back onto a mathematically exact ellipse.
+                    valid = supported & (np.abs(residual-median)<=max(3.,4*1.4826*mad))
             except (cv2.error,FloatingPointError,ValueError):
                 valid[:]=False
         indices=np.flatnonzero(valid)

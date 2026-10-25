@@ -274,11 +274,64 @@ def _face_candidates(
     masks: dict[str, np.ndarray],
     image_width: int,
     image_height: int,
+    *, apply_area_floor: bool = True,
 ) -> list[_Candidate]:
-    primary = _candidates_from_mask(masks["blue"], image_width, image_height)
+    primary = _candidates_from_mask(masks["blue"], image_width, image_height,prefer_outer=True)
     # A split annulus has displaced component centers. Associate its pieces
     # through a common red interior rather than treating them as extra faces.
     inner_candidates = _candidates_from_mask(masks["red"], image_width, image_height)
+    yellow_candidates = _candidates_from_mask(masks["yellow"], image_width, image_height)
+    # A blue annulus may be connected to a painted backdrop by a blue shaft.
+    # Recover its measured boundary locally around corroborated red/yellow rings;
+    # do not fit an ellipse to the entire connected background component.
+    contours,_ = cv2.findContours(masks["blue"],cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+    blue_points = np.concatenate(contours).reshape(-1,2).astype(np.float32) if contours else np.empty((0,2),np.float32)
+    for inner in inner_candidates:
+        e=inner.ellipse
+        if not any(.3<=yellow.ellipse.major_axis_px/e.major_axis_px<=.7
+                   and math.hypot(yellow.ellipse.center_x-e.center_x,yellow.ellipse.center_y-e.center_y)<.2*e.minor_axis_px
+                   for yellow in yellow_candidates):
+            continue
+        delta=blue_points-(e.center_x,e.center_y)
+        angle=math.radians(e.angle_deg)
+        normalized=np.column_stack(((delta[:,0]*math.cos(angle)+delta[:,1]*math.sin(angle))/(e.diameter_x/2),
+                                     (-delta[:,0]*math.sin(angle)+delta[:,1]*math.cos(angle))/(e.diameter_y/2)))
+        radius=np.linalg.norm(normalized,axis=1)
+        measured=blue_points[(radius>1.05)&(radius<1.7)]
+        if len(measured)<24:
+            continue
+        measured=_ellipse_inliers(measured.reshape(-1,1,2),prefer_outer=True)
+        if len(measured)<24:
+            continue
+        outer=_ellipse_from_cv(cv2.fitEllipse(measured))
+        if (not 1.12<=outer.major_axis_px/e.major_axis_px<=1.65
+                or math.hypot(outer.center_x-e.center_x,outer.center_y-e.center_y)>.2*e.minor_axis_px):
+            continue
+        directions=np.arctan2(measured[:,0,1]-outer.center_y,measured[:,0,0]-outer.center_x)
+        if len(np.unique(np.floor((directions+math.pi)/(2*math.pi)*32)))<16:
+            continue
+        close=[candidate for candidate in primary if math.hypot(candidate.ellipse.center_x-outer.center_x,
+               candidate.ellipse.center_y-outer.center_y)<.25*outer.minor_axis_px]
+        if close and any(candidate.ellipse.major_axis_px/e.major_axis_px>=1.12 for candidate in close):
+            continue
+        close_ids={id(candidate) for candidate in close}
+        primary=[candidate for candidate in primary if id(candidate) not in close_ids]
+        hull=cv2.convexHull(measured.astype(np.float32))
+        primary.append(_Candidate(measured,outer,float(cv2.contourArea(hull))))
+    # Reject uncorroborated paint/background blobs BEFORE the global size floor
+    # and overlap merging. A giant blue board patch otherwise absorbs genuine
+    # adjacent targets and raises the area floor above the smaller faces.
+    supported = []
+    for candidate in primary:
+        for inners,minimum,maximum in ((inner_candidates,.45,.95),(yellow_candidates,.18,.58)):
+            if any(minimum <= inner.ellipse.major_axis_px/candidate.ellipse.major_axis_px <= maximum
+                   and math.hypot(inner.ellipse.center_x-candidate.ellipse.center_x,
+                                  inner.ellipse.center_y-candidate.ellipse.center_y)<.25*candidate.ellipse.minor_axis_px
+                   for inner in inners):
+                supported.append(candidate)
+                break
+    if supported:
+        primary = supported
     grouped: dict[int, list[_Candidate]] = {}
     unmatched = []
     for candidate in primary:
@@ -307,7 +360,7 @@ def _face_candidates(
     if not primary:
         return []
     primary.sort(key=lambda candidate: candidate.area, reverse=True)
-    area_floor = primary[0].area * 0.2
+    area_floor = primary[0].area * 0.2 if apply_area_floor else 0.
     selected: list[_Candidate] = []
     for candidate in primary:
         if candidate.area < area_floor:
@@ -340,6 +393,7 @@ def _candidates_from_mask(
     mask: np.ndarray,
     image_width: int,
     image_height: int,
+    *, prefer_outer: bool = False,
 ) -> list[_Candidate]:
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     min_area = max(80.0, image_width * image_height * 0.00035)
@@ -348,7 +402,7 @@ def _candidates_from_mask(
         area = float(cv2.contourArea(contour))
         if area < min_area or len(contour) < 5:
             continue
-        contour = _ellipse_inliers(contour)
+        contour = _ellipse_inliers(contour,prefer_outer=prefer_outer)
         ellipse_raw = cv2.fitEllipse(contour)
         ellipse = _ellipse_from_cv(ellipse_raw)
         if ellipse.minor_axis_px < 12.0 or ellipse.axis_ratio < 0.2:
@@ -388,7 +442,7 @@ def _associated_rings(
     return rings
 
 
-def _ellipse_inliers(contour: np.ndarray) -> np.ndarray:
+def _ellipse_inliers(contour: np.ndarray, *, prefer_outer: bool = False) -> np.ndarray:
     """Discard arrow edges and the inner edge of an interrupted color annulus.
 
     The outer arc supplies the largest ellipse consensus. A fixed seed keeps
@@ -397,6 +451,24 @@ def _ellipse_inliers(contour: np.ndarray) -> np.ndarray:
     points = _sample_contour(contour, 384)
     if len(points) < 12:
         return contour
+    # A broken annulus exposes both boundaries. Counting contour vertices can
+    # favour its inner edge (or hole edges), although the colour denotes the
+    # cumulative OUTER ring radius. Balance angles and retain measured outer
+    # vertices before the existing robust consensus; never synthesize an ellipse.
+    if prefer_outer:
+        rough_center, rough_axes, rough_angle = cv2.fitEllipse(points)
+        delta = points - rough_center
+        a = math.radians(rough_angle)
+        rotated = np.column_stack((delta[:,0]*math.cos(a)+delta[:,1]*math.sin(a),
+                                   -delta[:,0]*math.sin(a)+delta[:,1]*math.cos(a)))
+        normalized = rotated / np.maximum(np.asarray(rough_axes)/2,1e-6)
+        angles = np.arctan2(normalized[:,1],normalized[:,0])
+        bins = np.minimum(127,((angles+math.pi)/(2*math.pi)*128).astype(int))
+        radial = np.linalg.norm(normalized,axis=1)
+        envelope = [points[indices[np.argmax(radial[indices])]] for index in np.unique(bins)
+                    if len(indices := np.flatnonzero(bins==index))]
+        if len(envelope) >= 12:
+            points = np.asarray(envelope,dtype=np.float32)
     reference = _ellipse_from_cv(cv2.fitEllipse(points))
     rng = np.random.default_rng(42)
     best = np.ones(len(points), dtype=bool)
@@ -433,13 +505,17 @@ def _initial_image_to_norm(
         [candidate.ellipse.center_x, candidate.ellipse.center_y],
         dtype=np.float64,
     )
-    contour_points = candidate.contour.reshape(-1, 2).astype(np.float64) - center
+    ellipse_angle = math.radians(candidate.ellipse.angle_deg)
+    first = np.array([math.cos(ellipse_angle),math.sin(ellipse_angle)])
+    second = np.array([-math.sin(ellipse_angle),math.cos(ellipse_angle)])
     linear_rows = []
     for axis in orientation_axes:
         unit = np.asarray(axis, dtype=np.float64)
         unit /= max(float(np.linalg.norm(unit)), 1e-6)
-        projection = contour_points @ unit
-        diameter = max(float(projection.max() - projection.min()), 1e-6)
+        # Surviving contour arcs need not contain both extrema after occlusion.
+        # Use the robust fitted ellipse's support, preserving the layout axes.
+        diameter = max(math.hypot(candidate.ellipse.diameter_x*float(unit@first),
+                                  candidate.ellipse.diameter_y*float(unit@second)),1e-6)
         linear_rows.append(unit * (2.0 * radius_norm / diameter))
     linear = np.vstack(linear_rows)
     translation = -linear @ center

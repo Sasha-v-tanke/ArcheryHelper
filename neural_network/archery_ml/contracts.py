@@ -8,11 +8,11 @@ from typing import Literal, Sequence
 
 
 SCHEMA_VERSION = 2
-SplitName = Literal["train", "val", "test", "mobile_real_test"]
+SplitName = Literal["train", "val", "test", "mobile_dev", "mobile_real_test"]
 TargetFormatName = Literal["SINGLE", "TRIPLE"]
 TripleLayoutName = Literal["VERTICAL", "TRIANGULAR"]
 TenRingModeName = Literal["RECURVE", "COMPOUND"]
-GeometryAnnotationKind = Literal["target_center", "target_face", "ring"]
+GeometryAnnotationKind = Literal["target_center", "target_face", "ring", "landmark"]
 
 
 @dataclass(frozen=True)
@@ -96,10 +96,26 @@ class ImageGeometryAnnotation:
     kind: GeometryAnnotationKind
     points: tuple[tuple[float, float], ...]
     source_label: str | None = None
+    face_index: int | None = None
+    canonical_points: tuple[tuple[float, float], ...] = ()
+    annotation_quality: str | None = None
+    uncertainty_norm: float | None = None
 
     def __post_init__(self) -> None:
-        if self.kind not in {"target_center", "target_face", "ring"}:
+        if self.face_index is not None and (type(self.face_index) is not int or self.face_index < 0):
+            raise ValueError("face_index must be a non-negative integer")
+        if self.canonical_points and len(self.canonical_points) != len(self.points):
+            raise ValueError("canonical_points must correspond one-to-one to image points")
+        if any(len(point) != 2 or not all(math.isfinite(v) for v in point) for point in self.canonical_points):
+            raise ValueError("canonical coordinates must be finite")
+        if self.uncertainty_norm is not None and (
+            not math.isfinite(self.uncertainty_norm) or self.uncertainty_norm < 0
+        ):
+            raise ValueError("annotation uncertainty must be finite and non-negative")
+        if self.kind not in {"target_center", "target_face", "ring", "landmark"}:
             raise ValueError(f"unsupported geometry annotation kind: {self.kind}")
+        if self.kind == "landmark" and not self.canonical_points:
+            raise ValueError("landmark requires independent canonical coordinates")
         if not self.points:
             raise ValueError("geometry annotation requires at least one point")
         for x_fraction, y_fraction in self.points:
@@ -109,11 +125,20 @@ class ImageGeometryAnnotation:
                 raise ValueError("geometry annotation coordinates must be normalized to [0, 1]")
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "kind": self.kind,
             "points": [[x, y] for x, y in self.points],
             "source_label": self.source_label,
         }
+        if self.face_index is not None:
+            data["face_index"] = self.face_index
+        if self.canonical_points:
+            data["canonical_points"] = [list(point) for point in self.canonical_points]
+        if self.annotation_quality is not None:
+            data["annotation_quality"] = self.annotation_quality
+        if self.uncertainty_norm is not None:
+            data["uncertainty_norm"] = self.uncertainty_norm
+        return data
 
     @staticmethod
     def from_dict(data: dict) -> "ImageGeometryAnnotation":
@@ -121,6 +146,10 @@ class ImageGeometryAnnotation:
             kind=data["kind"],
             points=tuple((float(point[0]), float(point[1])) for point in data["points"]),
             source_label=None if data.get("source_label") is None else str(data["source_label"]),
+            face_index=data.get("face_index"),
+            canonical_points=tuple(tuple(float(v) for v in point) for point in data.get("canonical_points", ())),
+            annotation_quality=data.get("annotation_quality"),
+            uncertainty_norm=data.get("uncertainty_norm"),
         )
 
 
@@ -146,6 +175,10 @@ class TargetMetadata:
     face_diameter_mm: int | None = None
 
     def __post_init__(self) -> None:
+        if self.format not in {"SINGLE", "TRIPLE"} or self.ten_ring_mode not in {"RECURVE", "COMPOUND"}:
+            raise ValueError("unsupported target format or scoring mode")
+        if self.triple_layout not in {None, "VERTICAL", "TRIANGULAR"}:
+            raise ValueError("unsupported triple layout")
         if self.minimum_scoring_zone not in (1, 5, 6):
             raise ValueError("minimum_scoring_zone must be 1, 5, or 6")
         if self.format == "SINGLE" and self.triple_layout is not None:
@@ -181,6 +214,7 @@ class DatasetSample:
     target_metadata: TargetMetadata | None = None
     raw_annotations: tuple[ImagePointAnnotation, ...] = ()
     geometry_annotations: tuple[ImageGeometryAnnotation, ...] = ()
+    capture_metadata: dict | None = None
 
     @property
     def source(self) -> str | None:
@@ -200,6 +234,8 @@ class DatasetSample:
         }
         if self.annotation_path is not None:
             data["annotation_path"] = str(self.annotation_path)
+        if self.capture_metadata is not None:
+            data["capture_metadata"] = self.capture_metadata
         return data
 
     @staticmethod
@@ -222,6 +258,7 @@ class DatasetSample:
                 ImageGeometryAnnotation.from_dict(item)
                 for item in data.get("geometry_annotations", ())
             ),
+            capture_metadata=data.get("capture_metadata"),
         )
 
 

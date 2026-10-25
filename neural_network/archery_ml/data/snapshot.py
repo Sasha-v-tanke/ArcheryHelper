@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Sequence
 
-from neural_network.archery_ml.contracts import SCHEMA_VERSION
+from neural_network.archery_ml.contracts import SCHEMA_VERSION, load_manifest
+from neural_network.archery_ml.data.geometry_provenance import verify_mobile_gt
 from neural_network.archery_ml.data.registry import DatasetRegistry, DatasetSource
 from neural_network.archery_ml.data.report import DatasetReport
 
@@ -25,6 +26,9 @@ class DatasetSourceSnapshot:
     annotation_space: str
     allowed_tasks: tuple[str, ...]
     homepage_url: str | None
+    corrections_sha256: str | None = None
+    gt_revision: str | None = None
+    annotation_manifests_sha256: tuple[str, ...] = ()
 
     @staticmethod
     def from_source(source: DatasetSource) -> "DatasetSourceSnapshot":
@@ -37,6 +41,10 @@ class DatasetSourceSnapshot:
             annotation_space=source.annotation_space,
             allowed_tasks=tuple(sorted(source.allowed_tasks)),
             homepage_url=source.homepage_url,
+            corrections_sha256=(None if not source.options.get("corrections_file") else
+                                hashlib.sha256(Path(source.options["corrections_file"]).read_bytes()).hexdigest()),
+            gt_revision=(None if not source.options.get("corrections_file") else
+                         json.loads(Path(source.options["corrections_file"]).read_text())["gt_revision"]),
         )
 
     def to_dict(self) -> dict:
@@ -49,6 +57,9 @@ class DatasetSourceSnapshot:
             "annotation_space": self.annotation_space,
             "allowed_tasks": list(self.allowed_tasks),
             "homepage_url": self.homepage_url,
+            "corrections_sha256": self.corrections_sha256,
+            "gt_revision": self.gt_revision,
+            "annotation_manifests_sha256": list(self.annotation_manifests_sha256),
         }
 
     @staticmethod
@@ -62,6 +73,9 @@ class DatasetSourceSnapshot:
             annotation_space=str(data["annotation_space"]),
             allowed_tasks=tuple(str(value) for value in data.get("allowed_tasks", ())),
             homepage_url=data.get("homepage_url"),
+            corrections_sha256=data.get("corrections_sha256"),
+            gt_revision=data.get("gt_revision"),
+            annotation_manifests_sha256=tuple(data.get("annotation_manifests_sha256", ())),
         )
 
 
@@ -160,6 +174,16 @@ def build_snapshot(
             key=lambda source: source.id,
         )
     )
+    bindings = {}
+    for sample in load_manifest(manifest_path):
+        if (sample.capture_metadata or {}).get("gt_annotations_sha256"):
+            bindings.setdefault(sample.source_id, []).append(verify_mobile_gt(sample))
+    for source_id, values in bindings.items():
+        revisions = {v["revision"] for v in values}
+        if len(revisions) != 1:
+            raise ValueError("mixed GT revisions in source snapshot")
+        selected = tuple(replace(s, gt_revision=next(iter(revisions)), annotation_manifests_sha256=tuple(sorted(
+            {v["annotation_manifest_sha256"] for v in values}))) if s.id == source_id else s for s in selected)
     return DatasetSnapshot(
         snapshot_version=SNAPSHOT_VERSION,
         pipeline_version=PIPELINE_VERSION,

@@ -40,6 +40,12 @@ EXIF conversion. `rgb_to_canonical` operates on upright RGB pixels. Canonical
 pixels use center 255.5 and radius 256. Their inverse matrices and a numerical
 round-trip check are recorded. Raw canonical crops are retained; display crops
 mask pixels beyond the inferred visible target radius for convenient review.
+For zone 5/6 faces, the display mask follows supported blue-to-paper transitions
+instead of clipping at an ideal circle. Short occluded arcs are interpolated;
+insufficient angular support is explicitly `BOUNDARY_UNCERTAIN` and falls back
+to the nominal radius. Zone 1 retains white scoring areas. This segmentation
+does not change the raw crop, canonical coordinates, homography or READY gate,
+and must not be interpreted as improved independent geometry accuracy.
 Foreign detected faces are masked before normalization, never in the original.
 Unseen foreign faces cannot be guaranteed absent: visually review each group.
 

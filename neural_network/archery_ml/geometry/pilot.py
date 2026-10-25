@@ -188,6 +188,8 @@ def reports(output,inv,detections,selections,results,before=None):
         "visual_layout_counts":dict(Counter(r["layout_visual"] for r in reviews.values() if r.get("layout_visual") and not r.get("stale"))),
         "layouts_proposed":dict(Counter(g["layout"] or "SINGLE" for d in detections.values() for g in d["groups"])),
         "physical_orientation":{"ANCHORED":0,"UNANCHORED":len(results)},
+        "display_boundary_statuses":dict(Counter(f.get("display_boundary",{}).get("status","not_recorded") for r in results.values() if r["status"]=="READY" for f in r.get("faces",[]))),
+        "display_boundary_uncertain_photo_numbers":[r["number"] for r in results.values() if any(f.get("display_boundary",{}).get("status")=="BOUNDARY_UNCERTAIN" for f in r.get("faces",[]))],
         "quantitative":{"status":"QUALITATIVE ONLY / QUANTITATIVE NOT VERIFIED","independent_gt_images":0,"median_2d":None,"p95_2d":None},
         "stage3_status":"BLOCKED","provenance":{"algorithm_sha":_git_state()[0],"working_tree_dirty":_git_state()[1],
             "python":platform.python_version(),"opencv":cv2.__version__,"selection_policy":"no ownership inference from arrow counts", "capture_plan":"not_pre_registered"}}
@@ -231,6 +233,8 @@ def write_report(output,inv,metrics,failures,baseline):
         f"| Layout по visual review | {metrics['visual_layout_counts'] or 'не проверено'} |",
         f"| Independent quantitative GT | {metrics['quantitative']['status']} |",
         f"| Physical orientation | UNANCHORED на всех {metrics['unique_originals']} кадрах |", "",
+        f"| Граница display crop | {metrics['display_boundary_statuses']}; требуют проверки: {metrics['display_boundary_uncertain_photo_numbers']} |", "",
+        "Display mask использует наблюдаемый переход синего в бумагу при достаточном угловом покрытии; короткие закрытые дуги интерполируются. При недостатке данных BOUNDARY_UNCERTAIN явно сохраняет номинальную маску. Белые scoring zones не обрезаются по синей границе. Это сегментация для отображения: исходный canonical crop, homography, READY и численная точность координат не изменяются; граница не является independent GT.", "",
         "## Сравнение до / после", "", "| Проверка | Baseline | После |", "|---|---:|---:|",
         f"| READY selected/provisional | {baseline.get('ready','not recorded')} | {metrics['ready']} |",
         f"| Кадры с READY group preview | {baseline.get('images_with_ready_group_preview','not recorded')} | {metrics['images_with_ready_group_preview']} |",

@@ -12,9 +12,9 @@ from PIL import Image
 from neural_network.archery_ml.geometry.calibration import project
 from neural_network.archery_ml.geometry.detector import TargetGeometryDetector, _checked_inverse, _matrix_tuple
 from neural_network.archery_ml.geometry.normalize import TargetNormalizer
+from neural_network.archery_ml.geometry.boundary import canonical_display
 from neural_network.archery_ml.geometry.quality import ImageQualityGate, QualityStatus
 from neural_network.archery_ml.geometry.selection import config_for_group
-from neural_network.archery_ml.geometry.target_templates import CANONICAL_CENTER_PX, CANONICAL_RADIUS_PX
 
 
 def draw_ellipse(image, candidate, color, thickness=-1, expand=1.):
@@ -108,22 +108,23 @@ class SelectedTargetGeometryPipeline:
                 if output_dir:
                     output_dir = Path(output_dir)
                     output_dir.mkdir(parents=True,exist_ok=True)
-                    for crop in crops:
+                for crop in crops:
+                    display,boundary=canonical_display(crop.image,config.minimum_scoring_zone)
+                    result["faces"][crop.face_index]["display_boundary"]=boundary
+                    if output_dir:
                         path = output_dir/f"face-{crop.face_index}.png"
                         Image.fromarray(crop.image).save(path)
                         result["faces"][crop.face_index]["crop_path"] = str(path)
-                        yy,xx=np.ogrid[:crop.image.shape[0],:crop.image.shape[1]]
-                        outside=(xx-CANONICAL_CENTER_PX)**2+(yy-CANONICAL_CENTER_PX)**2>(256*visible_radius)**2
-                        display=crop.image.copy();display[outside]=128
                         display_path=output_dir/f"face-{crop.face_index}-display.png"
                         Image.fromarray(display).save(display_path)
                         result["faces"][crop.face_index]["display_crop_path"] = str(display_path)
-                        result["faces"][crop.face_index]["display_mask"] = "visible-radius preview only; unmodified canonical crop retained"
+                        result["faces"][crop.face_index]["display_mask"] = "observed silhouette when supported; raw canonical crop and coordinate transform retained"
                 result["status"] = "READY"
             else:
                 result["diagnostics"].append(quality.status.value)
         except (ValueError,np.linalg.LinAlgError,cv2.error) as error:
             result["diagnostics"].append(str(error))
         result["artifact_revision"]=hashlib.sha256(json.dumps({"config":result["processing_config"],
-            "candidates":group["candidate_ids"],"transforms":[f["rgb_to_canonical"] for f in result["faces"]]},sort_keys=True).encode()).hexdigest()[:16]
+            "candidates":group["candidate_ids"],"transforms":[f["rgb_to_canonical"] for f in result["faces"]],
+            "display_masks":[f.get("display_boundary",{}).get("mask_sha256") for f in result["faces"]]},sort_keys=True).encode()).hexdigest()[:16]
         return result

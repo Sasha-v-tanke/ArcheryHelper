@@ -54,6 +54,13 @@ def relative_result(result, output):
     return result
 
 
+def reviewed_geometry(result, candidate_ids):
+    if candidate_ids == result.get("candidate_ids"):
+        return result
+    return next((g for g in result.get("group_results",{}).values()
+                 if candidate_ids == g.get("candidate_ids")),None)
+
+
 def process_frame(row,detection,selection,output,previews=True,artifact_prefix=""):
     key = row.get("original_id",f"unreadable-{row['number']}")
     if row["read_status"] != "OK":
@@ -100,6 +107,15 @@ def reports(output,inv,detections,selections,results,before=None):
     for key,review in reviews.items():
         if review.get("detection_fingerprint") and review["detection_fingerprint"] != detections.get(key,{}).get("fingerprint"):
             review["stale"] = True
+        actual=reviewed_geometry(results.get(key,{}),review.get("candidate_ids"))
+        if (review.get("source")=="USER_VISUAL_REVIEW" and selections.get(key,{}).get("status")=="USER_CONFIRMED"
+                and review.get("candidate_ids") != selections[key].get("candidate_ids")):
+            review["stale"] = True
+            review["stale_reason"] = "selected group changed since this review; original rating retained"
+        if review.get("geometry_artifact_revision"):
+            if actual is None or review["geometry_artifact_revision"] != actual.get("artifact_revision"):
+                review["stale"] = True
+                review["stale_reason"] = "geometry changed since this visual review; original rating retained"
     failures = []
     for row in rows:
         key = row.get("original_id",f"unreadable-{row['number']}")
@@ -165,6 +181,8 @@ def reports(output,inv,detections,selections,results,before=None):
         "visually_correct_geometry":sum(r.get("rating")=="Correct" and not r.get("stale") for r in reviews.values()),
         "visual_review_statuses":dict(Counter(r.get("rating","Uncertain") for r in reviews.values() if not r.get("stale"))),
         "visual_review_sources":dict(Counter(r.get("source","unknown") for r in reviews.values() if not r.get("stale"))),
+        "historical_user_ratings":dict(Counter(r.get("rating","Uncertain") for r in reviews.values() if r.get("source")=="USER_VISUAL_REVIEW")),
+        "user_ratings_requiring_recheck":sum(r.get("source")=="USER_VISUAL_REVIEW" and bool(r.get("stale")) for r in reviews.values()),
         "visual_layout_counts":dict(Counter(r["layout_visual"] for r in reviews.values() if r.get("layout_visual") and not r.get("stale"))),
         "layouts_proposed":dict(Counter(g["layout"] or "SINGLE" for d in detections.values() for g in d["groups"])),
         "physical_orientation":{"ANCHORED":0,"UNANCHORED":len(results)},
@@ -207,6 +225,7 @@ def write_report(output,inv,metrics,failures,baseline):
         f"| Quality / selection отказы | {metrics['quality_statuses']} |",
         f"| Visual review | {metrics['visual_review_statuses']}; не independent GT |",
         f"| Источники visual review | {metrics['visual_review_sources']}; agent review не подтверждает владельца |",
+        f"| Сохранённые оценки владельца прежней версии | {metrics['historical_user_ratings']}; изменённая geometry требует перепроверки: {metrics['user_ratings_requiring_recheck']} |",
         f"| Layout по visual review | {metrics['visual_layout_counts'] or 'не проверено'} |",
         f"| Independent quantitative GT | {metrics['quantitative']['status']} |",
         f"| Physical orientation | UNANCHORED на всех {metrics['unique_originals']} кадрах |", "",

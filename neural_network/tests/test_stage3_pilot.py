@@ -43,9 +43,13 @@ class PilotTest(unittest.TestCase):
             saved=update(output,key,"selection",value)
             self.assertEqual("USER_CONFIRMED",saved["selections"][key]["status"])
             self.assertEqual("READY",saved["results"][key]["status"])
+            saved=update(output,key,"review",{"rating":"Correct","candidate_ids":triples[0]["candidate_ids"]})
+            self.assertTrue(saved["reviews"][key]["geometry_artifact_revision"])
             value={**triples[1],"status":"USER_CONFIRMED","detection_fingerprint":det["fingerprint"]}
             saved=update(output,key,"selection",value)
             self.assertEqual(triples[1]["candidate_ids"],saved["results"][key]["candidate_ids"])
+            self.assertTrue(saved["reviews"][key]["stale"])
+            self.assertEqual("Correct",saved["reviews"][key]["rating"])
             stored=json.loads((output/"target-selections.json").read_text())
             self.assertEqual(triples[1]["candidate_ids"],stored[key]["candidate_ids"])
             with self.assertRaisesRegex(ValueError,"stale"):

@@ -5,7 +5,7 @@ import json
 import numpy as np
 
 from neural_network.archery_ml.geometry.calibration import project
-from neural_network.archery_ml.geometry.evaluate import _metrics,_equal_group_metrics
+from neural_network.archery_ml.geometry.evaluate import _metrics,_equal_group_metrics,_landmark_decomposition
 
 
 def independent_metrics(path,results):
@@ -50,7 +50,9 @@ def independent_metrics(path,results):
             key="original_to_canonical" if item["coordinate_space"]=="original_raw_px" else "rgb_to_canonical"
             predicted=(project(image,face_results[index][key])-255.5)/256.
             values=np.linalg.norm(predicted-expected,axis=1).tolist()
-            by_face[str(index)]=_metrics(values).to_dict();errors.extend(values)
+            by_face[str(index)]={**_metrics(values).to_dict(),
+                "landmark_decomposition":_landmark_decomposition(predicted,expected)}
+            errors.extend(values)
         if errors:
             groups.append(errors)
             per_image.append({"original_id":original,"face_errors_2d":by_face,"point_error_2d":_metrics(errors).to_dict(),

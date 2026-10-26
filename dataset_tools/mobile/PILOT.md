@@ -101,6 +101,12 @@ GT audit, physical calibration and an approved frozen policy.
 Repeated original records or repeated landmark coordinates are rejected, so
 duplicating good observations cannot improve pilot metrics. Partial coverage,
 READY images without measured GT and rejected images remain explicit.
+With measured landmarks, each face also reports separate affine scale bias,
+center offset, rotation error, anisotropy and residual. This diagnostic fit never
+corrects detector predictions; residual is not a direct measurement of camera
+perspective. The evaluator separately retains physical-center error, observed
+ellipse perspective ratio and visible coverage. Without GT these errors stay
+unmeasured; detector fit residual and round-trip checks are not substitutes.
 
 Use `--baseline` only for a new output revision to preserve a first-run snapshot;
 later ordinary runs generate `comparison.json`. Existing baseline artifacts

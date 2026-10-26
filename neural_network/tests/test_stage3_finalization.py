@@ -13,7 +13,7 @@ from PIL import Image
 from neural_network.archery_ml.contracts import DatasetSample, ImageGeometryAnnotation
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.geometry.audit import require_holdout_isolation
-from neural_network.archery_ml.geometry.evaluate import GeometryEvaluator
+from neural_network.archery_ml.geometry.evaluate import GeometryEvaluator, _landmark_decomposition
 from neural_network.archery_ml.geometry.pilot_metrics import independent_metrics
 from neural_network.archery_ml.geometry.selected_geometry import SelectedTargetGeometryPipeline
 from neural_network.archery_ml.geometry.selection import TargetCandidateDetector, TargetGroupBuilder, TargetGroupSelector, fingerprint
@@ -24,6 +24,20 @@ from neural_network.tests.test_stage3_pilot import scene
 
 
 class FinalizationTest(unittest.TestCase):
+    def test_error_components_separate_scale_center_rotation_without_correcting_predictions(self):
+        expected = np.array([[-.4,-.4],[.4,-.4],[.4,.4],[-.4,.4]])
+        angle = np.deg2rad(17.)
+        rotation = np.array([[np.cos(angle),-np.sin(angle)],[np.sin(angle),np.cos(angle)]])
+        predicted = expected @ rotation.T * 1.08 + [.03,.04]
+        before = predicted.copy()
+        result = _landmark_decomposition(predicted,expected)
+        self.assertAlmostEqual(.08,result['scale_bias_fraction'])
+        self.assertAlmostEqual(17.,result['orientation_error_deg'])
+        self.assertAlmostEqual(.05,result['affine_center_offset_norm'])
+        self.assertAlmostEqual(1.,result['affine_axis_ratio'])
+        self.assertLess(result['affine_residual_p95_norm'],1e-12)
+        np.testing.assert_array_equal(before,predicted)
+
     def test_downstream_normalization_failure_cannot_leave_ready_quality(self):
         image = scene(1)
         candidates = TargetCandidateDetector().detect(image)

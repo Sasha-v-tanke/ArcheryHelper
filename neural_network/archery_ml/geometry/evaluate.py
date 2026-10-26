@@ -237,6 +237,8 @@ class GeometryEvaluator:
                 matched_canonical_points = set()
                 measured_image_points = set()
                 measured_canonical_points = set()
+                predicted_landmarks, expected_landmarks = [], []
+                physical_center_error = None
                 ground_truth_center = _ground_truth_center(
                     annotations,
                     template,
@@ -250,6 +252,8 @@ class GeometryEvaluator:
                     )
                     face_centers.append(float(np.linalg.norm(center_norm)))
                     center_errors.append(face_centers[-1])
+                    if any(a.kind == "target_center" for a in annotations):
+                        physical_center_error = face_centers[-1]
 
                 for annotation in annotations:
                     for point, expected in zip(annotation.points, annotation.canonical_points):
@@ -262,6 +266,8 @@ class GeometryEvaluator:
                         if not np.isfinite(error):
                             raise ValueError("non-finite landmark projection")
                         face_points.append(error)
+                        predicted_landmarks.append(predicted)
+                        expected_landmarks.append(expected)
                         if annotation.annotation_quality == "reviewed" and annotation.uncertainty_norm is not None:
                             matched_image_points.add(tuple(point))
                             matched_canonical_points.add(tuple(expected))
@@ -294,6 +300,10 @@ class GeometryEvaluator:
                     "radial_error": _metrics(face_radial).to_dict(),
                     "ring_point_error_2d": {key: _metrics(values).to_dict() for key, values in face_ring_points.items()},
                     "center_reference": "physical_gt" if any(a.kind == "target_center" for a in annotations) else "ellipse_proxy",
+                    "physical_center_error_norm": physical_center_error,
+                    "landmark_decomposition": _landmark_decomposition(predicted_landmarks, expected_landmarks),
+                    "perspective_axis_ratio": face.perspective_ratio,
+                    "visible_coverage": face.coverage,
                     "orientation_reference": geometry.orientation_reference,
                     "independent_landmarks": _independent_landmarks(matched_image_points, matched_canonical_points),
                     "gt_uncertainty_max": max((a.uncertainty_norm for a in annotations
@@ -396,6 +406,34 @@ class GeometryEvaluator:
             point_errors=tuple(point_errors),
             face_point_values=tuple(face_point_values),
         )
+
+
+def _landmark_decomposition(predicted, expected) -> dict:
+    """Diagnostics only: fit GT -> prediction; never alter detector coordinates.
+
+    The affine residual can expose remaining projective/nonlinear error. It is
+    not an independent measurement of camera perspective or lens distortion.
+    """
+    if len(expected) < 4:
+        return {"status": "INSUFFICIENT_LANDMARKS"}
+    expected, predicted = np.asarray(expected), np.asarray(predicted)
+    design = np.column_stack((expected, np.ones(len(expected))))
+    if np.linalg.matrix_rank(design) < 3:
+        return {"status": "DEGENERATE_LANDMARKS"}
+    coefficients, _, _, _ = np.linalg.lstsq(design, predicted, rcond=None)
+    linear = coefficients[:2].T
+    u, singular, vt = np.linalg.svd(linear)
+    determinant = float(np.linalg.det(linear))
+    if determinant <= 0 or singular[-1] <= 1e-10:
+        return {"status": "MIRRORED_OR_DEGENERATE"}
+    rotation = u @ vt
+    residual = np.linalg.norm(design @ coefficients - predicted, axis=1)
+    return {"status": "MEASURED", "scale_bias_fraction": float(np.sqrt(determinant)-1),
+        "orientation_error_deg": float(np.rad2deg(np.arctan2(rotation[1,0], rotation[0,0]))),
+        "affine_center_offset_norm": float(np.linalg.norm(coefficients[2])),
+        "affine_axis_ratio": float(singular[0]/singular[-1]),
+        "affine_residual_p95_norm": float(np.percentile(residual,95)),
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"}
 
 
 def _independent_landmarks(image_points: set, canonical_points: set) -> int:

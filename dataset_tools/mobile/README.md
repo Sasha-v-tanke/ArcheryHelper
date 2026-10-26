@@ -219,7 +219,13 @@ python -m dataset_tools.mobile.validate_all \
 отдельный report одного config не покрывает всю матрицу. Итог — consolidated.json.
 Ошибка конфигурации сохраняется в status.json, а не скрывается.
 Общие данные и algorithm SHA должны совпадать. Не используйте test GT для inference
-калибратора. Вручную проверьте source/GT overlay, axis overlay и crops для всех layout
+калибратора.
+Evaluation проверяет весь переданный manifest до фильтрации split/configuration:
+общие capture sessions, original hashes, exact/near duplicates и scene groups
+между splits вызывают отказ. Передавайте общий manifest с train/dev/test, когда
+они доступны; отсутствие внешних наборов в manifest не доказывает их независимость.
+Повторяющиеся image/canonical landmarks отклоняются даже с новыми annotation IDs.
+Вручную проверьте source/GT overlay, axis overlay и crops для всех layout
 и сложных условий: центры, радиусы, face order, отсутствие зеркальности и clipping.
 Проверьте отказ downstream normalization для rejected geometry.
 

@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 
 from neural_network.archery_ml.geometry.pilot_inventory import save_json
-from neural_network.archery_ml.geometry.selection import fingerprint
+from neural_network.archery_ml.geometry.selection import fingerprint, validate_selection
 
 
 def write_viewer(output,inventory,detections,selections,results,reviews):
@@ -31,7 +31,7 @@ def write_viewer(output,inventory,detections,selections,results,reviews):
 <label><input id="remember" type="checkbox" checked>Предлагать выбор для визуально той же съёмки</label>
 <p id="selected"></p><button id="confirm">Confirm</button><button id="uncertain">Uncertain</button><button id="noTarget">No target</button>
 <h3>Геометрия и canonical crops</h3><p id="geometry"></p><div id="crops"></div>
-<h3>Быстрая visual review</h3><p>Внешний вид не заменяет independent GT. Physical orientation остаётся UNANCHORED.</p><div id="ratings"></div>
+<h3>Быстрая visual review</h3><p>Внешний вид не заменяет independent GT. Физическая ориентация требует проверенных маркеров.</p><div id="ratings"></div>
 <pre id="details"></pre></section></div>
 <script id="payload" type="application/json">__PAYLOAD__</script>
 <script>
@@ -55,7 +55,7 @@ function render(reset=true){
  const row=rows[current],k=key(),det=data.detections[k],sel=data.selections[k],res=data.results[k];
  if(reset){chosen=[...(sel?.candidate_ids||[])];highlight=sel?.group_id||null;$('physicalOrder').checked=!!sel?.physical_face_order_confirmed;$('zone').value=sel?.minimum_scoring_zone||'auto';$('format').value=sel?.format||'TRIPLE';$('layout').value=sel?.layout||'VERTICAL';}
  $('photo').value=current;$('heading').textContent='#'+row.number+' '+row.filename;
- $('status').textContent=(sel?.status||'NO_GROUP')+' | ownership '+(sel?.status==='USER_CONFIRMED'?'USER CONFIRMED':'UNVERIFIED')+' | orientation UNANCHORED'+(data.reviews[k]?.stale?' | Оценка '+data.reviews[k].rating+' сохранена для предыдущего результата; новый результат ещё не проверен':'');
+ $('status').textContent=(sel?.status||'NO_GROUP')+' | ownership '+(sel?.status==='USER_CONFIRMED'?'USER CONFIRMED':'UNVERIFIED')+' | orientation '+(res?.orientation_status||'UNANCHORED')+(data.reviews[k]?.stale?' | Оценка '+data.reviews[k].rating+' сохранена для предыдущего результата; новый результат ещё не проверен':'');
  const [w,h]=row.rgb_size||[1,1];$('image').setAttribute('viewBox',`0 0 ${w} ${h}`);
  $('image').innerHTML=`<image href="${esc(row.preview_path||'')}" width="${w}" height="${h}"/>`+(det?.candidates||[]).map(c=>`<g><ellipse data-face="${esc(c.id)}" cx="${c.ellipse.center_x}" cy="${c.ellipse.center_y}" rx="${c.ellipse.diameter_x/2}" ry="${c.ellipse.diameter_y/2}" transform="rotate(${c.ellipse.angle_deg} ${c.ellipse.center_x} ${c.ellipse.center_y})" fill="${chosen.includes(c.id)?'#00dd7744':'#ff990011'}" stroke="${chosen.includes(c.id)?'#00bb55':'#ff9900'}" stroke-width="${w/250}"/><text x="${c.center[0]}" y="${c.center[1]}" font-size="${w/40}" fill="#e500ff" pointer-events="none">${esc(c.id)}</text></g>`).join('');
  $('image').querySelectorAll('[data-face]').forEach(el=>el.onclick=()=>{const id=el.dataset.face;chosen=chosen.includes(id)?chosen.filter(c=>c!==id):[...chosen,id];if(chosen.length>3)chosen.shift();highlight=null;render(false);});
@@ -99,19 +99,13 @@ def update(output,original_id,kind,value):
         if value.get("detection_fingerprint") != det["fingerprint"]:
             raise ValueError("stale detections; reload viewer")
         ids = value.get("candidate_ids",[])
-        valid = {c["id"] for c in det["candidates"]}
-        if len(ids)!=len(set(ids)) or any(cid not in valid for cid in ids):
-            raise ValueError("invalid candidate identities")
-        if value["status"] == "USER_CONFIRMED" and len(ids) not in {1,3}:
-            raise ValueError("select one or three faces")
+        validate_selection(det["candidates"], value)
         value.update(source="USER",ownership_confirmed=value["status"]=="USER_CONFIRMED",saved_at=datetime.now(timezone.utc).isoformat())
         value["format"] = "SINGLE" if len(ids)==1 else "TRIPLE"
         if len(ids)==1:
             value["layout"] = None
         elif value.get("layout") not in {"VERTICAL","TRIANGULAR"}:
             value["layout"] = "VERTICAL"
-        if value.get("minimum_scoring_zone") not in {None,1,5,6}:
-            raise ValueError("unsupported scoring-zone proposal")
         selections[original_id] = value
         previews = results[original_id].get("group_results",{})
         results[original_id] = process_frame(row,det,value,output,previews=False)

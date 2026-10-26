@@ -10,7 +10,8 @@ from neural_network.archery_ml.geometry.evaluate import _metrics,_equal_group_me
 
 def independent_metrics(path,results):
     empty = {"status":"QUALITATIVE ONLY / QUANTITATIVE NOT VERIFIED","independent_gt_images":0,
-             "median_2d":None,"p95_2d":None,"per_image":[],"issues":[]}
+             "median_2d":None,"p95_2d":None,"per_image":[],"issues":[],
+             "total_images":len(results),"ready_images":sum(r["status"]=="READY" for r in results.values())}
     if not path.is_file():
         return empty
     raw=path.read_bytes();payload=json.loads(raw)
@@ -20,8 +21,12 @@ def independent_metrics(path,results):
             or not payload.get("reviewer") or payload["annotator"]==payload["reviewer"]):
         raise ValueError("independent GT requires version, reference and independent reviewer")
     per_image,groups,issues = [],[],[]
+    seen = set()
     for item in payload["images"]:
         original=item["original_sha256"]
+        if original in seen:
+            raise ValueError("duplicate independent GT original")
+        seen.add(original)
         result=results.get(original)
         if result is None or result["status"]!="READY":
             issues.append({"original_id":original,"reason":"selected geometry not READY"});continue
@@ -38,7 +43,7 @@ def independent_metrics(path,results):
             if image.shape!=expected.shape or image.ndim!=2 or image.shape[1]!=2 or len(image)<4:
                 raise ValueError("each measured face requires four matched independent points")
             for values in (image,expected):
-                if not np.isfinite(values).all() or len(np.unique(values,axis=0))<4 or np.linalg.matrix_rank(values-values.mean(axis=0))<2:
+                if not np.isfinite(values).all() or len(np.unique(values,axis=0))!=len(values) or np.linalg.matrix_rank(values-values.mean(axis=0))<2:
                     raise ValueError("independent GT points must be finite, unique and non-collinear")
             if item.get("coordinate_space") not in {"original_raw_px","upright_rgb_px"}:
                 raise ValueError("declare independent GT coordinate space")
@@ -55,4 +60,6 @@ def independent_metrics(path,results):
     weighted=_equal_group_metrics(groups)
     return {"status":"PARTIAL INDEPENDENT GT — NOT FINAL HOLDOUT","independent_gt_images":len(groups),"per_image":per_image,
         "median_2d":weighted["median"],"p95_2d":weighted["p95"],"equal_image_weighted":weighted,"issues":issues,
+        "total_images":len(results),"ready_images":empty["ready_images"],
+        "ready_without_measured_gt":empty["ready_images"]-len(groups),
         "gt_revision":payload["revision"],"gt_sha256":hashlib.sha256(raw).hexdigest(),"reference":payload["reference"]}

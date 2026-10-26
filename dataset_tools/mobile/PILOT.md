@@ -49,6 +49,20 @@ and must not be interpreted as improved independent geometry accuracy.
 Foreign detected faces are masked before normalization, never in the original.
 Unseen foreign faces cannot be guaranteed absent: visually review each group.
 
+If a physically measured board is visible, add `--board-template path/to/board.json`.
+The template is pinned in the output directory and reused by interactive updates.
+Only observed, verified markers establish ANCHORED axes and physical face IDs;
+missing or incompatible markers leave UNANCHORED with an explicit calibration reason.
+Evaluation landmarks are never passed into this calibration step.
+
+Run the same command again with `--verify-replay` to verify the saved selection,
+original hashes, algorithm source digest, dependencies and all result artifacts.
+`run-manifest.json` records the binding; `reproducibility.json` reports VERIFIED
+or MISMATCH (nonzero exit). Only processing durations are excluded from result
+comparison. The first run records NOT_CHECKED. Algorithm changes during a run
+fail explicitly. Offline selections receive the same identity/configuration checks
+as interactive confirmations; stale detections require confirmation again.
+
 `Correct` is a qualitative visual rating, not independent GT. Face order and
 ownership require their own confirmation. No marker calibration is inferred
 from concentric rings; these results remain `UNANCHORED`.
@@ -84,6 +98,9 @@ measured face. Calibration control points alone are not evaluation GT. Partial
 coverage and missing faces remain explicit. No quantitative accuracy is reported
 without such data. Final Stage 3 still requires independent real-photo coverage,
 GT audit, physical calibration and an approved frozen policy.
+Repeated original records or repeated landmark coordinates are rejected, so
+duplicating good observations cannot improve pilot metrics. Partial coverage,
+READY images without measured GT and rejected images remain explicit.
 
 Use `--baseline` only for a new output revision to preserve a first-run snapshot;
 later ordinary runs generate `comparison.json`. Existing baseline artifacts

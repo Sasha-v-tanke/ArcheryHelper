@@ -9,6 +9,7 @@ import time
 
 import cv2
 import numpy as np
+import PIL
 from PIL import Image
 
 from neural_network.archery_ml.geometry.pilot_inventory import inventory,save_json
@@ -66,7 +67,12 @@ def process_frame(row,detection,selection,output,previews=True,artifact_prefix="
     if row["read_status"] != "OK":
         return {"original_id":key,"number":row["number"],"status":"REJECTED","quality_status":"INPUT_ERROR","diagnostics":[row.get("error")],"faces":[],"group_results":{},"orientation_status":"UNANCHORED"}
     image = np.asarray(Image.open(output/row["rgb_path"]).convert("RGB"))
-    pipeline = SelectedTargetGeometryPipeline()
+    calibrator = None
+    board_path = output/"board-template.json"
+    if board_path.exists():
+        from neural_network.archery_ml.geometry.calibration import BoardTemplate, TargetOrientationCalibrator
+        calibrator = TargetOrientationCalibrator(BoardTemplate.load(board_path))
+    pipeline = SelectedTargetGeometryPipeline(calibrator)
     group_results = {}
     for group in detection["groups"]:
         if not previews or group["format"]=="SINGLE" and len(detection["candidates"])>1:
@@ -83,7 +89,7 @@ def process_frame(row,detection,selection,output,previews=True,artifact_prefix="
             zones=[c["minimum_zone_proposal"] for c in detection["candidates"] if c["id"] in selection["candidate_ids"]]
             group = {"id":"manual","format":selection["format"],"layout":selection["layout"],"candidate_ids":selection["candidate_ids"],
                      "minimum_zone_proposal":max(set(zones),key=zones.count)}
-        group = {**group,**{k:v for k,v in selection.items() if k in {"minimum_scoring_zone","physical_face_order_confirmed"}}}
+        group = {**group,**{k:v for k,v in selection.items() if k in {"format","layout","minimum_scoring_zone","physical_face_order_confirmed"}}}
         result = relative_result(pipeline.run(image,detection["candidates"],group,row["raw_to_rgb"],output/(artifact_prefix+"crops")/key/"selected"),output)
     else:
         result = {"status":"REJECTED","quality_status":"GROUP_SELECTION_REQUIRED" if selection["status"]=="AMBIGUOUS" else "NO_GROUP",
@@ -187,7 +193,7 @@ def reports(output,inv,detections,selections,results,before=None):
         "user_ratings_requiring_recheck":sum(r.get("source")=="USER_VISUAL_REVIEW" and bool(r.get("stale")) for r in reviews.values()),
         "visual_layout_counts":dict(Counter(r["layout_visual"] for r in reviews.values() if r.get("layout_visual") and not r.get("stale"))),
         "layouts_proposed":dict(Counter(g["layout"] or "SINGLE" for d in detections.values() for g in d["groups"])),
-        "physical_orientation":{"ANCHORED":0,"UNANCHORED":len(results)},
+        "physical_orientation":dict(Counter(r["orientation_status"] for r in results.values())),
         "display_boundary_statuses":dict(Counter(f.get("display_boundary",{}).get("status","not_recorded") for r in results.values() if r["status"]=="READY" for f in r.get("faces",[]))),
         "display_boundary_uncertain_photo_numbers":[r["number"] for r in results.values() if any(f.get("display_boundary",{}).get("status")=="BOUNDARY_UNCERTAIN" for f in r.get("faces",[]))],
         "quantitative":{"status":"QUALITATIVE ONLY / QUANTITATIVE NOT VERIFIED","independent_gt_images":0,"median_2d":None,"p95_2d":None},
@@ -197,7 +203,7 @@ def reports(output,inv,detections,selections,results,before=None):
     save_json(output/"problem-ranking.json",{
         "selection":[f for f in failures if f["category"]=="selection"][:15],
         "geometry":sorted([f for f in failures if f["geometry_issues"]],key=lambda f:max(g.get("fit_error") or 0 for g in f["geometry_issues"]),reverse=True)[:15],
-        "orientation":{"status":"UNANCHORED","originals":len(results),"note":"separate limitation, not a geometry or ownership error"}})
+        "orientation":{"statuses":statistics["physical_orientation"],"originals":len(results),"note":"separate limitation, not a geometry or ownership error"}})
     save_json(output/"representative-sampling.json",strata[:15])
     save_json(output/"pseudo-gt-proposals.json",pseudo)
     save_json(output/"metrics.json",statistics)
@@ -232,7 +238,7 @@ def write_report(output,inv,metrics,failures,baseline):
         f"| Сохранённые оценки владельца прежней версии | {metrics['historical_user_ratings']}; изменённая geometry требует перепроверки: {metrics['user_ratings_requiring_recheck']} |",
         f"| Layout по visual review | {metrics['visual_layout_counts'] or 'не проверено'} |",
         f"| Independent quantitative GT | {metrics['quantitative']['status']} |",
-        f"| Physical orientation | UNANCHORED на всех {metrics['unique_originals']} кадрах |", "",
+        f"| Physical orientation | {metrics['physical_orientation']} |", "",
         f"| Граница display crop | {metrics['display_boundary_statuses']}; требуют проверки: {metrics['display_boundary_uncertain_photo_numbers']} |", "",
         "Display mask использует наблюдаемый переход синего в бумагу при достаточном угловом покрытии; короткие закрытые дуги интерполируются. При недостатке данных BOUNDARY_UNCERTAIN явно сохраняет номинальную маску. Белые scoring zones не обрезаются по синей границе. Это сегментация для отображения: исходный canonical crop, homography, READY и численная точность координат не изменяются; граница не является independent GT.", "",
         "## Сравнение до / после", "", "| Проверка | Baseline | После |", "|---|---:|---:|",
@@ -264,8 +270,33 @@ def write_report(output,inv,metrics,failures,baseline):
     (output/"REPORT.md").write_text("\n".join(lines))
 
 
-def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=False):
+def _source_digest():
+    root = Path(__file__).resolve().parents[3]
+    paths = sorted((root/"neural_network/archery_ml").rglob("*.py"))
+    paths += sorted((root/"dataset_tools/boards").glob("*.json"))
+    paths += [root/"dataset_tools/stage3_geometry_policy.json",root/"requirements.txt",root/".python-version"]
+    return hashlib.sha256(b"".join(p.relative_to(root).as_posix().encode()+b"\0"+p.read_bytes()+b"\0" for p in paths)).hexdigest()
+
+
+def _stable(value):
+    if isinstance(value,dict):
+        return {key:_stable(item) for key,item in value.items() if key!="processing_seconds"}
+    if isinstance(value,list):
+        return [_stable(item) for item in value]
+    return value
+
+
+def _digest(value):
+    return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
+
+
+def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=False,verify_replay=False):
     output = Path(output).resolve()
+    previous_run = read_json(output/"run-manifest.json",{})
+    if verify_replay and not previous_run:
+        raise ValueError("verify-replay requires an existing completed run")
+    source_digest = _source_digest()
+    algorithm_sha, dirty = _git_state()
     if baseline and (output/"baseline-metrics.json").exists():
         raise ValueError("baseline already exists; use a new output revision")
     inv = inventory(input_dir,output)
@@ -303,6 +334,21 @@ def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=Fa
         save_json(output/"baseline-geometry-results.json",results)
         save_json(output/"baseline-metrics.json",statistics)
         save_json(output/"baseline-detections.json",detections)
+    if _source_digest()!=source_digest or _git_state()!=(algorithm_sha,dirty):
+        raise ValueError("algorithm changed during pilot run; rerun on a frozen revision")
+    binding = {"originals":[r.get("original_sha256") for r in inv["images"]],"selections":selections,
+        "external_files":{name:hashlib.sha256((output/name).read_bytes()).hexdigest()
+            for name in ("board-template.json","independent-gt.json") if (output/name).exists()}}
+    record = {"algorithm_sha":algorithm_sha,"working_tree_dirty":dirty,"algorithm_content_sha256":source_digest,
+        "inputs_sha256":_digest(binding),"results_sha256":_digest(_stable({"detections":detections,"results":results})),
+        "dependencies":{"python":platform.python_version(),"numpy":np.__version__,"opencv":cv2.__version__,"pillow":PIL.__version__}}
+    keys = ("algorithm_content_sha256","inputs_sha256","results_sha256","dependencies")
+    differences = [key for key in keys if record[key]!=previous_run.get(key)] if verify_replay else []
+    save_json(output/"reproducibility.json",{"status":"MISMATCH" if differences else "VERIFIED" if verify_replay else "NOT_CHECKED",
+        "differences":differences,"previous":previous_run,"current":record,"excluded_fields":["processing_seconds"]})
+    if differences:
+        raise ValueError("pilot replay differs: "+", ".join(differences))
+    save_json(output/"run-manifest.json",record)
     return statistics
 
 
@@ -314,11 +360,22 @@ def main(argv=None):
     parser.add_argument("--selections",type=Path)
     parser.add_argument("--inventory-only",action="store_true")
     parser.add_argument("--baseline",action="store_true")
+    parser.add_argument("--verify-replay",action="store_true")
     parser.add_argument("--independent-gt",type=Path)
+    parser.add_argument("--board-template",type=Path)
     parser.add_argument("--serve",action="store_true")
     parser.add_argument("--serve-only",action="store_true")
     parser.add_argument("--port",type=int,default=8765)
     args = parser.parse_args(argv)
+    if args.board_template:
+        from neural_network.archery_ml.geometry.calibration import BoardTemplate
+        board = BoardTemplate.load(args.board_template)
+        args.output.mkdir(parents=True,exist_ok=True)
+        destination = args.output/"board-template.json"
+        content = args.board_template.read_bytes()
+        if destination.exists() and destination.read_bytes()!=content:
+            parser.error("do not overwrite board template; use a new output revision")
+        destination.write_bytes(content)
     if args.independent_gt:
         args.output.mkdir(parents=True,exist_ok=True)
         content=args.independent_gt.read_bytes()
@@ -330,7 +387,7 @@ def main(argv=None):
         from neural_network.archery_ml.geometry.pilot_viewer import serve
         serve(args.output,args.port)
         return 0
-    result = batch(args.input,args.output,args.selections,args.inventory_only,args.baseline)
+    result = batch(args.input,args.output,args.selections,args.inventory_only,args.baseline,args.verify_replay)
     print(json.dumps({k:v for k,v in result.items() if k!="images"},indent=2,ensure_ascii=False))
     if args.serve and not args.inventory_only:
         from neural_network.archery_ml.geometry.pilot_viewer import serve

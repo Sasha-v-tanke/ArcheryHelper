@@ -79,8 +79,8 @@ def import_mobile_geometry(root: Path, source: DatasetSource) -> list[DatasetSam
                     raise ValueError("geometry landmarks require reviewed quality and uncertainty")
                 for values in (points, image_points):
                     array = np.asarray(values)
-                    if len(set(map(tuple, values))) < 4 or np.linalg.matrix_rank(array - array.mean(axis=0)) < 2:
-                        raise ValueError("geometry landmarks must be non-collinear")
+                    if len(set(map(tuple, values))) != len(values) or np.linalg.matrix_rank(array - array.mean(axis=0)) < 2:
+                        raise ValueError("geometry landmarks must be unique and non-collinear")
         samples.append(replace(sample, image_path=portable_path(image_path), annotation_path=portable_path(path),
                                source_id=source.id, group_id=f"{source.id}:{meta['capture_session_id']}", capture_metadata=meta))
     return samples

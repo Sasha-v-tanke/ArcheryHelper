@@ -177,6 +177,7 @@ class TargetGroupSelector:
         stamp = fingerprint(candidates)
         if previous and previous.get("status") in {"USER_CONFIRMED","AMBIGUOUS","NO_GROUP"} and previous.get("source") == "USER":
             if previous.get("detection_fingerprint") == stamp:
+                validate_selection(candidates, previous)
                 return previous
             return {"status":"AMBIGUOUS","source":"STALE_SELECTION","candidate_ids":[],
                     "detection_fingerprint":stamp,"previous_selection":previous,"reason":"detections changed; reconfirm selection"}
@@ -192,6 +193,27 @@ class TargetGroupSelector:
         return {"status":"AMBIGUOUS" if candidates else "NO_GROUP","source":"AUTOMATIC","candidate_ids":[],
                 "detection_fingerprint":stamp,"ownership_confirmed":False,
                 "reason":"several equivalent sheets or incomplete grouping; user selection required" if candidates else "no plausible face found"}
+
+
+def validate_selection(candidates, selection):
+    """Apply the same checks to offline JSON and interactive confirmations."""
+    ids = selection.get("candidate_ids", [])
+    valid = {c["id"] for c in candidates}
+    if (not isinstance(ids, list) or any(not isinstance(cid, str) or cid not in valid for cid in ids)
+            or len(ids) != len(set(ids))):
+        raise ValueError("invalid candidate identities")
+    if selection.get("status") == "USER_CONFIRMED":
+        if len(ids) not in {1, 3}:
+            raise ValueError("select one or three faces")
+        expected_format = "SINGLE" if len(ids) == 1 else "TRIPLE"
+        if selection.get("format") != expected_format:
+            raise ValueError("selected format differs from face count")
+        if selection.get("layout") not in ({None} if len(ids) == 1 else {"VERTICAL", "TRIANGULAR"}):
+            raise ValueError("invalid selected layout")
+    elif ids:
+        raise ValueError("unconfirmed selection must not retain candidate identities")
+    if selection.get("minimum_scoring_zone") not in {None, 1, 5, 6}:
+        raise ValueError("unsupported scoring-zone proposal")
 
 
 def track_confirmed_group(previous_row,current_row,previous_detection,current_detection,selection,previous_preview,current_preview):

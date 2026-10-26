@@ -23,9 +23,10 @@ def draw_ellipse(image, candidate, color, thickness=-1, expand=1.):
 
 
 class SelectedTargetGeometryPipeline:
-    def __init__(self):
+    def __init__(self, orientation_calibrator=None):
         self.detector = TargetGeometryDetector()
         self.gate = ImageQualityGate()
+        self.orientation_calibrator = orientation_calibrator
 
     def run(self, image, candidates, group, raw_to_rgb=None, output_dir=None):
         selected = [next(c for c in candidates if c["id"]==cid) for cid in group["candidate_ids"]]
@@ -88,6 +89,19 @@ class SelectedTargetGeometryPipeline:
             quality = roi_quality if roi_quality.status is not QualityStatus.READY else full_quality
             result.update(quality_status=quality.status.value,geometry_confidence=full.geometry_confidence,fit_error=full.fit_error,
                 quality_roi=asdict(roi_quality),quality_full_frame=asdict(full_quality))
+            if quality.status is QualityStatus.READY and self.orientation_calibrator is not None:
+                try:
+                    board = self.orientation_calibrator.template.payload
+                    if board["format"] != config.format.value or board["triple_layout"] != group["layout"]:
+                        raise ValueError("board template differs from selected configuration")
+                    calibrated = self.orientation_calibrator.calibrate(
+                        image, full, self.orientation_calibrator.observe(image))
+                    full = calibrated.geometry
+                    result.update(calibration=calibrated.record, orientation_status="ANCHORED",
+                        orientation_reference=full.orientation_reference, physical_face_order_verified=True,
+                        face_index_reference="PHYSICAL_BOARD_MARKERS")
+                except (ValueError, np.linalg.LinAlgError, cv2.error) as error:
+                    result["calibration"] = {"orientation_status":"UNANCHORED", "reason":str(error)}
             raw_to_rgb = np.eye(3) if raw_to_rgb is None else np.asarray(raw_to_rgb,dtype=float)
             for face in full.faces:
                 original_h = np.asarray(face.homography)@raw_to_rgb
@@ -100,7 +114,7 @@ class SelectedTargetGeometryPipeline:
                     "center_original":project([face.center],np.linalg.inv(raw_to_rgb))[0].tolist(),
                     "original_to_canonical":original_h.tolist(),"canonical_to_original":original_inverse.tolist(),
                     "rgb_to_canonical":[list(r) for r in face.homography],"canonical_to_rgb":[list(r) for r in face.inverse_homography],
-                    "round_trip_max_px":error,"physical_face_index_verified":bool(group.get("physical_face_order_confirmed"))})
+                    "round_trip_max_px":error,"physical_face_index_verified":result["physical_face_order_verified"]})
             if quality.status is QualityStatus.READY:
                 # Existing normalizer is unchanged. The second copy masks foreign
                 # targets; original RGB and original quality evidence remain intact.
@@ -123,6 +137,8 @@ class SelectedTargetGeometryPipeline:
             else:
                 result["diagnostics"].append(quality.status.value)
         except (ValueError,np.linalg.LinAlgError,cv2.error) as error:
+            if result["quality_status"] == "READY":
+                result["quality_status"] = "GEOMETRY_UNCERTAIN"
             result["diagnostics"].append(str(error))
         result["artifact_revision"]=hashlib.sha256(json.dumps({"config":result["processing_config"],
             "candidates":group["candidate_ids"],"transforms":[f["rgb_to_canonical"] for f in result["faces"]],

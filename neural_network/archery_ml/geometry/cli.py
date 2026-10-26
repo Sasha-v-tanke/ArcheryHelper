@@ -36,6 +36,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(result["validation"], indent=2))
         return int(result["validation"]["status"] != "PASS")
     full_view = DatasetView.load(args.manifest)
+    isolation = None
+    if any(s.split == "mobile_real_test" for s in full_view):
+        from neural_network.archery_ml.geometry.audit import require_holdout_isolation
+        isolation = require_holdout_isolation(full_view)
     gt = [verify_mobile_gt(s) for s in full_view if (s.capture_metadata or {}).get("gt_annotations_sha256")]
     revisions = {item["revision"] for item in gt}
     if len(revisions) > 1:
@@ -92,6 +96,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "policy_sha256": None if args.policy is None else hashlib.sha256(json.dumps(
             json.loads(args.policy.read_text()), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
     }
+    result["holdout_isolation"] = isolation
     result["session_bootstrap_mean_2d"] = session_bootstrap(result["sample_results"])
     if args.policy is not None:
         result["validation"] = validate_holdout(result, json.loads(args.policy.read_text()))

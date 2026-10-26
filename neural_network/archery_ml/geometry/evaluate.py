@@ -235,6 +235,8 @@ class GeometryEvaluator:
                 face_ring_points: dict[str, list[float]] = defaultdict(list)
                 matched_image_points = set()
                 matched_canonical_points = set()
+                measured_image_points = set()
+                measured_canonical_points = set()
                 ground_truth_center = _ground_truth_center(
                     annotations,
                     template,
@@ -251,6 +253,10 @@ class GeometryEvaluator:
 
                 for annotation in annotations:
                     for point, expected in zip(annotation.points, annotation.canonical_points):
+                        if tuple(point) in measured_image_points or tuple(expected) in measured_canonical_points:
+                            raise ValueError("duplicate evaluation landmark coordinates")
+                        measured_image_points.add(tuple(point))
+                        measured_canonical_points.add(tuple(expected))
                         predicted = _to_canonical_norm(face, point, geometry.image_width, geometry.image_height)
                         error = float(np.linalg.norm(predicted - expected))
                         if not np.isfinite(error):

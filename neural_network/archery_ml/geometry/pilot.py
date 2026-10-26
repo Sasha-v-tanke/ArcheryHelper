@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import platform
 import time
+import shutil
+import tempfile
 
 import cv2
 import numpy as np
@@ -290,11 +292,35 @@ def _digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
 
 
-def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=False,verify_replay=False):
+def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=False,verify_replay=False, *, replay_inputs=None):
     output = Path(output).resolve()
     previous_run = read_json(output/"run-manifest.json",{})
     if verify_replay and not previous_run:
         raise ValueError("verify-replay requires an existing completed run")
+    if verify_replay:
+        if inventory_only or baseline:
+            raise ValueError("verify-replay cannot be combined with inventory-only or baseline")
+        # Recompute into a sibling directory. Never mix a failed replay with the
+        # original evidence, even when loading or processing raises an exception.
+        with tempfile.TemporaryDirectory(prefix=f".{output.name}-replay-",dir=output.parent) as tmp:
+            scratch = Path(tmp)
+            for name in ("target-selections.json","visual-reviews.json","visual-review-history.json",
+                    "board-template.json","independent-gt.json","baseline-metrics.json"):
+                if (output/name).is_file():
+                    shutil.copy2(output/name,scratch/name)
+            for name,content in (replay_inputs or {}).items():
+                (scratch/name).write_bytes(content)
+            statistics = batch(input_dir,scratch,selections_path)
+            record = read_json(scratch/"run-manifest.json",{})
+            keys = ("algorithm_content_sha256","inputs_sha256","results_sha256","dependencies")
+            differences = [key for key in keys if record.get(key)!=previous_run.get(key)]
+            evidence = {"status":"MISMATCH" if differences else "VERIFIED","differences":differences,
+                "previous":previous_run,"current":record,"excluded_fields":["processing_seconds"]}
+            if differences:
+                save_json(output.parent/(output.name+"-replay-mismatch.json"),evidence)
+                raise ValueError("pilot replay differs: "+", ".join(differences))
+            save_json(output/"reproducibility.json",evidence)
+            return statistics
     source_digest = _source_digest()
     algorithm_sha, dirty = _git_state()
     if baseline and (output/"baseline-metrics.json").exists():
@@ -342,12 +368,8 @@ def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=Fa
     record = {"algorithm_sha":algorithm_sha,"working_tree_dirty":dirty,"algorithm_content_sha256":source_digest,
         "inputs_sha256":_digest(binding),"results_sha256":_digest(_stable({"detections":detections,"results":results})),
         "dependencies":{"python":platform.python_version(),"numpy":np.__version__,"opencv":cv2.__version__,"pillow":PIL.__version__}}
-    keys = ("algorithm_content_sha256","inputs_sha256","results_sha256","dependencies")
-    differences = [key for key in keys if record[key]!=previous_run.get(key)] if verify_replay else []
-    save_json(output/"reproducibility.json",{"status":"MISMATCH" if differences else "VERIFIED" if verify_replay else "NOT_CHECKED",
-        "differences":differences,"previous":previous_run,"current":record,"excluded_fields":["processing_seconds"]})
-    if differences:
-        raise ValueError("pilot replay differs: "+", ".join(differences))
+    save_json(output/"reproducibility.json",{"status":"NOT_CHECKED",
+        "differences":[],"previous":previous_run,"current":record,"excluded_fields":["processing_seconds"]})
     save_json(output/"run-manifest.json",record)
     return statistics
 
@@ -367,27 +389,34 @@ def main(argv=None):
     parser.add_argument("--serve-only",action="store_true")
     parser.add_argument("--port",type=int,default=8765)
     args = parser.parse_args(argv)
+    replay_inputs = {}
     if args.board_template:
         from neural_network.archery_ml.geometry.calibration import BoardTemplate
         board = BoardTemplate.load(args.board_template)
-        args.output.mkdir(parents=True,exist_ok=True)
         destination = args.output/"board-template.json"
         content = args.board_template.read_bytes()
-        if destination.exists() and destination.read_bytes()!=content:
+        if args.verify_replay:
+            replay_inputs[destination.name] = content
+        elif destination.exists() and destination.read_bytes()!=content:
             parser.error("do not overwrite board template; use a new output revision")
-        destination.write_bytes(content)
+        else:
+            args.output.mkdir(parents=True,exist_ok=True)
+            destination.write_bytes(content)
     if args.independent_gt:
-        args.output.mkdir(parents=True,exist_ok=True)
         content=args.independent_gt.read_bytes()
         destination=args.output/"independent-gt.json"
-        if destination.exists() and destination.read_bytes()!=content:
+        if args.verify_replay:
+            replay_inputs[destination.name] = content
+        elif destination.exists() and destination.read_bytes()!=content:
             parser.error("do not overwrite independent GT; use a new output revision")
-        destination.write_bytes(content)
+        else:
+            args.output.mkdir(parents=True,exist_ok=True)
+            destination.write_bytes(content)
     if args.serve_only:
         from neural_network.archery_ml.geometry.pilot_viewer import serve
         serve(args.output,args.port)
         return 0
-    result = batch(args.input,args.output,args.selections,args.inventory_only,args.baseline,args.verify_replay)
+    result = batch(args.input,args.output,args.selections,args.inventory_only,args.baseline,args.verify_replay,replay_inputs=replay_inputs)
     print(json.dumps({k:v for k,v in result.items() if k!="images"},indent=2,ensure_ascii=False))
     if args.serve and not args.inventory_only:
         from neural_network.archery_ml.geometry.pilot_viewer import serve

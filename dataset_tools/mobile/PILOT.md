@@ -62,6 +62,17 @@ or MISMATCH (nonzero exit). Only processing durations are excluded from result
 comparison. The first run records NOT_CHECKED. Algorithm changes during a run
 fail explicitly. Offline selections receive the same identity/configuration checks
 as interactive confirmations; stale detections require confirmation again.
+Replay recomputes in a temporary sibling directory. On MISMATCH or a processing
+exception the original output files remain byte-for-byte unchanged; mismatch
+details go to `<output-name>-replay-mismatch.json` beside the output directory.
+Successful verification updates only `reproducibility.json`. CLI-supplied board
+and independent-GT files are staged there as well, never inserted into the
+original output before replay verification.
+
+Saved VISUAL_TRACKING_FROM_USER proposals survive a repeated batch when their
+fingerprint, IDs and configuration are still valid. They remain AUTO_CONFIDENT,
+with ownership and physical face order unconfirmed. A changed fingerprint
+requires confirmation again.
 
 `Correct` is a qualitative visual rating, not independent GT. Face order and
 ownership require their own confirmation. No marker calibration is inferred

@@ -172,6 +172,15 @@ class ReviewFixesTest(unittest.TestCase):
         with redirect_stdout(io.StringIO()),self.assertRaisesRegex(ValueError,'replay differs'):
             batch(source,output,changed,verify_replay=True)
         self.assertEqual(before,snapshot(output))
+        # CLI-supplied GT must also be staged, rather than inserted into the
+        # existing output before verification starts.
+        from neural_network.archery_ml.geometry.pilot import main as pilot_main
+        invalid_gt = self.root/'invalid-gt.json'
+        invalid_gt.write_text(json.dumps({'kind':'pseudo_gt'}))
+        with redirect_stdout(io.StringIO()),self.assertRaisesRegex(ValueError,'not independent'):
+            pilot_main(['--input',str(source),'--output',str(output),'--verify-replay',
+                '--independent-gt',str(invalid_gt)])
+        self.assertEqual(before,snapshot(output))
         mismatch = json.loads((self.root/'pilot-replay-mismatch.json').read_text())
         self.assertEqual('MISMATCH',mismatch['status'])
         self.assertIn('inputs_sha256',mismatch['differences'])

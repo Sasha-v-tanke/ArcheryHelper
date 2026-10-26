@@ -177,6 +177,7 @@ python -m archery_ml.geometry.calibration_tools calibrate \
 python -m archery_ml.geometry --manifest data/mobile-work/manifests/dataset_manifest.json \
   --split mobile_dev --format TRIPLE --triple-layout VERTICAL \
   --minimum-scoring-zone 6 --ten-ring-mode RECURVE --face-diameter-mm 200 \
+  --selections data/mobile-selection-review/target-selections.json \
   --board-template dataset_tools/boards/vertical-v1.json --output /tmp/dev-vertical.json
 ```
 
@@ -191,8 +192,23 @@ Calibration CLI сохраняет record, overlay физических осей
 board template, immutable GT/manifest/snapshot, algorithm SHA, зависимости, чистое дерево.
 Сейчас эти действия **BLOCKED: REAL DEVELOPMENT EVIDENCE AND OWNER APPROVAL REQUIRED**.
 
+Перед evaluation выполните pilot/review на исходных фотографиях и сохраните выбор
+пользовательских faces. Файл `target-selections.json` — map `original_sha256 → selection`,
+отдельный от GT; сохраняйте его неизменным вместе с snapshot результатов. Evaluation
+использует upright RGB из manifest (для EXIF — проверенный derivative), повторно
+обнаруживает candidates и проверяет fingerprint/IDs/config. Она запускает тот же
+SelectedTargetGeometryPipeline: ROI, маскирование чужих faces, quality gate,
+необязательная marker calibration и normalization. GT не участвует в выборе группы.
+В `--preview-dir` сохраняются canonical crops и diagnostics выбранного pipeline.
+
+Отсутствующий, устаревший, невалидный или неподтверждённый выбор остаётся в отчёте
+как GROUP_SELECTION_REQUIRED. Он не заменяется детекцией другой группы и учитывается
+в denominator; `selection_coverage` и per-image `selection` фиксируют причины и proposals.
+AUTO_CONFIDENT/tracking не устанавливают ownership. Ошибку выбора подтверждённой группы
+покажет сравнение её geometry с независимым GT; human confirmation не гарантирует accuracy.
+
 Final run: для каждого элемента policy выполните evaluation `--split mobile_real_test`
-с той же manifest, соответствующими config и board template, затем:
+с тем же manifest и `--selections`, соответствующими config и board template, затем:
 
 ```sh
 python -m archery_ml.geometry --aggregate-report /path/to/single-report.json \
@@ -208,12 +224,18 @@ python -m archery_ml.geometry --aggregate-report /path/to/single-report.json \
 python -m dataset_tools.mobile.validate_all \
   --manifest data/mobile-work/manifests/dataset_manifest.json \
   --snapshot data/mobile-work/snapshots/dataset_snapshot.json \
+  --selections data/mobile-selection-review/target-selections.json \
   --output data/reports/mobile-dev-run-001
 ```
 
 По умолчанию он оценивает только mobile_dev и сохраняет Stage 3 status BLOCKED,
 даже если отдельные development-метрики хорошие. `--final` разрешает holdout
 только с frozen policy, чистым algorithm SHA и snapshot, соответствующим manifest.
+Runner всегда выбирает `selected` pipeline и передаёт один selections-файл всем
+18 конфигурациям. Policy требует этот pipeline; его версия и SHA256 selections
+сверяются при aggregation. Без selections можно получить отчёт coverage, но не PASS.
+`--selection-mode full-frame` сохранён только как legacy development diagnostic;
+финальный gate текущей policy такие отчёты отвергает.
 Для других измеренных board templates используйте `--board-map`: JSON map
 `configuration_key → template path`. Runner сохраняет partial FAIL отчётов;
 отдельный report одного config не покрывает всю матрицу. Итог — consolidated.json.

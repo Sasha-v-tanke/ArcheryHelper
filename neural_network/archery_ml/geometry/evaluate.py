@@ -178,6 +178,7 @@ class GeometryEvaluator:
         try:
             selection = TargetGroupSelector().select(candidates,groups,self.selected_targets.get(original_sha))
             record.update(selection)
+            record.update(original_sha256=original_sha,image_sha256=image_sha,candidates=candidates,groups=groups)
             record["ownership_confirmed"] = selection["status"] == "USER_CONFIRMED" and selection.get("source") == "USER"
             if not record["ownership_confirmed"]:
                 return empty,"GROUP_SELECTION_REQUIRED",record,{"orientation_status":"UNANCHORED"}

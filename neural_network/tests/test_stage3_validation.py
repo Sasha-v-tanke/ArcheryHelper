@@ -35,8 +35,12 @@ class HoldoutValidationTest(unittest.TestCase):
                 identity = f"{index}:{j}"
                 samples.append(dict(sample_id=identity, split="mobile_real_test", status="READY" if j < 4 else "REJECTED",
                     detected_face_count=count if j < 4 else 0, annotation_issues=[],
+                    calibration=dict(orientation_status="ANCHORED", board_template_sha256="board-fixture",
+                        calibration_revision="aruco-board-orientation-v1", image_rgb_sha256="image-fixture",
+                        marker_correspondences=[{}, {}, {}]),
                     point_error_2d={**metric, "count": 4 * count}, point_values_2d=[.001] * (4 * count) if j < 4 else [],
                     face_error={str(i): dict(point_error_2d=metric.copy(), independent_landmarks=4,
+                        gt_uncertainty_max=.002,
                         orientation_reference="manual_calibration") for i in range(count)} if j < 4 else {},
                     capture_metadata=dict(original_id=identity, original_sha256=hashlib.sha256(identity.encode()).hexdigest(),
                         capture_session_id=f"session-{j % 2}", device_model="camera", suitability="usable" if j < 4 else "unusable",
@@ -44,7 +48,8 @@ class HoldoutValidationTest(unittest.TestCase):
                     gt_provenance=dict(revision="reviewed-v1", annotations_sha256="annotation-checksum", annotation_manifest_sha256="gt-manifest")))
             self.reports.append(dict(target_config=config.copy(), metrics_version=METRICS_VERSION, sample_results=samples,
                 provenance=dict(algorithm_sha="algorithm", working_tree_dirty=False, manifest_sha256="manifest",
-                    policy_sha256=sha, gt_revision="reviewed-v1", gt_sources=["gt-manifest"], dependencies={"python": "test"})))
+                    policy_sha256=sha, gt_revision="reviewed-v1", gt_sources=["gt-manifest"], dependencies={"python": "test"},
+                    board_template_sha256="board-fixture", calibration_revision="aruco-board-orientation-v1")))
 
     def result(self):
         return aggregate_reports(self.reports, self.policy)["validation"]
@@ -128,6 +133,20 @@ class HoldoutValidationTest(unittest.TestCase):
         self._population([], ["REJECTED"] * 10)
         self.assertIsNone(self._first_group()["usable_acceptance_rate"])
         self.assertFails("insufficient configuration coverage")
+
+    def test_claimed_orientation_without_calibration_cannot_pass(self):
+        self.reports[0]["sample_results"][0]["calibration"] = {}
+        self.assertFails("calibration provenance")
+
+    def test_excessive_or_missing_gt_uncertainty_cannot_pass(self):
+        face = self.reports[0]["sample_results"][0]["face_error"]["0"]
+        for value in (None,.1):
+            face["gt_uncertainty_max"] = value
+            self.assertFails("GT uncertainty")
+
+    def test_explicit_synthetic_example_cannot_pass_final(self):
+        self.reports[0]["sample_results"][0]["capture_metadata"]["synthetic_fixture"] = True
+        self.assertFails("synthetic fixture")
 
     def test_200_single_cannot_pass_without_triple(self):
         report = self.reports[0]

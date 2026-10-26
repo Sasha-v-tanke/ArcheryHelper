@@ -64,6 +64,7 @@ class GeometrySampleResult:
     point_values: tuple[float, ...] = ()
     radial_values: tuple[float, ...] = ()
     gt_provenance: dict = field(default_factory=dict)
+    calibration: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -84,6 +85,7 @@ class GeometrySampleResult:
             "face_error": self.face_error,
             "capture_metadata": self.capture_metadata,
             "gt_provenance": self.gt_provenance,
+            "calibration": self.calibration,
             "point_values_2d": list(self.point_values),
             "ring_error": {
                 key: value.to_dict()
@@ -150,9 +152,11 @@ class GeometryEvaluator:
         self,
         detector: TargetGeometryDetector | None = None,
         quality_gate: ImageQualityGate | None = None,
+        orientation_calibrator=None,
     ):
         self.detector = detector or TargetGeometryDetector()
         self.quality_gate = quality_gate or ImageQualityGate()
+        self.orientation_calibrator = orientation_calibrator
 
     def evaluate(
         self,
@@ -199,9 +203,20 @@ class GeometryEvaluator:
                     target_config.format.value, target_config.minimum_scoring_zone, target_config.ten_ring_mode.value, layout
                 ):
                     raise ValueError("sample target configuration differs from evaluation configuration")
+                if metadata.face_diameter_mm is not None and metadata.face_diameter_mm != target_config.face_diameter_mm:
+                    raise ValueError("sample physical face diameter differs from evaluation configuration")
             geometry = self.detector.detect(image, target_config)
             quality = self.quality_gate.evaluate(image, geometry)
             status = quality.status.value
+            calibration_record = {"orientation_status": "UNANCHORED"}
+            if status == "READY" and self.orientation_calibrator is not None:
+                try:
+                    calibrated = self.orientation_calibrator.calibrate(
+                        image, geometry, self.orientation_calibrator.observe(image))
+                    geometry, calibration_record = calibrated.geometry, calibrated.record
+                except (ValueError, np.linalg.LinAlgError, cv2.error) as error:
+                    # Calibration failure never hides a geometry READY or creates a false anchor.
+                    calibration_record = {"orientation_status": "UNANCHORED", "reason": str(error)}
             status_counts[status] += 1
             if status == "READY":
                 ready_samples += 1
@@ -275,6 +290,8 @@ class GeometryEvaluator:
                     "center_reference": "physical_gt" if any(a.kind == "target_center" for a in annotations) else "ellipse_proxy",
                     "orientation_reference": geometry.orientation_reference,
                     "independent_landmarks": _independent_landmarks(matched_image_points, matched_canonical_points),
+                    "gt_uncertainty_max": max((a.uncertainty_norm for a in annotations
+                        if a.uncertainty_norm is not None and (a.canonical_points or a.kind == "target_center")), default=None),
                 }
 
             if face_centers:
@@ -307,6 +324,7 @@ class GeometryEvaluator:
                     point_values=tuple(sample_point_errors),
                     radial_values=tuple(sample_radial_errors),
                     gt_provenance=gt_provenance,
+                    calibration=calibration_record,
                 )
             )
             for dimension, key in (

@@ -185,5 +185,3 @@ class PilotTest(unittest.TestCase):
         self.assertEqual(1.,report["coverage"]["false_accept_fraction"])
         self.assertIsNone(report["point_error_2d"]["p95"])
         self.assertEqual(0,report["point_error_2d"]["count"])
-
-

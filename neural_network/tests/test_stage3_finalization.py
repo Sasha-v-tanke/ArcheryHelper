@@ -154,4 +154,3 @@ class FinalizationTest(unittest.TestCase):
         self.assertEqual('PHYSICAL_BOARD_MARKERS', result['face_index_reference'])
         plain = pipeline.run(scene(1), TargetCandidateDetector().detect(scene(1)), group)
         self.assertEqual('UNANCHORED', plain['orientation_status'])
-

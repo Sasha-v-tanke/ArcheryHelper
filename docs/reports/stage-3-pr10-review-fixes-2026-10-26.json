@@ -1,0 +1,63 @@
+{
+  "algorithm_sha": "3a89bbf3c07611b9f1106b4df0f1b387ce26ad23",
+  "working_tree_dirty": false,
+  "development_only": true,
+  "independent_gt_images": 0,
+  "original_hashes_unchanged": 58,
+  "total": 58,
+  "statuses": {
+    "READY": 51,
+    "TARGET_CLIPPED": 2,
+    "TOO_BLURRY": 3,
+    "GROUP_SELECTION_REQUIRED": 1,
+    "GEOMETRY_UNCERTAIN": 1
+  },
+  "selection_coverage": {
+    "USER_CONFIRMED": 57,
+    "AUTO_CONFIDENT": 1
+  },
+  "unconfirmed_numbers": [
+    23
+  ],
+  "confirmed_geometry_matches_pilot": 57,
+  "homography_comparison_atol": 1e-09,
+  "selections_sha256": "36f30e0759af4253631bf6c68c8a1d380dab90367400c159eb24a0b49e7e8188",
+  "metric_note": "No independent GT: quantitative geometry accuracy is unmeasured",
+  "stage3_status": "BLOCKED: INDEPENDENT REAL-DATA VALIDATION",
+  "reviewed_baseline_sha": "6514665d75a4ef80d3c424dd497aa550fa596dce",
+  "pr_url": "https://github.com/Sasha-v-tanke/ArcheryHelper/pull/10",
+  "review_fixes": {
+    "selected_evaluation": "REGRESSION PASS",
+    "tracking_resume": "REGRESSION PASS; AUTO_CONFIDENT remains unconfirmed",
+    "replay_artifact_integrity": "REGRESSION PASS; mismatch, processing exception and CLI GT preserve all original files"
+  },
+  "tests": {
+    "python": {
+      "run": 171,
+      "passed": 171,
+      "skipped": 0
+    },
+    "android": {
+      "run": 8,
+      "passed": 8,
+      "debug_build": "PASS",
+      "executed_gradle_tasks": 46
+    },
+    "ci": {
+      "sha": "3a89bbf3c07611b9f1106b4df0f1b387ce26ad23",
+      "python": "success",
+      "android": "success",
+      "external_v9_skips": 2,
+      "url": "https://github.com/Sasha-v-tanke/ArcheryHelper/actions/runs/40281245649"
+    }
+  },
+  "commits": [
+    "dd531bb",
+    "24ca11d",
+    "3f11436",
+    "fa94661",
+    "3a89bbf"
+  ],
+  "merge_executed": false,
+  "stage4_started": false
+}

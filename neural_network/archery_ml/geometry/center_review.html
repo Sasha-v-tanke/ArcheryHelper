@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проверка центров · ArcheryHelper</title>
+<style>
+:root{font-family:Inter,system-ui,sans-serif;color:#e8edf5;background:#11151c;color-scheme:dark}*{box-sizing:border-box}body{margin:0}button,select{font:inherit;border:1px solid #3a4352;border-radius:8px;background:#242c38;color:inherit;padding:9px 12px;cursor:pointer}button:hover{background:#343f50}button:disabled{opacity:.4;cursor:default}button.primary{background:#188563;border-color:#269c78;font-weight:650}button.primary:hover{background:#219b76}header{display:flex;align-items:center;gap:18px;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #303846}header h1{font-size:19px;margin:0}header p{margin:4px 0 0;color:#a9b5c7;font-size:13px}.layout{display:grid;grid-template-columns:74px minmax(0,1fr) 265px;height:calc(100dvh - 78px)}nav{overflow:auto;padding:8px;border-right:1px solid #303846}nav button{display:block;width:50px;margin:0 0 7px;padding:7px 3px;border-left:4px solid #465165}nav button.current{outline:2px solid #8ba9ff}nav button.confirmed{border-left-color:#35c99a}nav button.draft{border-left-color:#f3ba65}nav button.uncertain{border-left-color:#d791d6}.main{display:flex;flex-direction:column;min-width:0;min-height:0}.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:#181e28}.toolbar select{max-width:280px}.toolbar .spacer{flex:1}.stage{position:relative;flex:1;min-height:250px;overflow:hidden;background:#090c11}#photoCanvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;outline:none}.hint{padding:10px 14px;color:#afbdce;font-size:12px;background:#181e28;line-height:1.5}aside{padding:18px;border-left:1px solid #303846;overflow:auto;background:#181e28}aside h2{font-size:17px;margin:0 0 12px}.muted{color:#a9b5c7;font-size:13px;line-height:1.5}.pill{display:inline-block;border-radius:20px;padding:5px 10px;background:#2d3748;font-size:12px;margin-bottom:10px}.notice{border:1px solid #755e37;background:#342a1c;padding:9px;border-radius:8px;color:#f1d5a3;font-size:12px;line-height:1.5;margin:10px 0}#loupe{width:100%;aspect-ratio:1;background:#090c11;border:1px solid #354152;border-radius:8px}#pointList{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}#pointList button.active{outline:2px solid #6be4c1}.actions{display:grid;gap:9px;margin-top:20px}.actions button{text-align:left;padding:12px}#saveMessage{font-size:12px;min-height:35px;line-height:1.5;color:#b6c5d9;margin-top:14px}.error{color:#ffaaaa!important}.key{border:1px solid #566173;border-radius:3px;padding:0 4px}#fileLabel{font-size:12px;overflow-wrap:anywhere;color:#a9b5c7;margin-top:10px}#count{font-variant-numeric:tabular-nums}.small{font-size:12px}a{color:#b8cdfc}@media(max-width:850px){.layout{grid-template-columns:55px minmax(0,1fr);height:auto;min-height:calc(100dvh - 78px)}nav{grid-row:1/3}nav button{width:36px}aside{grid-column:2;border-left:0;border-top:1px solid #303846;padding:14px}.stage{height:65dvh;flex:none}#loupe{width:170px;float:right;margin-left:12px}.actions{margin-top:12px}header{padding:12px}header h1{font-size:16px}.toolbar{padding:8px}.toolbar select{max-width:170px}}
+</style>
+<header><div><h1>Проверка центров мишеней</h1><p>Перетащите неточные центры или подтвердите верные.</p></div><div><span id="count">Загрузка…</span> <button id="export" class="small">Скачать разметку</button></div></header>
+<div class="layout">
+<nav id="navigation" aria-label="Фотографии"></nav>
+<section class="main">
+<div class="toolbar"><button id="prev" aria-label="Предыдущее фото">←</button><select id="photoSelect" aria-label="Фото"></select><button id="next" aria-label="Следующее фото">→</button><span class="spacer"></span><button id="minus" aria-label="Уменьшить">−</button><span id="zoomLabel" class="small">Вписать</span><button id="plus" aria-label="Увеличить">+</button><button id="fit">Вписать фото</button></div>
+<div class="stage" id="stage"><canvas id="photoCanvas" tabindex="0" aria-label="Фото мишеней. Перетаскивайте центры или нажмите на фото, чтобы добавить центр."></canvas></div>
+<div class="hint">Щелчок по фото — новый центр. Перетаскивание точки — поправить центр. Колесо — масштаб. <span class="key">Пробел</span> + перетаскивание — двигать фото. <span class="key">Delete</span> — удалить выбранный центр.</div>
+</section>
+<aside>
+<h2 id="heading">Фото</h2><div id="reviewStatus" class="pill">Не проверено</div>
+<div id="notice" class="notice" hidden></div>
+<canvas id="loupe" width="420" height="420" aria-label="Увеличенный участок вокруг выбранного центра"></canvas>
+<p class="muted">Выберите центр для увеличенного просмотра. Перекрестие не закрывает саму точку.</p>
+<div id="pointList"></div><button id="remove" class="small">Удалить центр</button> <button id="undo" class="small">Отменить</button>
+<div class="actions"><button id="confirm" class="primary">Центры верны →</button><button id="uncertain">Не могу определить →</button><button id="blank">Разметить с нуля</button><button id="suggestions">Вернуть подсказки</button></div>
+<p id="saveMessage" role="status">Правки сохраняются автоматически на этом компьютере.</p>
+<p class="muted">Исходные фото и результаты детектора не изменяются.</p><div id="fileLabel"></div>
+</aside></div>
+<script>
+const $=id=>document.getElementById(id),canvas=$('photoCanvas'),ctx=canvas.getContext('2d'),loupe=$('loupe'),lc=loupe.getContext('2d');
+const clone=x=>JSON.parse(JSON.stringify(x));
+let rows=[],current=0,image=null,points=[],selected=null,fromBlank=false,history=[],zoom=1,ox=0,oy=0,fitScale=1,cw=1,ch=1,dpr=1,space=false,gesture=null,queue=Promise.resolve(),loadToken=0,pending=0;
+const labels={UNREVIEWED:'Не проверено',DRAFT:'Есть правки · проверьте',CONFIRMED:'Центры подтверждены',UNCERTAIN:'Не удалось определить'};
+function row(){return rows[current];}
+function message(text,error=false){$('saveMessage').textContent=text;$('saveMessage').className=error?'error':'';}
+function backup(){history.push({points:clone(points),fromBlank});if(history.length>60)history.shift();}
+function activePoint(){return points.find(p=>p.id===selected);}
+function renderChrome(){
+ $('heading').textContent=`Фото ${row().number} из ${rows.length}`;$('fileLabel').textContent=row().filename;
+ $('reviewStatus').textContent=!row().review&&row().automatic_proposal?'Уточнённые центры · проверьте':labels[row().review?.status||'UNREVIEWED'];
+ $('count').textContent=`Проверено ${rows.filter(r=>r.review?.status==='CONFIRMED').length} / ${rows.length}`;
+ $('photoSelect').value=current;$('prev').disabled=current===0;$('next').disabled=current===rows.length-1;
+ $('notice').hidden=row().ownership_confirmed&&!row().stale;
+ $('notice').textContent=row().stale?'Подсказки изменились после предыдущего сохранения. Проверьте центры ещё раз.':'Выбор группы на этом фото ещё не подтверждён. Проверьте, что отмечены нужные вам мишени.';
+ document.querySelectorAll('#navigation button').forEach((b,i)=>{b.className=(i===current?'current ':'')+(rows[i].review?.status||'').toLowerCase();b.title=`Фото ${rows[i].number}: ${labels[rows[i].review?.status||'UNREVIEWED']}`;});
+ $('pointList').replaceChildren();points.forEach((p,i)=>{const b=document.createElement('button');b.textContent=`Центр ${i+1}`;b.className=p.id===selected?'active small':'small';b.onclick=()=>{selected=p.id;renderChrome();draw();};$('pointList').appendChild(b);});
+ $('remove').disabled=!activePoint();$('undo').disabled=!history.length;
+ $('confirm').disabled=!image||!points.length;$('uncertain').disabled=!image;
+}
+function resize(){const b=canvas.getBoundingClientRect();cw=b.width;ch=b.height;dpr=window.devicePixelRatio||1;canvas.width=Math.round(cw*dpr);canvas.height=Math.round(ch*dpr);if(image){fitScale=Math.min(cw/image.width,ch/image.height);fit();}}
+function fit(){zoom=1;if(image){ox=(cw-image.width*fitScale)/2;oy=(ch-image.height*fitScale)/2;}draw();}
+function setZoom(next,x=cw/2,y=ch/2){if(!image)return;next=Math.max(1,Math.min(18,next));const ratio=next/zoom;ox=x-(x-ox)*ratio;oy=y-(y-oy)*ratio;zoom=next;draw();}
+function imagePoint(e){const b=canvas.getBoundingClientRect();return {x:(e.clientX-b.left-ox)/(fitScale*zoom),y:(e.clientY-b.top-oy)/(fitScale*zoom)};}
+function drawLoupe(point){
+ lc.fillStyle='#090c11';lc.fillRect(0,0,420,420);if(!image||!point)return;
+ const extent=70;lc.drawImage(image,point.x-extent/2,point.y-extent/2,extent,extent,0,0,420,420);
+ lc.strokeStyle='#08110f';lc.lineWidth=5;cross(lc,210,210,30,7);lc.strokeStyle='#69ffcb';lc.lineWidth=2;cross(lc,210,210,30,7);
+}
+function cross(c,x,y,length,gap){c.beginPath();c.moveTo(x-length,y);c.lineTo(x-gap,y);c.moveTo(x+gap,y);c.lineTo(x+length,y);c.moveTo(x,y-length);c.lineTo(x,y-gap);c.moveTo(x,y+gap);c.lineTo(x,y+length);c.stroke();}
+function draw(){
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#090c11';ctx.fillRect(0,0,cw,ch);if(!image)return;
+ const s=fitScale*zoom;ctx.drawImage(image,ox,oy,image.width*s,image.height*s);
+ points.forEach((p,i)=>{const x=ox+p.x*s,y=oy+p.y*s,color=p.id===selected?'#69ffcb':'#ffca72';ctx.strokeStyle='#11151c';ctx.lineWidth=4;cross(ctx,x,y,15,4);ctx.strokeStyle=color;ctx.lineWidth=1.6;cross(ctx,x,y,15,4);ctx.beginPath();ctx.arc(x,y,8,0,Math.PI*2);ctx.stroke();ctx.font='bold 13px system-ui';ctx.fillStyle='#0e141c';ctx.fillRect(x+12,y-24,22,20);ctx.fillStyle=color;ctx.fillText(i+1,x+18,y-10);});
+ $('zoomLabel').textContent=zoom===1?'Вписать':`${zoom.toFixed(1)}×`;
+ drawLoupe(activePoint());
+}
+function persist(status='DRAFT'){
+ pending++;
+ const target=row(),savedPoints=clone(points),blank=fromBlank;
+ const task=queue.catch(()=>{}).then(async()=>{
+  message('Сохраняю…');const response=await fetch('/api/centers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_id:target.id,binding:target.binding,revision:target.review?.revision||0,status,points:savedPoints,from_blank:blank,proposal_revision:target.proposal_revision||'baseline'})});
+  const result=await response.json();if(!response.ok)throw Error(result.error||'Не удалось сохранить');target.review=result.review;target.stale=false;message(status==='CONFIRMED'?'Центры подтверждены и сохранены.':'Правки сохранены.');if(row()===target)renderChrome();
+ });queue=task;task.then(()=>{pending--;},error=>{pending--;message(error.message,true);});return task;
+}
+async function navigate(index){try{await queue;}catch{return;}await load(Math.max(0,Math.min(rows.length-1,index)));}
+async function load(index){
+ gesture=null;
+ current=index;history=[];const target=row(),token=++loadToken;points=clone(target.review?.points||target.suggested_centers).map(p=>({id:p.id,x:p.x,y:p.y}));fromBlank=target.review?.method==='manual_from_blank';selected=points[0]?.id||null;
+ image=null;renderChrome();ctx.clearRect(0,0,canvas.width,canvas.height);message('Загружаю фото в полном разрешении…');
+ const photo=new Image();photo.onload=()=>{if(token!==loadToken)return;image=photo;resize();renderChrome();message(target.review?'Сохранённая разметка загружена.':'Проверьте подсказки или отметьте центры с нуля.');};photo.onerror=()=>message('Не удалось загрузить фото. Обновите страницу.',true);photo.src=target.image_url;
+ const url=new URL(location.href);url.searchParams.set('photo',target.number);window.history.replaceState(null,'',url);
+}
+canvas.onpointerdown=e=>{
+ if(!image)return;e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);const b=canvas.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;
+ const hit=points.find(p=>Math.hypot(ox+p.x*fitScale*zoom-x,oy+p.y*fitScale*zoom-y)<20);
+ gesture={startX:e.clientX,startY:e.clientY,ox,oy,before:clone(points),fromBlank,mode:space||e.button!==0?'pan':hit?'drag':'add',id:hit?.id};
+ if(hit&&!space&&e.button===0){selected=hit.id;renderChrome();draw();}
+};
+canvas.onpointermove=e=>{if(!gesture)return;
+ if(gesture.mode==='pan'){ox=gesture.ox+e.clientX-gesture.startX;oy=gesture.oy+e.clientY-gesture.startY;draw();}
+ else if(gesture.mode==='drag'){const p=points.find(p=>p.id===gesture.id),pos=imagePoint(e);p.x=Math.max(0,Math.min(image.width-1,pos.x));p.y=Math.max(0,Math.min(image.height-1,pos.y));draw();}
+};
+canvas.onpointerup=e=>{if(!gesture)return;const g=gesture;gesture=null;const moved=Math.hypot(e.clientX-g.startX,e.clientY-g.startY);
+ if(g.mode==='drag'&&moved>0){history.push({points:g.before,fromBlank:g.fromBlank});persist().catch(()=>{});renderChrome();}
+ else if(g.mode==='add'&&moved<5){const pos=imagePoint(e);if(pos.x>=0&&pos.y>=0&&pos.x<image.width&&pos.y<image.height){backup();const p={id:'manual-'+crypto.randomUUID(),x:pos.x,y:pos.y};points.push(p);selected=p.id;persist().catch(()=>{});renderChrome();draw();}}
+};
+canvas.onpointercancel=()=>{if(gesture?.mode==='drag'){points=gesture.before;draw();}gesture=null;};
+canvas.oncontextmenu=e=>e.preventDefault();canvas.onwheel=e=>{e.preventDefault();const b=canvas.getBoundingClientRect();setZoom(zoom*Math.exp(-e.deltaY*.0015),e.clientX-b.left,e.clientY-b.top);};
+$('plus').onclick=()=>setZoom(zoom*1.5);$('minus').onclick=()=>setZoom(zoom/1.5);$('fit').onclick=fit;
+$('prev').onclick=()=>navigate(current-1);$('next').onclick=()=>navigate(current+1);$('photoSelect').onchange=e=>navigate(Number(e.target.value));
+$('remove').onclick=()=>{if(!activePoint())return;backup();points=points.filter(p=>p.id!==selected);selected=points[0]?.id||null;persist().catch(()=>{});renderChrome();draw();};
+$('undo').onclick=()=>{if(!history.length)return;const before=history.pop();points=before.points;fromBlank=before.fromBlank;selected=points[0]?.id||null;persist().catch(()=>{});renderChrome();draw();};
+$('blank').onclick=()=>{backup();points=[];fromBlank=true;selected=null;persist().catch(()=>{});renderChrome();draw();};
+$('suggestions').onclick=()=>{backup();points=clone(row().suggested_centers);fromBlank=false;selected=points[0]?.id||null;persist().catch(()=>{});renderChrome();draw();};
+$('confirm').onclick=async()=>{try{await persist('CONFIRMED');if(current<rows.length-1)await navigate(current+1);}catch{}};
+$('uncertain').onclick=async()=>{try{await persist('UNCERTAIN');if(current<rows.length-1)await navigate(current+1);}catch{}};
+$('export').onclick=async()=>{try{await queue;const response=await fetch('/api/export');if(!response.ok)throw Error('Не удалось скачать разметку');const value=await response.json(),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));a.download='center-reviews.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}catch(e){message(e.message,true);}};
+window.onkeydown=e=>{if(e.code==='Space'&&!['BUTTON','SELECT','INPUT','TEXTAREA'].includes(e.target.tagName)){space=true;e.preventDefault();}if(e.key==='Delete'&&document.activeElement===canvas)$('remove').click();if((e.ctrlKey||e.metaKey)&&e.key==='z'&&document.activeElement===canvas){e.preventDefault();$('undo').click();}};
+window.onkeyup=e=>{if(e.code==='Space')space=false;};window.onblur=()=>{space=false;};window.onbeforeunload=e=>{if(pending||gesture?.mode==='drag'){e.preventDefault();e.returnValue='';}};
+new ResizeObserver(resize).observe($('stage'));
+(async()=>{try{const response=await fetch('/api/state');if(!response.ok)throw Error('Не удалось открыть фотографии');const state=await response.json();rows=state.images;if(!rows.length)throw Error('Фотографии не найдены');rows.forEach((r,i)=>{const b=document.createElement('button');b.textContent=r.number;b.onclick=()=>navigate(i);$('navigation').appendChild(b);const option=document.createElement('option');option.value=i;option.textContent=`${r.number}. ${r.filename}`;$('photoSelect').appendChild(option);});const requested=Number(new URL(location.href).searchParams.get('photo'));let start=rows.findIndex(r=>r.number===requested);if(start<0)start=Math.max(0,rows.findIndex(r=>r.review?.status!=='CONFIRMED'));await load(start);}catch(e){message(e.message,true);}})();
+</script>
+</html>

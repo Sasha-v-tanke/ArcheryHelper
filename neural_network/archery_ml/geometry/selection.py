@@ -175,9 +175,15 @@ def fingerprint(candidates):
 class TargetGroupSelector:
     def select(self, candidates, groups, previous=None):
         stamp = fingerprint(candidates)
-        if previous and previous.get("status") in {"USER_CONFIRMED","AMBIGUOUS","NO_GROUP"} and previous.get("source") == "USER":
+        tracked = bool(previous and previous.get("status") == "AUTO_CONFIDENT"
+            and previous.get("source") == "VISUAL_TRACKING_FROM_USER")
+        if previous and (tracked or previous.get("status") in {"USER_CONFIRMED","AMBIGUOUS","NO_GROUP"} and previous.get("source") == "USER"):
             if previous.get("detection_fingerprint") == stamp:
-                validate_selection(candidates, previous)
+                validate_selection(candidates, previous, allow_tracking=tracked)
+                if tracked:
+                    if not previous.get("tracking_evidence",{}).get("reference_original_id"):
+                        raise ValueError("tracking proposal lacks a confirmed reference")
+                    return {**previous,"ownership_confirmed":False,"physical_face_order_confirmed":False}
                 return previous
             return {"status":"AMBIGUOUS","source":"STALE_SELECTION","candidate_ids":[],
                     "detection_fingerprint":stamp,"previous_selection":previous,"reason":"detections changed; reconfirm selection"}
@@ -195,14 +201,14 @@ class TargetGroupSelector:
                 "reason":"several equivalent sheets or incomplete grouping; user selection required" if candidates else "no plausible face found"}
 
 
-def validate_selection(candidates, selection):
+def validate_selection(candidates, selection, *, allow_tracking=False):
     """Apply the same checks to offline JSON and interactive confirmations."""
     ids = selection.get("candidate_ids", [])
     valid = {c["id"] for c in candidates}
     if (not isinstance(ids, list) or any(not isinstance(cid, str) or cid not in valid for cid in ids)
             or len(ids) != len(set(ids))):
         raise ValueError("invalid candidate identities")
-    if selection.get("status") == "USER_CONFIRMED":
+    if selection.get("status") == "USER_CONFIRMED" or allow_tracking:
         if len(ids) not in {1, 3}:
             raise ValueError("select one or three faces")
         expected_format = "SINGLE" if len(ids) == 1 else "TRIPLE"

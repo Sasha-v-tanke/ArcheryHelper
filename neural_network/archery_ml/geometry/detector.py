@@ -537,24 +537,39 @@ def _fit_projective_transform(
     initial_transform: np.ndarray,
     rings: list[tuple[np.ndarray, float]],
 ) -> np.ndarray:
-    transform = initial_transform
-    for _ in range(4):
-        source_points = []
-        target_points = []
-        for contour, radius in rings:
-            mapped = _perspective_points(contour, transform)
-            angles = np.arctan2(mapped[:, 1], mapped[:, 0])
-            targets = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
-            source_points.append(contour)
-            target_points.append(targets.astype(np.float32))
-        if not source_points:
+    if not rings:
+        return initial_transform
+    source = np.concatenate([contour for contour, _ in rings])
+    radii = np.concatenate([np.full(len(contour), radius) for contour, radius in rings])
+    transform = initial_transform.copy()
+    # Minimize the actual radial residual, rather than repeatedly freezing the
+    # angles from the current (possibly biased) rectification. Optimize a local
+    # correction in normalized coordinates to avoid raw-pixel conditioning.
+    for _ in range(40):
+        mapped = _perspective_points(source, transform)
+        x, y = mapped.T
+        distance = np.maximum(np.linalg.norm(mapped, axis=1), 1e-8)
+        residual = distance - radii
+        jacobian = np.column_stack((x*x/distance, x*y/distance, x/distance,
+            y*x/distance, y*y/distance, y/distance, -distance*x, -distance*y))
+        step = np.linalg.lstsq(jacobian, -residual, rcond=1e-8)[0]
+        previous_loss = float(residual @ residual)
+        accepted = False
+        for fraction in (1., .5, .25, .125, .0625, .03125, .015625, .0078125):
+            delta = step * fraction
+            correction = np.array([[1+delta[0], delta[1], delta[2]],
+                [delta[3], 1+delta[4], delta[5]], [delta[6], delta[7], 1.]])
+            proposed = correction @ transform
+            # Keep the existing full-face/horizon guard at every step. A late
+            # unsafe iterate must not discard earlier safe improvements.
+            if not np.array_equal(_stable_transform(initial_transform, proposed, rings), proposed):
+                continue
+            error = np.linalg.norm(_perspective_points(source, proposed), axis=1) - radii
+            if np.isfinite(error).all() and float(error @ error) < previous_loss - 1e-12:
+                transform, accepted = proposed, True
+                break
+        if not accepted:
             break
-        source = np.concatenate(source_points, axis=0).astype(np.float32)
-        target = np.concatenate(target_points, axis=0).astype(np.float32)
-        fitted, _ = cv2.findHomography(source, target, method=0)
-        if fitted is None or not np.isfinite(fitted).all():
-            break
-        transform = fitted.astype(np.float64)
     return transform
 
 

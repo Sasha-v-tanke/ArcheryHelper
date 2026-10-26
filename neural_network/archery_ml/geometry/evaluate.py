@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,7 +14,7 @@ from neural_network.archery_ml.contracts import ImageGeometryAnnotation
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.data.geometry_provenance import verify_mobile_gt
 from neural_network.archery_ml.geometry.lineage import original_family
-from neural_network.archery_ml.geometry.detector import FaceGeometry, TargetGeometryDetector
+from neural_network.archery_ml.geometry.detector import FaceGeometry, GeometryResult, TargetGeometryDetector
 from neural_network.archery_ml.geometry.quality import ImageQualityGate
 from neural_network.archery_ml.geometry.target_templates import (
     CANONICAL_CENTER_PX,
@@ -64,6 +65,8 @@ class GeometrySampleResult:
     point_values: tuple[float, ...] = ()
     radial_values: tuple[float, ...] = ()
     gt_provenance: dict = field(default_factory=dict)
+    calibration: dict = field(default_factory=dict)
+    selection: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -84,6 +87,8 @@ class GeometrySampleResult:
             "face_error": self.face_error,
             "capture_metadata": self.capture_metadata,
             "gt_provenance": self.gt_provenance,
+            "calibration": self.calibration,
+            "selection": self.selection,
             "point_values_2d": list(self.point_values),
             "ring_error": {
                 key: value.to_dict()
@@ -141,6 +146,7 @@ class GeometryEvaluationReport:
             "breakdowns": self.breakdowns,
             "annotation_issue_samples": sum(bool(sample.annotation_issues) for sample in self.sample_results),
             "coverage": _coverage(self.sample_results),
+            "selection_coverage": dict(Counter(s.selection.get("status","FULL_FRAME") for s in self.sample_results)),
             "metrics_version": "stage3-2d-v3-equal-image",
         }
 
@@ -150,9 +156,45 @@ class GeometryEvaluator:
         self,
         detector: TargetGeometryDetector | None = None,
         quality_gate: ImageQualityGate | None = None,
+        orientation_calibrator=None,
+        selected_targets: dict | None = None,
     ):
         self.detector = detector or TargetGeometryDetector()
         self.quality_gate = quality_gate or ImageQualityGate()
+        self.orientation_calibrator = orientation_calibrator
+        self.selected_targets = selected_targets
+
+    def _selected_geometry(self, image, sample, config, preview_dir):
+        # Candidate/group selection reads image evidence and a separately supplied
+        # user decision. No evaluation annotations enter this pipeline.
+        from neural_network.archery_ml.geometry.selection import TargetCandidateDetector, TargetGroupBuilder, TargetGroupSelector
+        from neural_network.archery_ml.geometry.selected_geometry import SelectedTargetGeometryPipeline
+        image_sha = hashlib.sha256(sample.image_path.read_bytes()).hexdigest()
+        original_sha = (sample.capture_metadata or {}).get("original_sha256",image_sha)
+        candidates = TargetCandidateDetector().detect(image)
+        groups = TargetGroupBuilder().build(candidates,image)
+        empty = GeometryResult((),0.,1.,None,1 if config.format is TargetFormat.SINGLE else 3,False,image.shape[1],image.shape[0])
+        record = {"original_sha256":original_sha,"image_sha256":image_sha,"candidates":candidates,"groups":groups}
+        try:
+            selection = TargetGroupSelector().select(candidates,groups,self.selected_targets.get(original_sha))
+            record.update(selection)
+            record.update(original_sha256=original_sha,image_sha256=image_sha,candidates=candidates,groups=groups)
+            record["ownership_confirmed"] = selection["status"] == "USER_CONFIRMED" and selection.get("source") == "USER"
+            if not record["ownership_confirmed"]:
+                return empty,"GROUP_SELECTION_REQUIRED",record,{"orientation_status":"UNANCHORED"}
+            layout = None if config.triple_layout is None else config.triple_layout.value
+            if (selection["format"] != config.format.value or selection["layout"] != layout
+                    or selection.get("minimum_scoring_zone",config.minimum_scoring_zone) != config.minimum_scoring_zone):
+                raise ValueError("selected configuration differs from evaluation configuration")
+            pipeline = SelectedTargetGeometryPipeline(self.orientation_calibrator)
+            pipeline.detector, pipeline.gate = self.detector, self.quality_gate
+            result,geometry = pipeline.evaluate(image,candidates,selection,config,
+                None if preview_dir is None else preview_dir/(image_sha+"-selected"))
+            record["pipeline_result"] = result
+            return geometry or empty,result["quality_status"],record,result.get("calibration",{"orientation_status":"UNANCHORED"})
+        except ValueError as error:
+            record.update(status="INVALID_SELECTION",ownership_confirmed=False,reason=str(error))
+            return empty,"GROUP_SELECTION_REQUIRED",record,{"orientation_status":"UNANCHORED"}
 
     def evaluate(
         self,
@@ -199,9 +241,23 @@ class GeometryEvaluator:
                     target_config.format.value, target_config.minimum_scoring_zone, target_config.ten_ring_mode.value, layout
                 ):
                     raise ValueError("sample target configuration differs from evaluation configuration")
-            geometry = self.detector.detect(image, target_config)
-            quality = self.quality_gate.evaluate(image, geometry)
-            status = quality.status.value
+                if metadata.face_diameter_mm is not None and metadata.face_diameter_mm != target_config.face_diameter_mm:
+                    raise ValueError("sample physical face diameter differs from evaluation configuration")
+            selection_record = {}
+            calibration_record = {"orientation_status": "UNANCHORED"}
+            if self.selected_targets is not None:
+                geometry,status,selection_record,calibration_record = self._selected_geometry(image,sample,target_config,preview_dir)
+            else:
+                geometry = self.detector.detect(image, target_config)
+                status = self.quality_gate.evaluate(image, geometry).status.value
+            if self.selected_targets is None and status == "READY" and self.orientation_calibrator is not None:
+                try:
+                    calibrated = self.orientation_calibrator.calibrate(
+                        image, geometry, self.orientation_calibrator.observe(image))
+                    geometry, calibration_record = calibrated.geometry, calibrated.record
+                except (ValueError, np.linalg.LinAlgError, cv2.error) as error:
+                    # Calibration failure never hides a geometry READY or creates a false anchor.
+                    calibration_record = {"orientation_status": "UNANCHORED", "reason": str(error)}
             status_counts[status] += 1
             if status == "READY":
                 ready_samples += 1
@@ -220,6 +276,10 @@ class GeometryEvaluator:
                 face_ring_points: dict[str, list[float]] = defaultdict(list)
                 matched_image_points = set()
                 matched_canonical_points = set()
+                measured_image_points = set()
+                measured_canonical_points = set()
+                predicted_landmarks, expected_landmarks = [], []
+                physical_center_error = None
                 ground_truth_center = _ground_truth_center(
                     annotations,
                     template,
@@ -233,14 +293,22 @@ class GeometryEvaluator:
                     )
                     face_centers.append(float(np.linalg.norm(center_norm)))
                     center_errors.append(face_centers[-1])
+                    if any(a.kind == "target_center" for a in annotations):
+                        physical_center_error = face_centers[-1]
 
                 for annotation in annotations:
                     for point, expected in zip(annotation.points, annotation.canonical_points):
+                        if tuple(point) in measured_image_points or tuple(expected) in measured_canonical_points:
+                            raise ValueError("duplicate evaluation landmark coordinates")
+                        measured_image_points.add(tuple(point))
+                        measured_canonical_points.add(tuple(expected))
                         predicted = _to_canonical_norm(face, point, geometry.image_width, geometry.image_height)
                         error = float(np.linalg.norm(predicted - expected))
                         if not np.isfinite(error):
                             raise ValueError("non-finite landmark projection")
                         face_points.append(error)
+                        predicted_landmarks.append(predicted)
+                        expected_landmarks.append(expected)
                         if annotation.annotation_quality == "reviewed" and annotation.uncertainty_norm is not None:
                             matched_image_points.add(tuple(point))
                             matched_canonical_points.add(tuple(expected))
@@ -273,8 +341,14 @@ class GeometryEvaluator:
                     "radial_error": _metrics(face_radial).to_dict(),
                     "ring_point_error_2d": {key: _metrics(values).to_dict() for key, values in face_ring_points.items()},
                     "center_reference": "physical_gt" if any(a.kind == "target_center" for a in annotations) else "ellipse_proxy",
+                    "physical_center_error_norm": physical_center_error,
+                    "landmark_decomposition": _landmark_decomposition(predicted_landmarks, expected_landmarks),
+                    "perspective_axis_ratio": face.perspective_ratio,
+                    "visible_coverage": face.coverage,
                     "orientation_reference": geometry.orientation_reference,
                     "independent_landmarks": _independent_landmarks(matched_image_points, matched_canonical_points),
+                    "gt_uncertainty_max": max((a.uncertainty_norm for a in annotations
+                        if a.uncertainty_norm is not None and (a.canonical_points or a.kind == "target_center")), default=None),
                 }
 
             if face_centers:
@@ -307,6 +381,8 @@ class GeometryEvaluator:
                     point_values=tuple(sample_point_errors),
                     radial_values=tuple(sample_radial_errors),
                     gt_provenance=gt_provenance,
+                    calibration=calibration_record,
+                    selection=selection_record,
                 )
             )
             for dimension, key in (
@@ -372,6 +448,34 @@ class GeometryEvaluator:
             point_errors=tuple(point_errors),
             face_point_values=tuple(face_point_values),
         )
+
+
+def _landmark_decomposition(predicted, expected) -> dict:
+    """Diagnostics only: fit GT -> prediction; never alter detector coordinates.
+
+    The affine residual can expose remaining projective/nonlinear error. It is
+    not an independent measurement of camera perspective or lens distortion.
+    """
+    if len(expected) < 4:
+        return {"status": "INSUFFICIENT_LANDMARKS"}
+    expected, predicted = np.asarray(expected), np.asarray(predicted)
+    design = np.column_stack((expected, np.ones(len(expected))))
+    if np.linalg.matrix_rank(design) < 3:
+        return {"status": "DEGENERATE_LANDMARKS"}
+    coefficients, _, _, _ = np.linalg.lstsq(design, predicted, rcond=None)
+    linear = coefficients[:2].T
+    u, singular, vt = np.linalg.svd(linear)
+    determinant = float(np.linalg.det(linear))
+    if determinant <= 0 or singular[-1] <= 1e-10:
+        return {"status": "MIRRORED_OR_DEGENERATE"}
+    rotation = u @ vt
+    residual = np.linalg.norm(design @ coefficients - predicted, axis=1)
+    return {"status": "MEASURED", "scale_bias_fraction": float(np.sqrt(determinant)-1),
+        "orientation_error_deg": float(np.rad2deg(np.arctan2(rotation[1,0], rotation[0,0]))),
+        "affine_center_offset_norm": float(np.linalg.norm(coefficients[2])),
+        "affine_axis_ratio": float(singular[0]/singular[-1]),
+        "affine_residual_p95_norm": float(np.percentile(residual,95)),
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"}
 
 
 def _independent_landmarks(image_points: set, canonical_points: set) -> int:

@@ -36,6 +36,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(result["validation"], indent=2))
         return int(result["validation"]["status"] != "PASS")
     full_view = DatasetView.load(args.manifest)
+    isolation = None
+    if any(s.split == "mobile_real_test" for s in full_view):
+        from neural_network.archery_ml.geometry.audit import require_holdout_isolation
+        isolation = require_holdout_isolation(full_view)
     gt = [verify_mobile_gt(s) for s in full_view if (s.capture_metadata or {}).get("gt_annotations_sha256")]
     revisions = {item["revision"] for item in gt}
     if len(revisions) > 1:
@@ -54,7 +58,34 @@ def main(argv: Sequence[str] | None = None) -> int:
         ten_ring_mode=TenRingMode(args.ten_ring_mode),
         face_diameter_mm=args.face_diameter_mm,
     )
-    evaluator = GeometryEvaluator()
+    # Evaluate one configuration from a shared manifest, keeping its hash stable
+    # across all reports that will be consolidated.
+    view = DatasetView.from_samples([sample for sample in view if sample.target_metadata is None or (
+        sample.target_metadata.format == config.format.value
+        and sample.target_metadata.triple_layout == (None if config.triple_layout is None else config.triple_layout.value)
+        and sample.target_metadata.minimum_scoring_zone == config.minimum_scoring_zone
+        and sample.target_metadata.face_diameter_mm in (None, config.face_diameter_mm)
+        and sample.target_metadata.ten_ring_mode == config.ten_ring_mode.value)])
+    calibrator = None
+    if args.board_template:
+        from neural_network.archery_ml.geometry.calibration import BoardTemplate, TargetOrientationCalibrator
+        board = BoardTemplate.load(args.board_template)
+        if (board.payload["format"] != config.format.value
+                or board.payload["triple_layout"] != (None if config.triple_layout is None else config.triple_layout.value)
+                or any(2 * f["radius_mm"] != config.face_diameter_mm for f in board.payload["faces"])):
+            raise ValueError("board template differs from target configuration")
+        calibrator = TargetOrientationCalibrator(board)
+    policy = None if args.policy is None else json.loads(args.policy.read_text())
+    selected_mode = args.selection_mode == "selected" or args.selections is not None or (
+        args.selection_mode is None and policy is not None and policy.get("require_selected_target_pipeline"))
+    selected_targets = None
+    selection_bytes = None
+    if selected_mode:
+        selection_bytes = b"{}" if args.selections is None else args.selections.read_bytes()
+        selected_targets = json.loads(selection_bytes)
+        if not isinstance(selected_targets,dict) or any(not isinstance(v,dict) for v in selected_targets.values()):
+            raise ValueError("selections must map original SHA256 to saved selection objects")
+    evaluator = GeometryEvaluator(orientation_calibrator=calibrator,selected_targets=selected_targets)
     report = evaluator.evaluate(view, config, preview_dir=args.preview_dir)
     result = report.to_dict()
     algorithm_sha, working_tree_dirty = _git_state()
@@ -68,11 +99,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         "working_tree_dirty": working_tree_dirty,
         "dependencies": {"python": platform.python_version(), "numpy": np.__version__, "opencv": cv2.__version__},
         "quality_thresholds": asdict(evaluator.quality_gate.thresholds),
+        "evaluation_pipeline": "selected-target-v1" if selected_mode else "full-frame-geometry-v1",
+        "selections_sha256": None if selection_bytes is None else hashlib.sha256(selection_bytes).hexdigest(),
         "gt_revision": revision,
         "gt_sources": sorted({item["annotation_manifest_sha256"] for item in gt}),
+        "board_template_sha256": None if calibrator is None else calibrator.template.sha256,
+        "calibration_revision": None if calibrator is None else "aruco-board-orientation-v1",
         "policy_sha256": None if args.policy is None else hashlib.sha256(json.dumps(
             json.loads(args.policy.read_text()), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
     }
+    result["holdout_isolation"] = isolation
     result["session_bootstrap_mean_2d"] = session_bootstrap(result["sample_results"])
     if args.policy is not None:
         result["validation"] = validate_holdout(result, json.loads(args.policy.read_text()))
@@ -86,9 +122,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _git_state() -> tuple[str | None, bool]:
     try:
         sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
-        diff = subprocess.check_output(["git", "diff", "HEAD", "--", "neural_network", "dataset_tools"], stderr=subprocess.DEVNULL)
+        diff = subprocess.check_output(["git", "diff", "HEAD", "--", "neural_network", "dataset_tools", "archery_ml", "requirements.txt", ".python-version"], stderr=subprocess.DEVNULL)
         untracked = subprocess.check_output(
-            ["git", "ls-files", "--others", "--exclude-standard", "--", "neural_network", "dataset_tools"],
+            ["git", "ls-files", "--others", "--exclude-standard", "--", "neural_network", "dataset_tools", "archery_ml"],
             text=True, stderr=subprocess.DEVNULL,
         ).splitlines()
         return sha, bool(diff) or any(Path(path).suffix in {".py", ".json"} for path in untracked)
@@ -108,6 +144,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--triple-layout", choices=("VERTICAL", "TRIANGULAR"))
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--gt-revision")
+    parser.add_argument("--board-template", type=Path)
+    parser.add_argument("--selections", type=Path, help="saved selections keyed by original SHA256; independent of GT")
+    parser.add_argument("--selection-mode", choices=("selected","full-frame"),
+                        help="policy defaults to the selected-target pipeline; full-frame is a legacy development diagnostic")
     parser.add_argument("--aggregate-report", type=Path, action="append",
                         help="combine configuration reports for one independent holdout decision")
     parser.add_argument(

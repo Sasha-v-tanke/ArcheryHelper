@@ -100,8 +100,13 @@ class ImageGeometryAnnotation:
     canonical_points: tuple[tuple[float, float], ...] = ()
     annotation_quality: str | None = None
     uncertainty_norm: float | None = None
+    landmark_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        if self.landmark_ids and (len(self.landmark_ids) != len(self.canonical_points)
+                or any(not isinstance(value,str) or not value.strip() for value in self.landmark_ids)
+                or len(set(self.landmark_ids)) != len(self.landmark_ids)):
+            raise ValueError("landmark_ids must identify canonical points one-to-one")
         if self.face_index is not None and (type(self.face_index) is not int or self.face_index < 0):
             raise ValueError("face_index must be a non-negative integer")
         if self.canonical_points and len(self.canonical_points) != len(self.points):
@@ -138,6 +143,8 @@ class ImageGeometryAnnotation:
             data["annotation_quality"] = self.annotation_quality
         if self.uncertainty_norm is not None:
             data["uncertainty_norm"] = self.uncertainty_norm
+        if self.landmark_ids:
+            data["landmark_ids"] = list(self.landmark_ids)
         return data
 
     @staticmethod
@@ -150,6 +157,7 @@ class ImageGeometryAnnotation:
             canonical_points=tuple(tuple(float(v) for v in point) for point in data.get("canonical_points", ())),
             annotation_quality=data.get("annotation_quality"),
             uncertainty_norm=data.get("uncertainty_norm"),
+            landmark_ids=tuple(data.get("landmark_ids", ())),
         )
 
 

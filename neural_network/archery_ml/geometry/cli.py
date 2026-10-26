@@ -75,7 +75,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 or any(2 * f["radius_mm"] != config.face_diameter_mm for f in board.payload["faces"])):
             raise ValueError("board template differs from target configuration")
         calibrator = TargetOrientationCalibrator(board)
-    evaluator = GeometryEvaluator(orientation_calibrator=calibrator)
+    policy = None if args.policy is None else json.loads(args.policy.read_text())
+    selected_mode = args.selection_mode == "selected" or args.selections is not None or (
+        args.selection_mode is None and policy is not None and policy.get("require_selected_target_pipeline"))
+    selected_targets = None
+    selection_bytes = None
+    if selected_mode:
+        selection_bytes = b"{}" if args.selections is None else args.selections.read_bytes()
+        selected_targets = json.loads(selection_bytes)
+        if not isinstance(selected_targets,dict) or any(not isinstance(v,dict) for v in selected_targets.values()):
+            raise ValueError("selections must map original SHA256 to saved selection objects")
+    evaluator = GeometryEvaluator(orientation_calibrator=calibrator,selected_targets=selected_targets)
     report = evaluator.evaluate(view, config, preview_dir=args.preview_dir)
     result = report.to_dict()
     algorithm_sha, working_tree_dirty = _git_state()
@@ -89,6 +99,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "working_tree_dirty": working_tree_dirty,
         "dependencies": {"python": platform.python_version(), "numpy": np.__version__, "opencv": cv2.__version__},
         "quality_thresholds": asdict(evaluator.quality_gate.thresholds),
+        "evaluation_pipeline": "selected-target-v1" if selected_mode else "full-frame-geometry-v1",
+        "selections_sha256": None if selection_bytes is None else hashlib.sha256(selection_bytes).hexdigest(),
         "gt_revision": revision,
         "gt_sources": sorted({item["annotation_manifest_sha256"] for item in gt}),
         "board_template_sha256": None if calibrator is None else calibrator.template.sha256,
@@ -133,6 +145,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--gt-revision")
     parser.add_argument("--board-template", type=Path)
+    parser.add_argument("--selections", type=Path, help="saved selections keyed by original SHA256; independent of GT")
+    parser.add_argument("--selection-mode", choices=("selected","full-frame"),
+                        help="policy defaults to the selected-target pipeline; full-frame is a legacy development diagnostic")
     parser.add_argument("--aggregate-report", type=Path, action="append",
                         help="combine configuration reports for one independent holdout decision")
     parser.add_argument(

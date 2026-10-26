@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,7 +14,7 @@ from neural_network.archery_ml.contracts import ImageGeometryAnnotation
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.data.geometry_provenance import verify_mobile_gt
 from neural_network.archery_ml.geometry.lineage import original_family
-from neural_network.archery_ml.geometry.detector import FaceGeometry, TargetGeometryDetector
+from neural_network.archery_ml.geometry.detector import FaceGeometry, GeometryResult, TargetGeometryDetector
 from neural_network.archery_ml.geometry.quality import ImageQualityGate
 from neural_network.archery_ml.geometry.target_templates import (
     CANONICAL_CENTER_PX,
@@ -65,6 +66,7 @@ class GeometrySampleResult:
     radial_values: tuple[float, ...] = ()
     gt_provenance: dict = field(default_factory=dict)
     calibration: dict = field(default_factory=dict)
+    selection: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -86,6 +88,7 @@ class GeometrySampleResult:
             "capture_metadata": self.capture_metadata,
             "gt_provenance": self.gt_provenance,
             "calibration": self.calibration,
+            "selection": self.selection,
             "point_values_2d": list(self.point_values),
             "ring_error": {
                 key: value.to_dict()
@@ -143,6 +146,7 @@ class GeometryEvaluationReport:
             "breakdowns": self.breakdowns,
             "annotation_issue_samples": sum(bool(sample.annotation_issues) for sample in self.sample_results),
             "coverage": _coverage(self.sample_results),
+            "selection_coverage": dict(Counter(s.selection.get("status","FULL_FRAME") for s in self.sample_results)),
             "metrics_version": "stage3-2d-v3-equal-image",
         }
 
@@ -153,10 +157,43 @@ class GeometryEvaluator:
         detector: TargetGeometryDetector | None = None,
         quality_gate: ImageQualityGate | None = None,
         orientation_calibrator=None,
+        selected_targets: dict | None = None,
     ):
         self.detector = detector or TargetGeometryDetector()
         self.quality_gate = quality_gate or ImageQualityGate()
         self.orientation_calibrator = orientation_calibrator
+        self.selected_targets = selected_targets
+
+    def _selected_geometry(self, image, sample, config, preview_dir):
+        # Candidate/group selection reads image evidence and a separately supplied
+        # user decision. No evaluation annotations enter this pipeline.
+        from neural_network.archery_ml.geometry.selection import TargetCandidateDetector, TargetGroupBuilder, TargetGroupSelector
+        from neural_network.archery_ml.geometry.selected_geometry import SelectedTargetGeometryPipeline
+        image_sha = hashlib.sha256(sample.image_path.read_bytes()).hexdigest()
+        original_sha = (sample.capture_metadata or {}).get("original_sha256",image_sha)
+        candidates = TargetCandidateDetector().detect(image)
+        groups = TargetGroupBuilder().build(candidates,image)
+        empty = GeometryResult((),0.,1.,None,1 if config.format is TargetFormat.SINGLE else 3,False,image.shape[1],image.shape[0])
+        record = {"original_sha256":original_sha,"image_sha256":image_sha,"candidates":candidates,"groups":groups}
+        try:
+            selection = TargetGroupSelector().select(candidates,groups,self.selected_targets.get(original_sha))
+            record.update(selection)
+            record["ownership_confirmed"] = selection["status"] == "USER_CONFIRMED" and selection.get("source") == "USER"
+            if not record["ownership_confirmed"]:
+                return empty,"GROUP_SELECTION_REQUIRED",record,{"orientation_status":"UNANCHORED"}
+            layout = None if config.triple_layout is None else config.triple_layout.value
+            if (selection["format"] != config.format.value or selection["layout"] != layout
+                    or selection.get("minimum_scoring_zone",config.minimum_scoring_zone) != config.minimum_scoring_zone):
+                raise ValueError("selected configuration differs from evaluation configuration")
+            pipeline = SelectedTargetGeometryPipeline(self.orientation_calibrator)
+            pipeline.detector, pipeline.gate = self.detector, self.quality_gate
+            result,geometry = pipeline.evaluate(image,candidates,selection,config,
+                None if preview_dir is None else preview_dir/(image_sha+"-selected"))
+            record["pipeline_result"] = result
+            return geometry or empty,result["quality_status"],record,result.get("calibration",{"orientation_status":"UNANCHORED"})
+        except ValueError as error:
+            record.update(status="INVALID_SELECTION",ownership_confirmed=False,reason=str(error))
+            return empty,"GROUP_SELECTION_REQUIRED",record,{"orientation_status":"UNANCHORED"}
 
     def evaluate(
         self,
@@ -205,11 +242,14 @@ class GeometryEvaluator:
                     raise ValueError("sample target configuration differs from evaluation configuration")
                 if metadata.face_diameter_mm is not None and metadata.face_diameter_mm != target_config.face_diameter_mm:
                     raise ValueError("sample physical face diameter differs from evaluation configuration")
-            geometry = self.detector.detect(image, target_config)
-            quality = self.quality_gate.evaluate(image, geometry)
-            status = quality.status.value
+            selection_record = {}
             calibration_record = {"orientation_status": "UNANCHORED"}
-            if status == "READY" and self.orientation_calibrator is not None:
+            if self.selected_targets is not None:
+                geometry,status,selection_record,calibration_record = self._selected_geometry(image,sample,target_config,preview_dir)
+            else:
+                geometry = self.detector.detect(image, target_config)
+                status = self.quality_gate.evaluate(image, geometry).status.value
+            if self.selected_targets is None and status == "READY" and self.orientation_calibrator is not None:
                 try:
                     calibrated = self.orientation_calibrator.calibrate(
                         image, geometry, self.orientation_calibrator.observe(image))
@@ -341,6 +381,7 @@ class GeometryEvaluator:
                     radial_values=tuple(sample_radial_errors),
                     gt_provenance=gt_provenance,
                     calibration=calibration_record,
+                    selection=selection_record,
                 )
             )
             for dimension, key in (

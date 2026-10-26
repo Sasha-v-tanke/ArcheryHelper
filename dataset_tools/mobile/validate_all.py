@@ -11,7 +11,7 @@ from neural_network.archery_ml.geometry.cli import main as evaluate_main, _git_s
 from neural_network.archery_ml.geometry.validation import aggregate_reports, configuration_key
 
 
-def run(manifest, policy_path, output, *, snapshot=None, final=False, board_map=None):
+def run(manifest, policy_path, output, *, snapshot=None, final=False, board_map=None, selections=None):
     output.mkdir(parents=True, exist_ok=False)
     policy = json.loads(policy_path.read_text())
     algorithm, dirty = _git_state()
@@ -45,6 +45,9 @@ def run(manifest, policy_path, output, *, snapshot=None, final=False, board_map=
             "--format",config["format"],"--minimum-scoring-zone",str(config["minimum_scoring_zone"]),
             "--ten-ring-mode",config["ten_ring_mode"],"--face-diameter-mm",str(int(diameter)),
             "--board-template",str(board),"--policy",str(policy_path),"--output",str(path)]
+        args += ["--selection-mode","selected"]
+        if selections is not None:
+            args += ["--selections",str(selections)]
         if config["triple_layout"]:
             args += ["--triple-layout",config["triple_layout"]]
         try:
@@ -78,9 +81,10 @@ if __name__ == "__main__":
     parser.add_argument("--snapshot",type=Path)
     parser.add_argument("--output",type=Path,required=True)
     parser.add_argument("--board-map",type=Path)
+    parser.add_argument("--selections",type=Path)
     parser.add_argument("--final",action="store_true")
     args = parser.parse_args()
     status = run(args.manifest,args.policy,args.output,snapshot=args.snapshot,final=args.final,
-                 board_map=None if args.board_map is None else json.loads(args.board_map.read_text()))
+                 board_map=None if args.board_map is None else json.loads(args.board_map.read_text()),selections=args.selections)
     print(json.dumps(status,indent=2,sort_keys=True))
     raise SystemExit(0 if status["status"] == "PASS" else 1)

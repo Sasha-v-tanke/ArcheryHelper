@@ -34,6 +34,7 @@ class HoldoutValidationTest(unittest.TestCase):
             for j in range(5):
                 identity = f"{index}:{j}"
                 samples.append(dict(sample_id=identity, split="mobile_real_test", status="READY" if j < 4 else "REJECTED",
+                    selection=dict(status="USER_CONFIRMED",source="USER",ownership_confirmed=True,detection_fingerprint="fixture"),
                     detected_face_count=count if j < 4 else 0, annotation_issues=[],
                     calibration=dict(orientation_status="ANCHORED", board_template_sha256="board-fixture",
                         calibration_revision="aruco-board-orientation-v1", image_rgb_sha256="image-fixture",
@@ -48,11 +49,23 @@ class HoldoutValidationTest(unittest.TestCase):
                     gt_provenance=dict(revision="reviewed-v1", annotations_sha256="annotation-checksum", annotation_manifest_sha256="gt-manifest")))
             self.reports.append(dict(target_config=config.copy(), metrics_version=METRICS_VERSION, sample_results=samples,
                 provenance=dict(algorithm_sha="algorithm", working_tree_dirty=False, manifest_sha256="manifest",
+                    evaluation_pipeline="selected-target-v1",selections_sha256="selection-fixture",
                     policy_sha256=sha, gt_revision="reviewed-v1", gt_sources=["gt-manifest"], dependencies={"python": "test"},
                     board_template_sha256="board-fixture", calibration_revision="aruco-board-orientation-v1")))
 
     def result(self):
         return aggregate_reports(self.reports, self.policy)["validation"]
+
+    def test_full_frame_and_unconfirmed_ready_cannot_pass_selected_pipeline_gate(self):
+        self.reports[0]["provenance"]["evaluation_pipeline"] = "full-frame-geometry-v1"
+        self.assertFails("selected-target pipeline")
+        self.reports[0]["provenance"]["evaluation_pipeline"] = "selected-target-v1"
+        self.reports[0]["sample_results"][0]["selection"]["status"] = "AUTO_CONFIDENT"
+        self.assertFails("verified user target selection")
+
+    def test_changed_selection_sidecar_cannot_be_aggregated(self):
+        self.reports[0]["provenance"]["selections_sha256"] = "changed"
+        self.assertFails("incompatible provenance: selections_sha256")
 
     def assertFails(self, text):
         result = self.result()

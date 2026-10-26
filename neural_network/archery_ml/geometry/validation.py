@@ -25,7 +25,8 @@ def aggregate_reports(reports: list[dict], policy: dict) -> dict:
     for report in reports:
         provenance = report.get("provenance", {})
         for key in ("algorithm_sha", "working_tree_dirty", "manifest_sha256", "policy_sha256",
-                    "gt_revision", "gt_sources", "dependencies", "quality_thresholds", "calibration_revision"):
+                    "gt_revision", "gt_sources", "dependencies", "quality_thresholds", "calibration_revision",
+                    "evaluation_pipeline", "selections_sha256"):
             if provenance.get(key) != first.get(key):
                 reasons.append(f"incompatible provenance: {key}")
         if report.get("metrics_version") != METRICS_VERSION:
@@ -42,6 +43,8 @@ def aggregate_reports(reports: list[dict], policy: dict) -> dict:
             samples.append({**sample, "target_config": report.get("target_config", sample.get("target_config", {})),
                             "calibration_template_sha256": provenance.get("board_template_sha256")})
     result = {"sample_results": samples, "provenance": first, "metrics_version": METRICS_VERSION}
+    from collections import Counter
+    result["selection_coverage"] = dict(Counter(s.get("selection",{}).get("status","FULL_FRAME") for s in samples))
     result["validation"] = validate_holdout(result, policy)
     result["validation"]["reasons"].extend(reasons)
     if reasons:
@@ -76,6 +79,9 @@ def validate_holdout(report: dict, policy: dict) -> dict:
     if not samples or any(s["split"] != "mobile_real_test" for s in samples):
         reasons.append("independent mobile_real_test required")
     provenance = report.get("provenance", {})
+    if policy.get("require_selected_target_pipeline") and (
+            provenance.get("evaluation_pipeline") != "selected-target-v1" or not provenance.get("selections_sha256")):
+        reasons.append("selected-target pipeline and frozen selections required")
     if provenance.get("working_tree_dirty", True):
         reasons.append("algorithm working tree is not frozen")
     for key in ("algorithm_sha", "manifest_sha256", "policy_sha256", "gt_revision", "dependencies"):
@@ -110,6 +116,11 @@ def validate_holdout(report: dict, policy: dict) -> dict:
             reasons.append("unknown suitability")
         if sample["status"] != "READY":
             continue
+        if policy.get("require_selected_target_pipeline"):
+            selection = sample.get("selection",{})
+            if (selection.get("status") != "USER_CONFIRMED" or selection.get("source") != "USER"
+                    or not selection.get("ownership_confirmed") or not selection.get("detection_fingerprint")):
+                reasons.append("READY sample lacks verified user target selection")
         config = sample.get("target_config", report.get("target_config", {}))
         count = 1 if config.get("format") == "SINGLE" else 3
         faces = sample.get("face_error", {})

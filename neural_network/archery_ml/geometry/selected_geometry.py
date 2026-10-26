@@ -29,8 +29,15 @@ class SelectedTargetGeometryPipeline:
         self.orientation_calibrator = orientation_calibrator
 
     def run(self, image, candidates, group, raw_to_rgb=None, output_dir=None):
+        return self._run(image,candidates,group,raw_to_rgb,output_dir)[0]
+
+    def evaluate(self, image, candidates, group, target_config, output_dir=None):
+        """Return the same pipeline's typed geometry for independent measurement."""
+        return self._run(image,candidates,group,output_dir=output_dir,target_config=target_config)
+
+    def _run(self, image, candidates, group, raw_to_rgb=None, output_dir=None, target_config=None):
         selected = [next(c for c in candidates if c["id"]==cid) for cid in group["candidate_ids"]]
-        config = config_for_group(group,group.get("minimum_scoring_zone"))
+        config = target_config or config_for_group(group,group.get("minimum_scoring_zone"))
         height,width = image.shape[:2]
         colored_radius = min(.6,(11-config.minimum_scoring_zone)*.1)
         visible_radius = (11-config.minimum_scoring_zone)*.1
@@ -55,6 +62,10 @@ class SelectedTargetGeometryPipeline:
             "actual_config":{"ten_ring_mode":"unknown","face_diameter_mm":"unknown","minimum_scoring_zone":"inferred; requires confirmation"},
             "config_assumptions":["RECURVE used for geometry only; scoring mode unknown","face diameter 1 is a dimensionless placeholder, not a physical measurement"],
             "faces":[],"diagnostics":[],"foreign_candidates_masked":[]}
+        if target_config is not None:
+            result["actual_config"] = result["processing_config"].copy()
+            result["config_assumptions"] = []
+        full = None
         try:
             if x1<=x0 or y1<=y0:
                 raise ValueError("invalid selected ROI")
@@ -143,4 +154,4 @@ class SelectedTargetGeometryPipeline:
         result["artifact_revision"]=hashlib.sha256(json.dumps({"config":result["processing_config"],
             "candidates":group["candidate_ids"],"transforms":[f["rgb_to_canonical"] for f in result["faces"]],
             "display_masks":[f.get("display_boundary",{}).get("mask_sha256") for f in result["faces"]]},sort_keys=True).encode()).hexdigest()[:16]
-        return result
+        return result, full

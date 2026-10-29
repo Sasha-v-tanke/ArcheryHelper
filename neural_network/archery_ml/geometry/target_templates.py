@@ -15,6 +15,7 @@ class GeometryTemplate:
     colored_outer_radius_norm: float
     ring_outer_radii: tuple[tuple[str, float], ...]
     triple_layout: TripleLayout | None
+    neutral_ring_outer_radii: tuple[tuple[str, float], ...] = ()
 
 
 def geometry_template(config: TargetConfig) -> GeometryTemplate:
@@ -30,4 +31,5 @@ def geometry_template(config: TargetConfig) -> GeometryTemplate:
             ("blue", colored_radius),
         ),
         triple_layout=config.triple_layout,
+        neutral_ring_outer_radii=(("black", 0.8),) if visible_radius >= 0.8 else (),
     )

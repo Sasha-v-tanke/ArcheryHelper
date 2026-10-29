@@ -50,9 +50,7 @@ def collect_ring_evidence(image, masks, template, initial, contour_cache=None):
     center = project([[0.0, 0.0]], np.linalg.inv(initial))[0]
     rings = []
     excluded = []
-    boundaries = template.ring_outer_radii
-    if template.visible_radius_norm >= 0.8:
-        boundaries = boundaries + (("black", 0.8),)
+    boundaries = template.ring_outer_radii + template.neutral_ring_outer_radii
     cache = {} if contour_cache is None else contour_cache
     for color, radius in boundaries:
         if color not in cache:

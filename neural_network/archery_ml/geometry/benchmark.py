@@ -71,6 +71,15 @@ def visualize(image, geometry, truth_centers, path, title, origin=(0, 0)):
                 )
         center = tuple(np.round(np.asarray(face.center) + origin).astype(int))
         cv2.drawMarker(canvas, center, (0, 255, 0), cv2.MARKER_CROSS, 24, 3)
+        spread = getattr(face, "center_uncertainty_norm", None)
+        if spread is not None and np.isfinite(spread) and 0 < spread < 1:
+            circle = 255.5 + 256 * spread * np.column_stack(
+                (np.cos(angles), np.sin(angles))
+            )
+            uncertainty = project(circle, inverse) + origin
+            cv2.polylines(
+                canvas, [uncertainty.round().astype(np.int32)], True, (255, 220, 30), 2
+            )
         for arc in getattr(face, "observed_arcs", ()):
             pts = np.asarray(arc["points"]) + origin
             cv2.polylines(
@@ -97,6 +106,29 @@ def visualize(image, geometry, truth_centers, path, title, origin=(0, 0)):
     canvas = cv2.resize(
         canvas, None, fx=factor, fy=factor, interpolation=cv2.INTER_AREA
     )
+    for face in geometry.faces:
+        center = np.round((np.asarray(face.center) + origin) * factor).astype(int)
+        spread = getattr(face, "center_uncertainty_norm", None)
+        label = f"F{face.face_index} {face.solver_status}"
+        if spread is not None:
+            label += f" spread={spread:.4f}n"
+        for offset, text in enumerate((label, ", ".join(face.rejection_reasons)[:90])):
+            location = (
+                max(4, min(int(center[0]) + 8, canvas.shape[1] - 250)),
+                max(40, min(int(center[1]) + 20 + offset * 17, canvas.shape[0] - 10)),
+            )
+            cv2.putText(
+                canvas, text, location, cv2.FONT_HERSHEY_SIMPLEX, 0.4, (10, 10, 10), 3
+            )
+            cv2.putText(
+                canvas,
+                text,
+                location,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (255, 255, 255),
+                1,
+            )
     cv2.putText(
         canvas,
         title[:130],

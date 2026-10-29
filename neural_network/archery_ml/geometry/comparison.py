@@ -148,9 +148,12 @@ def compare(baseline, candidate, output):
         "cases": cases,
         "production_validation": "NOT_VALIDATED",
         "center_gate_proposal": {
+            "maximum_median_center_error_norm": 0.005,
+            "maximum_p95_center_error_norm": 0.01,
+            "maximum_ready_center_error_norm": 0.02,
             "maximum_center_stability_norm": 0.025,
             "angular_fraction_minimum": 0.5,
-            "status": "development safeguards, not a validated accuracy guarantee",
+            "status": "development proposal based on synthetic center calibration; real center accuracy gate NOT_VALIDATED",
         },
     }
     output.mkdir(parents=True, exist_ok=False)

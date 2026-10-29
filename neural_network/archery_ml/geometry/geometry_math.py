@@ -1,4 +1,5 @@
 """Checked projection shared by fitting, synthetic truth, and diagnostics."""
+
 import numpy as np
 
 

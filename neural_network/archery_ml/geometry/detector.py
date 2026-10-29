@@ -13,7 +13,10 @@ from neural_network.archery_ml.geometry.target_templates import (
     geometry_template,
 )
 from neural_network.archery_ml.targets import TargetConfig, TripleLayout
-from neural_network.archery_ml.geometry.ring_evidence import local_color_masks, collect_ring_evidence
+from neural_network.archery_ml.geometry.ring_evidence import (
+    local_color_masks,
+    collect_ring_evidence,
+)
 from neural_network.archery_ml.geometry.selection import select_group
 from neural_network.archery_ml.geometry.uncertainty import estimate
 
@@ -66,8 +69,8 @@ class FaceGeometry:
     center_uncertainty_norm: float | None = None
     center_stability_norm: float | None = None
     observed_ring_count: int = 0
-    observed_arc_fraction: float = 0.
-    angular_coverage: float = 0.
+    observed_arc_fraction: float = 0.0
+    angular_coverage: float = 0.0
     solver_method: str = "legacy"
     solver_status: str = "LEGACY"
     rejection_reasons: tuple[str, ...] = ()
@@ -127,75 +130,137 @@ class TargetGeometryDetector:
             raise ValueError("unknown geometry method")
         self.method = method
 
-    def detect(self, image: np.ndarray, target_config: TargetConfig, *,
-               roi: tuple[int, int, int, int] | None = None,
-               candidate_ids: tuple[str, ...] | None = None) -> GeometryResult:
+    def detect(
+        self,
+        image: np.ndarray,
+        target_config: TargetConfig,
+        *,
+        roi: tuple[int, int, int, int] | None = None,
+        candidate_ids: tuple[str, ...] | None = None,
+    ) -> GeometryResult:
         rgb = _validate_image(image)
         height, width = rgb.shape[:2]
         if roi is not None:
-            if (len(roi)!=4 or any(type(v) is not int for v in roi)
-                    or not 0<=roi[0]<roi[2]<=width or not 0<=roi[1]<roi[3]<=height):
+            if (
+                len(roi) != 4
+                or any(type(v) is not int for v in roi)
+                or not 0 <= roi[0] < roi[2] <= width
+                or not 0 <= roi[1] < roi[3] <= height
+            ):
                 raise ValueError("ROI must be an in-frame nonempty integer rectangle")
-            x0,y0,x1,y1=roi
-            result=self.detect(rgb[y0:y1,x0:x1],target_config,candidate_ids=candidate_ids)
-            translation=np.array([[1.,0.,-x0],[0.,1.,-y0],[0.,0.,1.]])
-            faces=[]
+            x0, y0, x1, y1 = roi
+            result = self.detect(
+                rgb[y0:y1, x0:x1], target_config, candidate_ids=candidate_ids
+            )
+            translation = np.array([[1.0, 0.0, -x0], [0.0, 1.0, -y0], [0.0, 0.0, 1.0]])
+            faces = []
             for face in result.faces:
-                h=np.asarray(face.homography)@translation
-                arcs=tuple({**arc,'points':(np.asarray(arc['points'])+[x0,y0]).tolist()} for arc in face.observed_arcs)
-                faces.append(replace(face,center=(face.center[0]+x0,face.center[1]+y0),
-                    ellipse=replace(face.ellipse,center_x=face.ellipse.center_x+x0,center_y=face.ellipse.center_y+y0),
-                    homography=_matrix_tuple(h),inverse_homography=_matrix_tuple(_checked_inverse(h)),
-                    visible_bounds=tuple(v+(x0 if i%2==0 else y0) for i,v in enumerate(face.visible_bounds)),
-                    observed_arcs=arcs,excluded_points=tuple(tuple(np.asarray(p)+[x0,y0]) for p in face.excluded_points)))
-            proposals=tuple({**p,'center':(p['center'][0]+x0,p['center'][1]+y0)} for p in result.candidate_proposals)
-            return replace(result,faces=tuple(faces),visible_bounds=_aggregate_bounds(tuple(faces)),
-                           image_width=width,image_height=height,candidate_proposals=proposals)
+                h = np.asarray(face.homography) @ translation
+                arcs = tuple(
+                    {**arc, "points": (np.asarray(arc["points"]) + [x0, y0]).tolist()}
+                    for arc in face.observed_arcs
+                )
+                faces.append(
+                    replace(
+                        face,
+                        center=(face.center[0] + x0, face.center[1] + y0),
+                        ellipse=replace(
+                            face.ellipse,
+                            center_x=face.ellipse.center_x + x0,
+                            center_y=face.ellipse.center_y + y0,
+                        ),
+                        homography=_matrix_tuple(h),
+                        inverse_homography=_matrix_tuple(_checked_inverse(h)),
+                        visible_bounds=tuple(
+                            v + (x0 if i % 2 == 0 else y0)
+                            for i, v in enumerate(face.visible_bounds)
+                        ),
+                        observed_arcs=arcs,
+                        excluded_points=tuple(
+                            tuple(np.asarray(p) + [x0, y0])
+                            for p in face.excluded_points
+                        ),
+                    )
+                )
+            proposals = tuple(
+                {**p, "center": (p["center"][0] + x0, p["center"][1] + y0)}
+                for p in result.candidate_proposals
+            )
+            return replace(
+                result,
+                faces=tuple(faces),
+                visible_bounds=_aggregate_bounds(tuple(faces)),
+                image_width=width,
+                image_height=height,
+                candidate_proposals=proposals,
+            )
         template = geometry_template(target_config)
         masks = _target_color_masks(rgb)
-        evidence_cache={}
-        prepared={}
+        evidence_cache = {}
+        prepared = {}
         if self.method == "robust":
-            masks=local_color_masks(rgb,masks)
-            proposals=_robust_candidates(masks,width,height,template)
-            candidates=[]
-            weak=[]
+            masks = local_color_masks(rgb, masks)
+            proposals = _robust_candidates(masks, width, height, template)
+            candidates = []
+            weak = []
             for candidate in proposals:
-                initial=_ellipse_seed(candidate,candidate.radius_hint or template.colored_outer_radius_norm,
-                                      (np.array([1.,0.]),np.array([0.,1.])))
-                observed,excluded=collect_ring_evidence(rgb,masks,template,initial,evidence_cache)
-                if len(observed)>=2:
+                initial = _ellipse_seed(
+                    candidate,
+                    candidate.radius_hint or template.colored_outer_radius_norm,
+                    (np.array([1.0, 0.0]), np.array([0.0, 1.0])),
+                )
+                observed, excluded = collect_ring_evidence(
+                    rgb, masks, template, initial, evidence_cache
+                )
+                if len(observed) >= 2:
                     candidates.append(candidate)
-                    prepared[id(candidate)]=(observed,excluded)
+                    prepared[id(candidate)] = (observed, excluded)
                 elif observed:
                     weak.append(candidate)
-                    prepared[id(candidate)]=(observed,excluded)
-            if len(candidates)<template.expected_face_count:
+                    prepared[id(candidate)] = (observed, excluded)
+            if len(candidates) < template.expected_face_count:
                 # Retain weak proposals for review/diagnostics when a face is
                 # missing. Their solver status can never become AUTO_READY.
                 candidates.extend(weak)
-            ordered_candidates,layout_valid=select_group(candidates,template,_order_candidates,candidate_ids)
+            ordered_candidates, layout_valid = select_group(
+                candidates, template, _order_candidates, candidate_ids
+            )
         else:
             candidates = _face_candidates(masks, width, height)
             ordered_candidates, layout_valid = _order_candidates(candidates, template)
         orientation_axes = _layout_axes(ordered_candidates, template)
         fitted_faces = []
-        rejection_reasons=[]
+        rejection_reasons = []
         if not layout_valid:
-            rejection_reasons.append('ambiguous_or_incompatible_target_group')
+            rejection_reasons.append("ambiguous_or_incompatible_target_group")
         for index, candidate in enumerate(ordered_candidates):
             try:
-                fitted_faces.append(self._fit_face(
-                    index, candidate, masks, template, width, height, orientation_axes, rgb, evidence_cache, prepared.get(id(candidate)),
-                ))
+                fitted_faces.append(
+                    self._fit_face(
+                        index,
+                        candidate,
+                        masks,
+                        template,
+                        width,
+                        height,
+                        orientation_axes,
+                        rgb,
+                        evidence_cache,
+                        prepared.get(id(candidate)),
+                    )
+                )
             except (np.linalg.LinAlgError, cv2.error, FloatingPointError):
                 # Preserve indices; incomplete geometry is rejected by the quality gate.
                 layout_valid = False
-                rejection_reasons.append(f'face_{index}_numerical_solver_failure')
+                rejection_reasons.append(f"face_{index}_numerical_solver_failure")
         faces = tuple(fitted_faces)
         bounds = _aggregate_bounds(faces)
         fit_error = float(np.mean([face.fit_error for face in faces])) if faces else 1.0
-        confidence = float(np.mean([face.geometry_confidence for face in faces])) if faces else 0.0
+        confidence = (
+            float(np.mean([face.geometry_confidence for face in faces]))
+            if faces
+            else 0.0
+        )
         if len(faces) != template.expected_face_count:
             confidence *= 0.4
         if not layout_valid:
@@ -210,8 +275,19 @@ class TargetGeometryDetector:
             image_width=width,
             image_height=height,
             rejection_reasons=tuple(rejection_reasons),
-            candidate_proposals=tuple({'id':f'f{i}','center':(c.ellipse.center_x,c.ellipse.center_y),
-                'diameter_px':c.ellipse.major_axis_px} for i,c in enumerate(sorted(candidates,key=lambda c:(c.ellipse.center_y,c.ellipse.center_x)))),
+            candidate_proposals=tuple(
+                {
+                    "id": f"f{i}",
+                    "center": (c.ellipse.center_x, c.ellipse.center_y),
+                    "diameter_px": c.ellipse.major_axis_px,
+                }
+                for i, c in enumerate(
+                    sorted(
+                        candidates,
+                        key=lambda c: (c.ellipse.center_y, c.ellipse.center_x),
+                    )
+                )
+            ),
         )
 
     def _fit_face(
@@ -227,7 +303,11 @@ class TargetGeometryDetector:
         contour_cache: dict | None = None,
         prepared_evidence: tuple | None = None,
     ) -> FaceGeometry:
-        rings = _associated_rings(candidate, masks, template) if self.method=="legacy" else []
+        rings = (
+            _associated_rings(candidate, masks, template)
+            if self.method == "legacy"
+            else []
+        )
         image_to_norm = _initial_image_to_norm(
             candidate,
             template.colored_outer_radius_norm,
@@ -235,47 +315,64 @@ class TargetGeometryDetector:
         )
         diagnostics = {}
         if self.method == "robust":
-            radius=candidate.radius_hint or template.colored_outer_radius_norm
-            image_to_norm=_ellipse_seed(candidate,radius,orientation_axes)
+            radius = candidate.radius_hint or template.colored_outer_radius_norm
+            image_to_norm = _ellipse_seed(candidate, radius, orientation_axes)
             if prepared_evidence is None:
-                observed,excluded=collect_ring_evidence(image,masks,template,image_to_norm,contour_cache)
+                observed, excluded = collect_ring_evidence(
+                    image, masks, template, image_to_norm, contour_cache
+                )
             else:
-                observed,excluded=prepared_evidence
-            solution=estimate(image_to_norm,observed)
-            image_to_norm=solution.transform
-            diagnostics={"diagnostics_version":1,**solution.diagnostics,"excluded_points":excluded}
-            rings=[(r.points,r.radius) for r in observed]
+                observed, excluded = prepared_evidence
+            solution = estimate(image_to_norm, observed)
+            image_to_norm = solution.transform
+            diagnostics = {
+                "diagnostics_version": 1,
+                **solution.diagnostics,
+                "excluded_points": excluded,
+            }
+            rings = [(r.points, r.radius) for r in observed]
         elif rings:
             refined_transform = _fit_projective_transform(image_to_norm, rings)
             image_to_norm = _stable_transform(image_to_norm, refined_transform, rings)
         if self.method == "legacy" and _ring_fit_error(image_to_norm, rings) > 0.06:
-            fallback_transform = _reliable_inner_ring_transform(candidate, masks, template)
+            fallback_transform = _reliable_inner_ring_transform(
+                candidate, masks, template
+            )
             if fallback_transform is not None:
                 image_to_norm = fallback_transform
         fit_error = _ring_fit_error(image_to_norm, rings)
-        canonical_transform = np.array(
-            [
-                [CANONICAL_RADIUS_PX, 0.0, CANONICAL_CENTER_PX],
-                [0.0, CANONICAL_RADIUS_PX, CANONICAL_CENTER_PX],
-                [0.0, 0.0, 1.0],
-            ],
-            dtype=np.float64,
-        ) @ image_to_norm
+        canonical_transform = (
+            np.array(
+                [
+                    [CANONICAL_RADIUS_PX, 0.0, CANONICAL_CENTER_PX],
+                    [0.0, CANONICAL_RADIUS_PX, CANONICAL_CENTER_PX],
+                    [0.0, 0.0, 1.0],
+                ],
+                dtype=np.float64,
+            )
+            @ image_to_norm
+        )
         inverse_transform = _checked_inverse(canonical_transform)
         angles = np.linspace(0.0, 2.0 * np.pi, 360, endpoint=False)
-        boundary = template.visible_radius_norm * np.column_stack((np.cos(angles), np.sin(angles)))
+        boundary = template.visible_radius_norm * np.column_stack(
+            (np.cos(angles), np.sin(angles))
+        )
         norm_to_image = _checked_inverse(image_to_norm)
         projected = _perspective_points(boundary, norm_to_image)
         if not np.isfinite(projected).all() or np.max(np.abs(projected)) > 1e7:
             raise np.linalg.LinAlgError("invalid projected target boundary")
         visible_ellipse = _ellipse_from_cv(cv2.fitEllipse(projected.astype(np.float32)))
         visible_bounds = (
-            float(projected[:, 0].min()), float(projected[:, 1].min()),
-            float(projected[:, 0].max()), float(projected[:, 1].max()),
+            float(projected[:, 0].min()),
+            float(projected[:, 1].min()),
+            float(projected[:, 0].max()),
+            float(projected[:, 1].max()),
         )
         center = _perspective_points(np.zeros((1, 2)), norm_to_image)[0]
         coverage = _bounds_coverage(visible_bounds, image_width, image_height)
-        scale_fraction = visible_ellipse.major_axis_px / max(1.0, min(image_width, image_height))
+        scale_fraction = visible_ellipse.major_axis_px / max(
+            1.0, min(image_width, image_height)
+        )
         fit_score = math.exp(-fit_error / 0.03)
         ring_score = min(1.0, len(rings) / 3.0)
         perspective_score = min(1.0, visible_ellipse.axis_ratio / 0.7)
@@ -369,15 +466,21 @@ def _target_color_masks(image: np.ndarray) -> dict[str, np.ndarray]:
 
 
 def _ellipse_seed(candidate, radius, orientation_axes):
-    ellipse=candidate.ellipse
-    angle=math.radians(ellipse.angle_deg)
-    rotation=np.array([[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]])
-    linear=rotation@np.diag([2*radius/ellipse.diameter_x,2*radius/ellipse.diameter_y])@rotation.T
-    axes=np.vstack(orientation_axes)
-    linear=axes@linear
-    transform=np.eye(3)
-    transform[:2,:2]=linear
-    transform[:2,2]=-linear@np.array([ellipse.center_x,ellipse.center_y])
+    ellipse = candidate.ellipse
+    angle = math.radians(ellipse.angle_deg)
+    rotation = np.array(
+        [[math.cos(angle), -math.sin(angle)], [math.sin(angle), math.cos(angle)]]
+    )
+    linear = (
+        rotation
+        @ np.diag([2 * radius / ellipse.diameter_x, 2 * radius / ellipse.diameter_y])
+        @ rotation.T
+    )
+    axes = np.vstack(orientation_axes)
+    linear = axes @ linear
+    transform = np.eye(3)
+    transform[:2, :2] = linear
+    transform[:2, 2] = -linear @ np.array([ellipse.center_x, ellipse.center_y])
     return transform
 
 
@@ -386,34 +489,60 @@ def _robust_candidates(masks, width, height, template):
     # ring radius in each seed; never assign red the missing outer radius.
     # Close narrow shafts for proposals only. Solver observations below still
     # come from the original unclosed image masks and measured pixels.
-    kernel_size=min(31,max(3,int(min(width,height)*.04)|1))
-    kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(kernel_size,kernel_size))
-    red=_candidates_from_mask(cv2.morphologyEx(masks['red'],cv2.MORPH_CLOSE,kernel),width,height)
-    blue=_candidates_from_mask(cv2.morphologyEx(masks['blue'],cv2.MORPH_CLOSE,kernel),width,height)
-    proposals=[]
+    kernel_size = min(31, max(3, int(min(width, height) * 0.04) | 1))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+    red = _candidates_from_mask(
+        cv2.morphologyEx(masks["red"], cv2.MORPH_CLOSE, kernel), width, height
+    )
+    blue = _candidates_from_mask(
+        cv2.morphologyEx(masks["blue"], cv2.MORPH_CLOSE, kernel), width, height
+    )
+    proposals = []
     for inner in red:
-        matches=[b for b in blue if .5<=b.ellipse.major_axis_px/inner.ellipse.major_axis_px<=2.
-                 and math.hypot(b.ellipse.center_x-inner.ellipse.center_x,b.ellipse.center_y-inner.ellipse.center_y)<.35*inner.ellipse.major_axis_px]
-        if len(matches)==1:
-            b=matches[0]
-            proposals.append(replace(b,radius_hint=template.colored_outer_radius_norm))
+        matches = [
+            b
+            for b in blue
+            if 0.5 <= b.ellipse.major_axis_px / inner.ellipse.major_axis_px <= 2.0
+            and math.hypot(
+                b.ellipse.center_x - inner.ellipse.center_x,
+                b.ellipse.center_y - inner.ellipse.center_y,
+            )
+            < 0.35 * inner.ellipse.major_axis_px
+        ]
+        if len(matches) == 1:
+            b = matches[0]
+            proposals.append(replace(b, radius_hint=template.colored_outer_radius_norm))
         else:
-            proposals.append(replace(inner,radius_hint=.4))
+            proposals.append(replace(inner, radius_hint=0.4))
     for b in blue:
-        if any(math.hypot(b.ellipse.center_x-c.ellipse.center_x,b.ellipse.center_y-c.ellipse.center_y)<.6*max(b.ellipse.major_axis_px,c.ellipse.major_axis_px) for c in proposals):
+        if any(
+            math.hypot(
+                b.ellipse.center_x - c.ellipse.center_x,
+                b.ellipse.center_y - c.ellipse.center_y,
+            )
+            < 0.6 * max(b.ellipse.major_axis_px, c.ellipse.major_axis_px)
+            for c in proposals
+        ):
             continue
-        proposals.append(replace(b,radius_hint=template.colored_outer_radius_norm))
+        proposals.append(replace(b, radius_hint=template.colored_outer_radius_norm))
     # Colour alone cannot propose a face. Require a second chromatic zone in
     # the expected interior; the precise transition is checked by evidence.
-    result=[]
+    result = []
     for candidate in proposals:
-        cx,cy=candidate.ellipse.center_x,candidate.ellipse.center_y
-        r=candidate.ellipse.major_axis_px*.4
-        x0,y0=max(0,int(cx-r)),max(0,int(cy-r))
-        x1,y1=min(width,int(cx+r+1)),min(height,int(cy+r+1))
-        support=sum(np.count_nonzero(masks[color][y0:y1,x0:x1])>=12 for color in ('yellow','red','blue'))
-        if support>=2:
-            if not any(math.hypot(cx-c.ellipse.center_x,cy-c.ellipse.center_y)<.35*max(candidate.ellipse.major_axis_px,c.ellipse.major_axis_px) for c in result):
+        cx, cy = candidate.ellipse.center_x, candidate.ellipse.center_y
+        r = candidate.ellipse.major_axis_px * 0.4
+        x0, y0 = max(0, int(cx - r)), max(0, int(cy - r))
+        x1, y1 = min(width, int(cx + r + 1)), min(height, int(cy + r + 1))
+        support = sum(
+            np.count_nonzero(masks[color][y0:y1, x0:x1]) >= 12
+            for color in ("yellow", "red", "blue")
+        )
+        if support >= 2:
+            if not any(
+                math.hypot(cx - c.ellipse.center_x, cy - c.ellipse.center_y)
+                < 0.35 * max(candidate.ellipse.major_axis_px, c.ellipse.major_axis_px)
+                for c in result
+            ):
                 result.append(candidate)
     return result
 
@@ -431,13 +560,23 @@ def _face_candidates(
     unmatched = []
     for candidate in primary:
         matches = [
-            (math.hypot(candidate.ellipse.center_x - inner.ellipse.center_x,
-                        candidate.ellipse.center_y - inner.ellipse.center_y), index)
+            (
+                math.hypot(
+                    candidate.ellipse.center_x - inner.ellipse.center_x,
+                    candidate.ellipse.center_y - inner.ellipse.center_y,
+                ),
+                index,
+            )
             for index, inner in enumerate(inner_candidates)
-            if 0.5 <= candidate.ellipse.major_axis_px / inner.ellipse.major_axis_px <= 2.0
+            if 0.5
+            <= candidate.ellipse.major_axis_px / inner.ellipse.major_axis_px
+            <= 2.0
         ]
         distance, index = min(matches, default=(float("inf"), -1))
-        if index >= 0 and distance < 0.75 * inner_candidates[index].ellipse.major_axis_px:
+        if (
+            index >= 0
+            and distance < 0.75 * inner_candidates[index].ellipse.major_axis_px
+        ):
             grouped.setdefault(index, []).append(candidate)
         else:
             unmatched.append(candidate)
@@ -446,11 +585,20 @@ def _face_candidates(
         if len(fragments) == 1:
             primary.extend(fragments)
         else:
-            contour = cv2.convexHull(np.concatenate([part.contour for part in fragments]).astype(np.float32))
-            primary.append(_Candidate(contour, _ellipse_from_cv(cv2.fitEllipse(contour)),
-                                      sum(part.area for part in fragments)))
+            contour = cv2.convexHull(
+                np.concatenate([part.contour for part in fragments]).astype(np.float32)
+            )
+            primary.append(
+                _Candidate(
+                    contour,
+                    _ellipse_from_cv(cv2.fitEllipse(contour)),
+                    sum(part.area for part in fragments),
+                )
+            )
     if not primary:
-        union = cv2.bitwise_or(masks["yellow"], cv2.bitwise_or(masks["red"], masks["blue"]))
+        union = cv2.bitwise_or(
+            masks["yellow"], cv2.bitwise_or(masks["red"], masks["blue"])
+        )
         primary = _candidates_from_mask(union, image_width, image_height)
     if not primary:
         return []
@@ -466,7 +614,9 @@ def _face_candidates(
                 candidate.ellipse.center_x - existing.ellipse.center_x,
                 candidate.ellipse.center_y - existing.ellipse.center_y,
             )
-            if distance < 0.55 * max(candidate.ellipse.major_axis_px, existing.ellipse.major_axis_px):
+            if distance < 0.55 * max(
+                candidate.ellipse.major_axis_px, existing.ellipse.major_axis_px
+            ):
                 overlapping_index = index
                 break
         if overlapping_index is None:
@@ -475,7 +625,11 @@ def _face_candidates(
 
         existing = selected[overlapping_index]
         if candidate.area >= 0.45 * existing.area:
-            contour = cv2.convexHull(np.concatenate((existing.contour, candidate.contour), axis=0).astype(np.float32))
+            contour = cv2.convexHull(
+                np.concatenate((existing.contour, candidate.contour), axis=0).astype(
+                    np.float32
+                )
+            )
             selected[overlapping_index] = _Candidate(
                 contour=contour,
                 ellipse=_ellipse_from_cv(cv2.fitEllipse(contour)),
@@ -515,7 +669,9 @@ def _associated_rings(
         if color == "blue":
             rings.append((_sample_contour(candidate.contour, 96), radius))
             continue
-        contours, _ = cv2.findContours(masks[color], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours, _ = cv2.findContours(
+            masks[color], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+        )
         if not contours:
             continue
         points = np.concatenate(contours).reshape(-1, 2).astype(np.float32)
@@ -524,7 +680,9 @@ def _associated_rings(
         delta = points - (ellipse.center_x, ellipse.center_y)
         x = delta[:, 0] * math.cos(angle) + delta[:, 1] * math.sin(angle)
         y = -delta[:, 0] * math.sin(angle) + delta[:, 1] * math.cos(angle)
-        relative_radius = np.hypot(2 * x / ellipse.diameter_x, 2 * y / ellipse.diameter_y)
+        relative_radius = np.hypot(
+            2 * x / ellipse.diameter_x, 2 * y / ellipse.diameter_y
+        )
         relative_radius *= template.colored_outer_radius_norm / radius
         # Gather all outer arcs, including disconnected pieces, but exclude
         # the inner boundary and shafts/fletchings outside this color zone.
@@ -550,19 +708,28 @@ def _ellipse_inliers(contour: np.ndarray) -> np.ndarray:
     best = np.ones(len(points), dtype=bool)
     best_count = 0
     for _ in range(96):
-        ellipse = _ellipse_from_cv(cv2.fitEllipse(points[rng.choice(len(points), 5, replace=False)]))
+        ellipse = _ellipse_from_cv(
+            cv2.fitEllipse(points[rng.choice(len(points), 5, replace=False)])
+        )
         if ellipse.minor_axis_px <= 0 or ellipse.axis_ratio < 0.2:
             continue
         if not 0.65 <= ellipse.major_axis_px / max(reference.major_axis_px, 1.0) <= 1.5:
             continue
-        if math.hypot(ellipse.center_x - reference.center_x,
-                      ellipse.center_y - reference.center_y) > 0.3 * reference.major_axis_px:
+        if (
+            math.hypot(
+                ellipse.center_x - reference.center_x,
+                ellipse.center_y - reference.center_y,
+            )
+            > 0.3 * reference.major_axis_px
+        ):
             continue
         angle = math.radians(ellipse.angle_deg)
         delta = points - (ellipse.center_x, ellipse.center_y)
         x = delta[:, 0] * math.cos(angle) + delta[:, 1] * math.sin(angle)
         y = -delta[:, 0] * math.sin(angle) + delta[:, 1] * math.cos(angle)
-        residual = np.abs(np.hypot(2 * x / ellipse.diameter_x, 2 * y / ellipse.diameter_y) - 1)
+        residual = np.abs(
+            np.hypot(2 * x / ellipse.diameter_x, 2 * y / ellipse.diameter_y) - 1
+        )
         inliers = residual < 0.035
         count = int(inliers.sum())
         if count > best_count:
@@ -612,7 +779,9 @@ def _fit_projective_transform(
         for contour, radius in rings:
             mapped = _perspective_points(contour, transform)
             angles = np.arctan2(mapped[:, 1], mapped[:, 0])
-            targets = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+            targets = np.column_stack(
+                (radius * np.cos(angles), radius * np.sin(angles))
+            )
             source_points.append(contour)
             target_points.append(targets.astype(np.float32))
         if not source_points:
@@ -661,7 +830,9 @@ def _checked_inverse(transform: np.ndarray) -> np.ndarray:
     if np.linalg.cond(matrix) > 1e12:
         raise np.linalg.LinAlgError("ill-conditioned homography")
     inverse = np.linalg.inv(matrix)
-    if not np.isfinite(inverse).all() or not np.allclose(matrix @ inverse, np.eye(3), atol=1e-7):
+    if not np.isfinite(inverse).all() or not np.allclose(
+        matrix @ inverse, np.eye(3), atol=1e-7
+    ):
         raise np.linalg.LinAlgError("inconsistent inverse homography")
     return inverse / scale
 
@@ -671,8 +842,8 @@ def _reliable_inner_ring_transform(
     masks: dict[str, np.ndarray],
     template: GeometryTemplate,
 ) -> np.ndarray | None:
-    reference_radius_px = (
-        candidate.ellipse.major_axis_px / (2.0 * template.colored_outer_radius_norm)
+    reference_radius_px = candidate.ellipse.major_axis_px / (
+        2.0 * template.colored_outer_radius_norm
     )
     center = np.asarray(
         (candidate.ellipse.center_x, candidate.ellipse.center_y),
@@ -688,7 +859,7 @@ def _reliable_inner_ring_transform(
         search_radius = reference_radius_px * radius_norm * 1.2 + 6.0
         within_search = (
             (xx - center[0]) ** 2 + (yy - center[1]) ** 2
-        ) <= search_radius ** 2
+        ) <= search_radius**2
         cropped_mask = np.where(within_search, masks[color], 0).astype(np.uint8)
         contours, _ = cv2.findContours(
             cropped_mask,
@@ -702,13 +873,16 @@ def _reliable_inner_ring_transform(
             if area < 80.0:
                 continue
             ellipse = _ellipse_from_cv(cv2.fitEllipse(contour))
-            if math.hypot(
-                ellipse.center_x - center[0],
-                ellipse.center_y - center[1],
-            ) > 0.25 * candidate.ellipse.major_axis_px:
+            if (
+                math.hypot(
+                    ellipse.center_x - center[0],
+                    ellipse.center_y - center[1],
+                )
+                > 0.25 * candidate.ellipse.major_axis_px
+            ):
                 continue
-            ellipse_radius_px = (
-                (ellipse.diameter_x + ellipse.diameter_y) / (4.0 * radius_norm)
+            ellipse_radius_px = (ellipse.diameter_x + ellipse.diameter_y) / (
+                4.0 * radius_norm
             )
             if not 0.85 <= ellipse_radius_px / reference_radius_px <= 1.15:
                 continue
@@ -783,7 +957,9 @@ def _order_candidates(
         ordered = sorted(candidates, key=lambda item: item.area, reverse=True)
         return ordered, len(ordered) == 1
     if len(candidates) != 3:
-        return sorted(candidates, key=lambda item: (item.ellipse.center_y, item.ellipse.center_x)), False
+        return sorted(
+            candidates, key=lambda item: (item.ellipse.center_y, item.ellipse.center_x)
+        ), False
     if template.triple_layout is TripleLayout.VERTICAL:
         return _order_vertical(candidates)
     if template.triple_layout is TripleLayout.TRIANGULAR:
@@ -793,7 +969,10 @@ def _order_candidates(
 
 def _order_vertical(candidates: list[_Candidate]) -> tuple[list[_Candidate], bool]:
     centers = np.asarray(
-        [[candidate.ellipse.center_x, candidate.ellipse.center_y] for candidate in candidates],
+        [
+            [candidate.ellipse.center_x, candidate.ellipse.center_y]
+            for candidate in candidates
+        ],
         dtype=np.float64,
     )
     centered = centers - centers.mean(axis=0, keepdims=True)
@@ -812,16 +991,23 @@ def _order_vertical(candidates: list[_Candidate]) -> tuple[list[_Candidate], boo
     ordered = [candidates[int(index)] for index in order]
     sorted_projection = projection[order]
     gaps = np.diff(sorted_projection)
-    median_diameter = float(np.median([candidate.ellipse.major_axis_px for candidate in candidates]))
+    median_diameter = float(
+        np.median([candidate.ellipse.major_axis_px for candidate in candidates])
+    )
     gap_ratio = float(np.max(gaps) / max(np.min(gaps), 1e-6))
     cross_span = float(np.max(cross) - np.min(cross))
-    valid = bool(np.min(gaps) > 0.0 and gap_ratio <= 1.8 and cross_span <= 0.5 * median_diameter)
+    valid = bool(
+        np.min(gaps) > 0.0 and gap_ratio <= 1.8 and cross_span <= 0.5 * median_diameter
+    )
     return ordered, valid
 
 
 def _order_triangular(candidates: list[_Candidate]) -> tuple[list[_Candidate], bool]:
     centers = np.asarray(
-        [[candidate.ellipse.center_x, candidate.ellipse.center_y] for candidate in candidates],
+        [
+            [candidate.ellipse.center_x, candidate.ellipse.center_y]
+            for candidate in candidates
+        ],
         dtype=np.float64,
     )
     distances = []
@@ -834,7 +1020,11 @@ def _order_triangular(candidates: list[_Candidate]) -> tuple[list[_Candidate], b
     top_index = int(np.argmin(centers[:, 1]))
     remaining = [index for index in range(3) if index != top_index]
     remaining.sort(key=lambda index: centers[index, 0])
-    ordered = [candidates[top_index], candidates[remaining[0]], candidates[remaining[1]]]
+    ordered = [
+        candidates[top_index],
+        candidates[remaining[0]],
+        candidates[remaining[1]],
+    ]
     return ordered, bool(valid)
 
 
@@ -880,8 +1070,12 @@ def _ellipse_bounds(ellipse: EllipseFit) -> tuple[float, float, float, float]:
     angle = math.radians(ellipse.angle_deg)
     radius_x = ellipse.diameter_x / 2.0
     radius_y = ellipse.diameter_y / 2.0
-    half_width = math.sqrt((radius_x * math.cos(angle)) ** 2 + (radius_y * math.sin(angle)) ** 2)
-    half_height = math.sqrt((radius_x * math.sin(angle)) ** 2 + (radius_y * math.cos(angle)) ** 2)
+    half_width = math.sqrt(
+        (radius_x * math.cos(angle)) ** 2 + (radius_y * math.sin(angle)) ** 2
+    )
+    half_height = math.sqrt(
+        (radius_x * math.sin(angle)) ** 2 + (radius_y * math.cos(angle)) ** 2
+    )
     return (
         ellipse.center_x - half_width,
         ellipse.center_y - half_height,
@@ -905,11 +1099,15 @@ def _bounds_coverage(
     clipped_top = max(0.0, top)
     clipped_right = min(float(image_width - 1), right)
     clipped_bottom = min(float(image_height - 1), bottom)
-    intersection = max(0.0, clipped_right - clipped_left) * max(0.0, clipped_bottom - clipped_top)
+    intersection = max(0.0, clipped_right - clipped_left) * max(
+        0.0, clipped_bottom - clipped_top
+    )
     return float(max(0.0, min(1.0, intersection / area)))
 
 
-def _aggregate_bounds(faces: tuple[FaceGeometry, ...]) -> tuple[float, float, float, float] | None:
+def _aggregate_bounds(
+    faces: tuple[FaceGeometry, ...],
+) -> tuple[float, float, float, float] | None:
     if not faces:
         return None
     return (

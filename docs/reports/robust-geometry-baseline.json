@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "code_sha": "9212f88c5e38eb89b547bed8089d2d94bb3a3bd5",
+    "source_hashes": {
+      "__init__.py": "39f00214bffa22cc8b8750418d6dc78bed28de704c72db1747195a37e16a7181",
+      "__main__.py": "df15dbadede3165e4815900cf042f8be6267ebafce42ce2b8b299f7988081e6a",
+      "audit.py": "eee417ad01365b4ac4cf338e2807fd38df46d12d88ecf51eb503d360bde293d0",
+      "benchmark.py": "e56f5d5c30f3dfcd6ee32cf5dd4bbf142edbf02875cfcf90a13584bce299eab6",
+      "cli.py": "38a17edcbd9cf00c1f2af0f7023a691b9751c027b36456328c06093156d2deea",
+      "detector.py": "53c029f4f88f13008225ba2469bdb785edd8e549dfb83d9f3601790bdf1e32eb",
+      "evaluate.py": "447d098554753d2d47f084987d97e943f64dc9b705ad2983b04361910da47811",
+      "lineage.py": "48a370d992d0685e2ae5af6463425125814810ecc92e6f78dbb11bf16a8569ae",
+      "normalize.py": "b1289fdc4e1fbe61ea8dc65d5a7875927eac33e4dc864a6e7d6eb08aa4cedbd5",
+      "quality.py": "44976ac2d3b7bc695b34bed2ad12196100b8ecbaeace9c2153b2631e34e2bba1",
+      "synthetic.py": "358bdeef9ebe589d3caa0a133a839bc405c7d7313ec3c12010662350fed55ca4",
+      "target_templates.py": "3c923e88c68b8ae0d9dd2fcaf36f37775c105158e1b2b1f2b6efe000afe2800a",
+      "validation.py": "f6806b5881569af299ea5037503a08dec922baabf94629805bbb30ba346da048"
+    },
+    "python": "3.12.7",
+    "numpy": "2.2.6",
+    "opencv": "4.12.0",
+    "method": "legacy",
+    "independent_real_holdout": "NOT_VALIDATED",
+    "runtime_scope": "desktop detector only; decode and visualization excluded; no Android claim",
+    "review_sha256": "ea98091d0e29b320584ddf354b90485e75e7b5a86b96d4605b177e1e6db5d995"
+  },
+  "synthetic": {
+    "samples": 27,
+    "ready": 18,
+    "center_error_norm": {
+      "count": 38,
+      "median": 0.0005548210062485968,
+      "p95": 0.41036927168858317,
+      "max": 0.9213174988503402
+    },
+    "point_error_2d": {
+      "count": 1216,
+      "median": 0.014803705532102179,
+      "p95": 0.893594520394885,
+      "max": 5.103882565306763
+    },
+    "ring_boundary_error": {
+      "count": 3648,
+      "median": 0.0028691422280043843,
+      "p95": 0.8349901050996108,
+      "max": 5.50977676250423
+    },
+    "false_accept_fraction": 0.0,
+    "false_reject_fraction": 0.25
+  },
+  "development_real": {
+    "samples": 58,
+    "ready": 25,
+    "expected_review_points": 172,
+    "measured_points": 172,
+    "center_error_px": {
+      "count": 172,
+      "median": 9.54195582815236,
+      "p95": 43.56611819576539,
+      "max": 73.91476422348124
+    }
+  },
+  "latency_ms": {
+    "independent_synthetic": {
+      "count": 27,
+      "median": 127.88583300425671,
+      "p95": 341.3104000035673,
+      "max": 575.2527920121793
+    },
+    "development_real": {
+      "count": 58,
+      "median": 517.8619579965016,
+      "p95": 926.7442473545088,
+      "max": 1392.1611669939011
+    },
+    "unlabeled": {
+      "count": 0
+    }
+  },
+  "process_peak_memory_bytes": 564756480
+}

@@ -5,13 +5,7 @@ import cv2
 import numpy as np
 
 from neural_network.archery_ml.targets import TargetConfig, TargetFormat, TenRingMode, TripleLayout
-
-
-def project(points, matrix):
-    homogeneous = np.column_stack((np.asarray(points), np.ones(len(points)))) @ matrix.T
-    if not np.isfinite(homogeneous).all() or np.any(np.abs(homogeneous[:, 2]) < 1e-10):
-        raise np.linalg.LinAlgError("points at projective horizon")
-    return homogeneous[:, :2] / homogeneous[:, 2:]
+from neural_network.archery_ml.geometry.geometry_math import project
 
 
 @dataclass(frozen=True)

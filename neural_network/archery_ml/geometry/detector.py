@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import cv2
 import numpy as np
@@ -13,6 +13,9 @@ from neural_network.archery_ml.geometry.target_templates import (
     geometry_template,
 )
 from neural_network.archery_ml.targets import TargetConfig, TripleLayout
+from neural_network.archery_ml.geometry.ring_evidence import local_color_masks, collect_ring_evidence
+from neural_network.archery_ml.geometry.selection import select_group
+from neural_network.archery_ml.geometry.uncertainty import estimate
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,25 @@ class FaceGeometry:
     visible_bounds: tuple[float, float, float, float]
     coverage: float
     ring_count: int
+    diagnostics_version: int = 0
+    center_uncertainty_norm: float | None = None
+    center_stability_norm: float | None = None
+    observed_ring_count: int = 0
+    observed_arc_fraction: float = 0.
+    angular_coverage: float = 0.
+    solver_method: str = "legacy"
+    solver_status: str = "LEGACY"
+    rejection_reasons: tuple[str, ...] = ()
+    cross_ring_consistency: float | None = None
+    hypothesis_disagreement: float | None = None
+    numerical_conditioning: float | None = None
+    held_sector_error: float | None = None
+    observed_arcs: tuple = ()
+    excluded_points: tuple = ()
+    diagnostic_note: str = ""
+    leave_one_ring_out_status: str = "NOT_MEASURED"
+    ring_leave_out_shifts: tuple = ()
+    sector_resample_shifts: tuple = ()
 
     @property
     def perspective_ratio(self) -> float:
@@ -82,6 +104,9 @@ class GeometryResult:
     # SINGLE and both TRIPLE layouts use image/layout axes. Concentric rings do
     # not establish physical board orientation; an external calibration API is required.
     orientation_reference: str = "unanchored_image_or_layout_axes"
+    rejection_reasons: tuple[str, ...] = ()
+    orientation_provenance: dict | None = None
+    candidate_proposals: tuple = ()
 
     @property
     def face_centers(self) -> tuple[tuple[float, float], ...]:
@@ -93,26 +118,80 @@ class _Candidate:
     contour: np.ndarray
     ellipse: EllipseFit
     area: float
+    radius_hint: float | None = None
 
 
 class TargetGeometryDetector:
-    def detect(self, image: np.ndarray, target_config: TargetConfig) -> GeometryResult:
+    def __init__(self, method: str = "robust"):
+        if method not in {"robust", "legacy"}:
+            raise ValueError("unknown geometry method")
+        self.method = method
+
+    def detect(self, image: np.ndarray, target_config: TargetConfig, *,
+               roi: tuple[int, int, int, int] | None = None,
+               candidate_ids: tuple[str, ...] | None = None) -> GeometryResult:
         rgb = _validate_image(image)
         height, width = rgb.shape[:2]
+        if roi is not None:
+            if (len(roi)!=4 or any(type(v) is not int for v in roi)
+                    or not 0<=roi[0]<roi[2]<=width or not 0<=roi[1]<roi[3]<=height):
+                raise ValueError("ROI must be an in-frame nonempty integer rectangle")
+            x0,y0,x1,y1=roi
+            result=self.detect(rgb[y0:y1,x0:x1],target_config,candidate_ids=candidate_ids)
+            translation=np.array([[1.,0.,-x0],[0.,1.,-y0],[0.,0.,1.]])
+            faces=[]
+            for face in result.faces:
+                h=np.asarray(face.homography)@translation
+                arcs=tuple({**arc,'points':(np.asarray(arc['points'])+[x0,y0]).tolist()} for arc in face.observed_arcs)
+                faces.append(replace(face,center=(face.center[0]+x0,face.center[1]+y0),
+                    ellipse=replace(face.ellipse,center_x=face.ellipse.center_x+x0,center_y=face.ellipse.center_y+y0),
+                    homography=_matrix_tuple(h),inverse_homography=_matrix_tuple(_checked_inverse(h)),
+                    visible_bounds=tuple(v+(x0 if i%2==0 else y0) for i,v in enumerate(face.visible_bounds)),
+                    observed_arcs=arcs,excluded_points=tuple(tuple(np.asarray(p)+[x0,y0]) for p in face.excluded_points)))
+            proposals=tuple({**p,'center':(p['center'][0]+x0,p['center'][1]+y0)} for p in result.candidate_proposals)
+            return replace(result,faces=tuple(faces),visible_bounds=_aggregate_bounds(tuple(faces)),
+                           image_width=width,image_height=height,candidate_proposals=proposals)
         template = geometry_template(target_config)
         masks = _target_color_masks(rgb)
-        candidates = _face_candidates(masks, width, height)
-        ordered_candidates, layout_valid = _order_candidates(candidates, template)
+        evidence_cache={}
+        prepared={}
+        if self.method == "robust":
+            masks=local_color_masks(rgb,masks)
+            proposals=_robust_candidates(masks,width,height,template)
+            candidates=[]
+            weak=[]
+            for candidate in proposals:
+                initial=_ellipse_seed(candidate,candidate.radius_hint or template.colored_outer_radius_norm,
+                                      (np.array([1.,0.]),np.array([0.,1.])))
+                observed,excluded=collect_ring_evidence(rgb,masks,template,initial,evidence_cache)
+                if len(observed)>=2:
+                    candidates.append(candidate)
+                    prepared[id(candidate)]=(observed,excluded)
+                elif observed:
+                    weak.append(candidate)
+                    prepared[id(candidate)]=(observed,excluded)
+            if len(candidates)<template.expected_face_count:
+                # Retain weak proposals for review/diagnostics when a face is
+                # missing. Their solver status can never become AUTO_READY.
+                candidates.extend(weak)
+            ordered_candidates,layout_valid=select_group(candidates,template,_order_candidates,candidate_ids)
+        else:
+            candidates = _face_candidates(masks, width, height)
+            ordered_candidates, layout_valid = _order_candidates(candidates, template)
         orientation_axes = _layout_axes(ordered_candidates, template)
         fitted_faces = []
+        rejection_reasons=[]
+        if not layout_valid:
+            rejection_reasons.append('ambiguous_or_incompatible_target_group')
         for index, candidate in enumerate(ordered_candidates):
             try:
                 fitted_faces.append(self._fit_face(
-                    index, candidate, masks, template, width, height, orientation_axes,
+                    index, candidate, masks, template, width, height, orientation_axes, rgb, evidence_cache, prepared.get(id(candidate)),
                 ))
             except (np.linalg.LinAlgError, cv2.error, FloatingPointError):
                 # Preserve indices; incomplete geometry is rejected by the quality gate.
                 layout_valid = False
+                rejection_reasons.append(f'face_{index}_numerical_solver_failure')
         faces = tuple(fitted_faces)
         bounds = _aggregate_bounds(faces)
         fit_error = float(np.mean([face.fit_error for face in faces])) if faces else 1.0
@@ -130,6 +209,9 @@ class TargetGeometryDetector:
             layout_valid=layout_valid,
             image_width=width,
             image_height=height,
+            rejection_reasons=tuple(rejection_reasons),
+            candidate_proposals=tuple({'id':f'f{i}','center':(c.ellipse.center_x,c.ellipse.center_y),
+                'diameter_px':c.ellipse.major_axis_px} for i,c in enumerate(sorted(candidates,key=lambda c:(c.ellipse.center_y,c.ellipse.center_x)))),
         )
 
     def _fit_face(
@@ -141,17 +223,32 @@ class TargetGeometryDetector:
         image_width: int,
         image_height: int,
         orientation_axes: tuple[np.ndarray, np.ndarray],
+        image: np.ndarray | None = None,
+        contour_cache: dict | None = None,
+        prepared_evidence: tuple | None = None,
     ) -> FaceGeometry:
-        rings = _associated_rings(candidate, masks, template)
+        rings = _associated_rings(candidate, masks, template) if self.method=="legacy" else []
         image_to_norm = _initial_image_to_norm(
             candidate,
             template.colored_outer_radius_norm,
             orientation_axes,
         )
-        if rings:
+        diagnostics = {}
+        if self.method == "robust":
+            radius=candidate.radius_hint or template.colored_outer_radius_norm
+            image_to_norm=_ellipse_seed(candidate,radius,orientation_axes)
+            if prepared_evidence is None:
+                observed,excluded=collect_ring_evidence(image,masks,template,image_to_norm,contour_cache)
+            else:
+                observed,excluded=prepared_evidence
+            solution=estimate(image_to_norm,observed)
+            image_to_norm=solution.transform
+            diagnostics={"diagnostics_version":1,**solution.diagnostics,"excluded_points":excluded}
+            rings=[(r.points,r.radius) for r in observed]
+        elif rings:
             refined_transform = _fit_projective_transform(image_to_norm, rings)
             image_to_norm = _stable_transform(image_to_norm, refined_transform, rings)
-        if _ring_fit_error(image_to_norm, rings) > 0.06:
+        if self.method == "legacy" and _ring_fit_error(image_to_norm, rings) > 0.06:
             fallback_transform = _reliable_inner_ring_transform(candidate, masks, template)
             if fallback_transform is not None:
                 image_to_norm = fallback_transform
@@ -202,6 +299,7 @@ class TargetGeometryDetector:
             visible_bounds=visible_bounds,
             coverage=coverage,
             ring_count=len(rings),
+            **diagnostics,
         )
 
 
@@ -268,6 +366,56 @@ def _target_color_masks(image: np.ndarray) -> dict[str, np.ndarray]:
         closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
         masks[name] = cv2.morphologyEx(closed, cv2.MORPH_OPEN, kernel, iterations=1)
     return masks
+
+
+def _ellipse_seed(candidate, radius, orientation_axes):
+    ellipse=candidate.ellipse
+    angle=math.radians(ellipse.angle_deg)
+    rotation=np.array([[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]])
+    linear=rotation@np.diag([2*radius/ellipse.diameter_x,2*radius/ellipse.diameter_y])@rotation.T
+    axes=np.vstack(orientation_axes)
+    linear=axes@linear
+    transform=np.eye(3)
+    transform[:2,:2]=linear
+    transform[:2,2]=-linear@np.array([ellipse.center_x,ellipse.center_y])
+    return transform
+
+
+def _robust_candidates(masks, width, height, template):
+    # A red interior survives many broken blue annuli. Keep the actual measured
+    # ring radius in each seed; never assign red the missing outer radius.
+    # Close narrow shafts for proposals only. Solver observations below still
+    # come from the original unclosed image masks and measured pixels.
+    kernel_size=min(31,max(3,int(min(width,height)*.04)|1))
+    kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(kernel_size,kernel_size))
+    red=_candidates_from_mask(cv2.morphologyEx(masks['red'],cv2.MORPH_CLOSE,kernel),width,height)
+    blue=_candidates_from_mask(cv2.morphologyEx(masks['blue'],cv2.MORPH_CLOSE,kernel),width,height)
+    proposals=[]
+    for inner in red:
+        matches=[b for b in blue if .5<=b.ellipse.major_axis_px/inner.ellipse.major_axis_px<=2.
+                 and math.hypot(b.ellipse.center_x-inner.ellipse.center_x,b.ellipse.center_y-inner.ellipse.center_y)<.35*inner.ellipse.major_axis_px]
+        if len(matches)==1:
+            b=matches[0]
+            proposals.append(replace(b,radius_hint=template.colored_outer_radius_norm))
+        else:
+            proposals.append(replace(inner,radius_hint=.4))
+    for b in blue:
+        if any(math.hypot(b.ellipse.center_x-c.ellipse.center_x,b.ellipse.center_y-c.ellipse.center_y)<.6*max(b.ellipse.major_axis_px,c.ellipse.major_axis_px) for c in proposals):
+            continue
+        proposals.append(replace(b,radius_hint=template.colored_outer_radius_norm))
+    # Colour alone cannot propose a face. Require a second chromatic zone in
+    # the expected interior; the precise transition is checked by evidence.
+    result=[]
+    for candidate in proposals:
+        cx,cy=candidate.ellipse.center_x,candidate.ellipse.center_y
+        r=candidate.ellipse.major_axis_px*.4
+        x0,y0=max(0,int(cx-r)),max(0,int(cy-r))
+        x1,y1=min(width,int(cx+r+1)),min(height,int(cy+r+1))
+        support=sum(np.count_nonzero(masks[color][y0:y1,x0:x1])>=12 for color in ('yellow','red','blue'))
+        if support>=2:
+            if not any(math.hypot(cx-c.ellipse.center_x,cy-c.ellipse.center_y)<.35*max(candidate.ellipse.major_axis_px,c.ellipse.major_axis_px) for c in result):
+                result.append(candidate)
+    return result
 
 
 def _face_candidates(

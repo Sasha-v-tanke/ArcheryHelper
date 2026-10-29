@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from neural_network.archery_ml.geometry.detector import GeometryResult, _checked_inverse
+from neural_network.archery_ml.geometry.projective_solver import SolverPolicy
 
 
 class QualityStatus(str, Enum):
@@ -81,6 +82,22 @@ class ImageQualityGate:
             return self._result(QualityStatus.WRONG_FACE_COUNT, geometry_result, metrics)
         if not geometry_result.layout_valid:
             return self._result(QualityStatus.TARGET_NOT_FOUND, geometry_result, metrics)
+        for face in geometry_result.faces:
+            if face.diagnostics_version:
+                policy=SolverPolicy()
+                values=(face.center_uncertainty_norm,face.center_stability_norm,face.angular_coverage,
+                    face.cross_ring_consistency,face.hypothesis_disagreement,face.numerical_conditioning,face.held_sector_error)
+                if (face.diagnostics_version!=1 or face.solver_status!="AUTO_READY" or face.rejection_reasons
+                        or any(v is None for v in values) or not np.isfinite(values).all() or min(values)<0):
+                    return self._result(QualityStatus.GEOMETRY_UNCERTAIN, geometry_result, metrics)
+                center=np.asarray(face.homography)@np.array([*face.center,1.])
+                if (face.center_uncertainty_norm>policy.maximum_center_spread
+                        or face.center_stability_norm>policy.maximum_center_spread
+                        or face.angular_coverage<policy.minimum_angular_fraction
+                        or face.observed_ring_count<2 or face.held_sector_error>policy.maximum_validation_error
+                        or face.numerical_conditioning>1e5 or abs(center[2])<1e-10
+                        or np.linalg.norm(center[:2]/center[2]-255.5)>.01):
+                    return self._result(QualityStatus.GEOMETRY_UNCERTAIN, geometry_result, metrics)
         if geometry_result.geometry_confidence < self.thresholds.minimum_geometry_confidence:
             return self._result(QualityStatus.TARGET_NOT_FOUND, geometry_result, metrics)
         if any(

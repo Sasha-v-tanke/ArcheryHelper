@@ -1,0 +1,1500 @@
+{
+  "schema_version": 1,
+  "baseline_provenance": {
+    "code_sha": "78b93bc319653421e6cd4d4a587a0ffb9c8c845e",
+    "source_hashes": {
+      "__init__.py": "fa4a46bf83fbe8b5a2bcc6925400f71ba3725456828ac2814c7b5f452b9da8ff",
+      "__main__.py": "df15dbadede3165e4815900cf042f8be6267ebafce42ce2b8b299f7988081e6a",
+      "arc_extraction.py": "6d5c59ad406b2b16730c8b7f6222f3ec63c79933f6c064b356d895b6ecc0526e",
+      "audit.py": "eee417ad01365b4ac4cf338e2807fd38df46d12d88ecf51eb503d360bde293d0",
+      "benchmark.py": "c685a2a93a45d834462dd9ca9db8e95817893a8ec4a64aec9916b00232f69287",
+      "cli.py": "38a17edcbd9cf00c1f2af0f7023a691b9751c027b36456328c06093156d2deea",
+      "comparison.py": "1539e25fef74b972a0cc2a87e29a1902c05048db8c67baa9524928e6e5f772e8",
+      "detector.py": "a5d2dc2daf2087c0ea36857639a3804d76755975074106beed6a50e8377dc083",
+      "evaluate.py": "447d098554753d2d47f084987d97e943f64dc9b705ad2983b04361910da47811",
+      "geometry_math.py": "be77c0d9bece66f1dd20c6efe99df7d4588ad5f2ce73ec06606ab7636b36b59a",
+      "lineage.py": "48a370d992d0685e2ae5af6463425125814810ecc92e6f78dbb11bf16a8569ae",
+      "normalize.py": "b1289fdc4e1fbe61ea8dc65d5a7875927eac33e4dc864a6e7d6eb08aa4cedbd5",
+      "occlusion.py": "a00ca5bbb8c7a075e715c5bf3d2a796206926d7f3c3efb30a0341008cb4cc158",
+      "orientation.py": "ce7a7ca5c1b7ce10f6833eb58859d1ff3298731b50514d90b0b052a5a24921ce",
+      "performance.py": "31982560f88dfe38376aca188b5a2828939332390f4267c90006308911dea641",
+      "projective_solver.py": "64619a9f1bb4958f7f6c3425699ff8e6aba6e899c83c49b09a480365e8970e2d",
+      "quality.py": "652d882949b5eb7366d02120fd9748a2dd8d818dc3a2d6b3d823bd261d2743cb",
+      "ring_evidence.py": "06a7ae9715cc6d2b06570c961761ef034a65d636508c90e39dcde4e7a901e093",
+      "selection.py": "5cea15c5b111e069ec3d0926c423df39f599cac733c2c60d900ec53a2ffac866",
+      "synthetic.py": "785d16d4c8f26dc76a1677a90deb19db3794c7e81f1d45b30141d6c877919c5f",
+      "target_templates.py": "e8a0ca5683bd4f7d7b1ae2a8a96d53650a232fd6023b16e78074f887e7239a7b",
+      "uncertainty.py": "73c1aa2d559beec39528bc046959afd0831e59e6e1f22a94a912d744fc48cb25",
+      "validation.py": "f6806b5881569af299ea5037503a08dec922baabf94629805bbb30ba346da048"
+    },
+    "python": "3.12.7",
+    "numpy": "2.2.6",
+    "opencv": "4.12.0",
+    "method": "legacy",
+    "independent_real_holdout": "NOT_VALIDATED",
+    "runtime_scope": "desktop detector only; decode and visualization excluded; no Android claim",
+    "review_sha256": "ea98091d0e29b320584ddf354b90485e75e7b5a86b96d4605b177e1e6db5d995"
+  },
+  "candidate_provenance": {
+    "code_sha": "78b93bc319653421e6cd4d4a587a0ffb9c8c845e",
+    "source_hashes": {
+      "__init__.py": "fa4a46bf83fbe8b5a2bcc6925400f71ba3725456828ac2814c7b5f452b9da8ff",
+      "__main__.py": "df15dbadede3165e4815900cf042f8be6267ebafce42ce2b8b299f7988081e6a",
+      "arc_extraction.py": "6d5c59ad406b2b16730c8b7f6222f3ec63c79933f6c064b356d895b6ecc0526e",
+      "audit.py": "eee417ad01365b4ac4cf338e2807fd38df46d12d88ecf51eb503d360bde293d0",
+      "benchmark.py": "c685a2a93a45d834462dd9ca9db8e95817893a8ec4a64aec9916b00232f69287",
+      "cli.py": "38a17edcbd9cf00c1f2af0f7023a691b9751c027b36456328c06093156d2deea",
+      "comparison.py": "1539e25fef74b972a0cc2a87e29a1902c05048db8c67baa9524928e6e5f772e8",
+      "detector.py": "a5d2dc2daf2087c0ea36857639a3804d76755975074106beed6a50e8377dc083",
+      "evaluate.py": "447d098554753d2d47f084987d97e943f64dc9b705ad2983b04361910da47811",
+      "geometry_math.py": "be77c0d9bece66f1dd20c6efe99df7d4588ad5f2ce73ec06606ab7636b36b59a",
+      "lineage.py": "48a370d992d0685e2ae5af6463425125814810ecc92e6f78dbb11bf16a8569ae",
+      "normalize.py": "b1289fdc4e1fbe61ea8dc65d5a7875927eac33e4dc864a6e7d6eb08aa4cedbd5",
+      "occlusion.py": "a00ca5bbb8c7a075e715c5bf3d2a796206926d7f3c3efb30a0341008cb4cc158",
+      "orientation.py": "ce7a7ca5c1b7ce10f6833eb58859d1ff3298731b50514d90b0b052a5a24921ce",
+      "performance.py": "31982560f88dfe38376aca188b5a2828939332390f4267c90006308911dea641",
+      "projective_solver.py": "64619a9f1bb4958f7f6c3425699ff8e6aba6e899c83c49b09a480365e8970e2d",
+      "quality.py": "652d882949b5eb7366d02120fd9748a2dd8d818dc3a2d6b3d823bd261d2743cb",
+      "ring_evidence.py": "06a7ae9715cc6d2b06570c961761ef034a65d636508c90e39dcde4e7a901e093",
+      "selection.py": "5cea15c5b111e069ec3d0926c423df39f599cac733c2c60d900ec53a2ffac866",
+      "synthetic.py": "785d16d4c8f26dc76a1677a90deb19db3794c7e81f1d45b30141d6c877919c5f",
+      "target_templates.py": "e8a0ca5683bd4f7d7b1ae2a8a96d53650a232fd6023b16e78074f887e7239a7b",
+      "uncertainty.py": "73c1aa2d559beec39528bc046959afd0831e59e6e1f22a94a912d744fc48cb25",
+      "validation.py": "f6806b5881569af299ea5037503a08dec922baabf94629805bbb30ba346da048"
+    },
+    "python": "3.12.7",
+    "numpy": "2.2.6",
+    "opencv": "4.12.0",
+    "method": "robust",
+    "independent_real_holdout": "NOT_VALIDATED",
+    "runtime_scope": "desktop detector only; decode and visualization excluded; no Android claim",
+    "review_sha256": "ea98091d0e29b320584ddf354b90485e75e7b5a86b96d4605b177e1e6db5d995"
+  },
+  "development_real_paired_centers": {
+    "baseline": {
+      "count": 171,
+      "median": 9.47762533833513,
+      "p95": 43.579824641723604,
+      "max": 73.91476422348124
+    },
+    "new": {
+      "count": 171,
+      "median": 2.676538870476903,
+      "p95": 18.769382047772183,
+      "max": 24.44912928702392
+    },
+    "unmatched_references": [
+      {
+        "image": "b85853c2c1d50b3b2f7cfc1e30730db672002a8730111a6a3f239ecf0c69e120",
+        "point_id": "f3",
+        "baseline_measured": true,
+        "candidate_measured": false
+      }
+    ],
+    "independent_gt": false
+  },
+  "baseline_synthetic": {
+    "center_error_norm_all_detected": {
+      "count": 36,
+      "median": 0.0003769769984179801,
+      "p95": 0.04241248932057484,
+      "max": 0.3961704479143507
+    },
+    "point_error_2d_external_axes_all_detected": {
+      "count": 1152,
+      "median": 0.0037928464741234773,
+      "p95": 0.14917133740671526,
+      "max": 0.904010511573598
+    },
+    "center_error_norm_ready": {
+      "count": 30,
+      "median": 0.0002167642064372316,
+      "p95": 0.01296179107838293,
+      "max": 0.01682538822307321
+    },
+    "point_error_2d_external_axes_ready": {
+      "count": 960,
+      "median": 0.0034609283375929673,
+      "p95": 0.010657952619256476,
+      "max": 0.026610957240187378
+    },
+    "false_accept_fraction_on_negative_scenes": 0.0,
+    "negative_scenes": 3,
+    "orientation_scope": "dedicated synthetic external x-axis reference; real physical axes remain unanchored"
+  },
+  "new_synthetic": {
+    "center_error_norm_all_detected": {
+      "count": 36,
+      "median": 0.00020949621579369394,
+      "p95": 0.003207796620944941,
+      "max": 0.15227935222858274
+    },
+    "point_error_2d_external_axes_all_detected": {
+      "count": 1152,
+      "median": 0.002612776226797585,
+      "p95": 0.0074207619262928355,
+      "max": 0.36230244568153763
+    },
+    "center_error_norm_ready": {
+      "count": 32,
+      "median": 0.0001882110166859664,
+      "p95": 0.0005730355708487894,
+      "max": 0.0007164768177037833
+    },
+    "point_error_2d_external_axes_ready": {
+      "count": 1024,
+      "median": 0.0025014631649380482,
+      "p95": 0.0043420431761303415,
+      "max": 0.008713721608054989
+    },
+    "false_accept_fraction_on_negative_scenes": 0.0,
+    "negative_scenes": 3,
+    "orientation_scope": "dedicated synthetic external x-axis reference; real physical axes remain unanchored"
+  },
+  "baseline": {
+    "schema_version": 1,
+    "synthetic": {
+      "samples": 27,
+      "ready": 18,
+      "center_error_norm": {
+        "count": 38,
+        "median": 0.0005548210062485968,
+        "p95": 0.41036927168858317,
+        "max": 0.9213174988503402
+      },
+      "point_error_2d": {
+        "count": 1216,
+        "median": 0.014803705532102179,
+        "p95": 0.893594520394885,
+        "max": 5.103882565306763
+      },
+      "ring_boundary_error": {
+        "count": 3648,
+        "median": 0.0028691422280043843,
+        "p95": 0.8349901050996108,
+        "max": 5.50977676250423
+      },
+      "negative_scenes": 3,
+      "false_accept_fraction": 0.0,
+      "false_reject_fraction": 0.25
+    },
+    "development_real": {
+      "samples": 58,
+      "ready": 25,
+      "expected_review_points": 172,
+      "measured_points": 172,
+      "center_error_px": {
+        "count": 172,
+        "median": 9.54195582815236,
+        "p95": 43.56611819576539,
+        "max": 73.91476422348124
+      }
+    },
+    "latency_ms": {
+      "independent_synthetic": {
+        "count": 27,
+        "median": 25.37312501226552,
+        "p95": 50.18017859256361,
+        "max": 127.83204100560397
+      },
+      "development_real": {
+        "count": 58,
+        "median": 97.49524999642745,
+        "p95": 166.85096705914475,
+        "max": 257.37050001043826
+      },
+      "unlabeled": {
+        "count": 0
+      }
+    },
+    "process_peak_memory_bytes": 764346368
+  },
+  "new": {
+    "schema_version": 1,
+    "synthetic": {
+      "samples": 27,
+      "ready": 20,
+      "center_error_norm": {
+        "count": 37,
+        "median": 0.00021117890219796425,
+        "p95": 0.03820386730533751,
+        "max": 0.33873730910578453
+      },
+      "point_error_2d": {
+        "count": 1184,
+        "median": 0.014164741551561024,
+        "p95": 0.05133601036062832,
+        "max": 4.475980501709431
+      },
+      "ring_boundary_error": {
+        "count": 3552,
+        "median": 0.002082378362666587,
+        "p95": 0.027414691208524963,
+        "max": 5.292487142823867
+      },
+      "negative_scenes": 3,
+      "false_accept_fraction": 0.0,
+      "false_reject_fraction": 0.16666666666666666
+    },
+    "development_real": {
+      "samples": 58,
+      "ready": 20,
+      "expected_review_points": 172,
+      "measured_points": 171,
+      "center_error_px": {
+        "count": 171,
+        "median": 2.676538870476903,
+        "p95": 18.769382047772183,
+        "max": 24.44912928702392
+      }
+    },
+    "latency_ms": {
+      "independent_synthetic": {
+        "count": 27,
+        "median": 69.46162498206832,
+        "p95": 172.28852499683853,
+        "max": 203.9079169917386
+      },
+      "development_real": {
+        "count": 58,
+        "median": 327.31047899869736,
+        "p95": 499.2603187070926,
+        "max": 695.7594160048757
+      },
+      "unlabeled": {
+        "count": 0
+      }
+    },
+    "process_peak_memory_bytes": 873152512
+  },
+  "cases": [
+    {
+      "id": "5668fdcf9be68a93a9628ac04226c8e4945d09c21e17f77c8db21e743ceb268a",
+      "number": 13,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 10.877888339376572,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-13.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-13.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "636d741669d75fc32a8d8ec62efae8fbc999171bfa937d4c5f25fbea96de4358",
+      "number": 48,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 6.0732971002192295,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-48.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-48.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "5aa6a5cb1c4cd16dcfadf222b955c93687c88c2fc885d941560981eeffab8ea0",
+      "number": 33,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 5.5574912816357935,
+      "reasons": [
+        "insufficient_held_sector_evidence"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-33.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-33.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "60c850bacd9e075c0347dfc028bf7519df1411e09fda8fbd7171c7ac82ae654e",
+      "number": 25,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 5.5438521837412145,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-25.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-25.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "ef75955acd62e6f2f642f81000cd8104903bb517e22846763b8ab2b6a98f7297",
+      "number": 21,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 3.750029820877126,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement",
+        "unstable_center"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-21.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-21.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "3bdad309f489bd74d90136e1962ff25a8ed12228884137611db6c0522c4e6b0e",
+      "number": 14,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 2.881478359896218,
+      "reasons": [
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-14.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-14.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "40d8b18d352afbe98b176fcb6f7a8dcc6d80ce8c67134242dbcbab01929723d3",
+      "number": 42,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 1.3818193525660272,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-42.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-42.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "9a2b1f25f0f24898b638d15c546a768b1179863b60981316695094e3d050edbb",
+      "number": 53,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 1.120409379655682,
+      "reasons": [
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-53.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-53.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "2af080cb1fa092149a1c85f1a1533fdb6cd795dac499a9db3f724257067b1caa",
+      "number": 15,
+      "baseline_status": "READY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": true,
+      "new_max_center_error_px": 0.7422197836831416,
+      "reasons": [
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-15.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-15.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "0d00c0671cb92e0a18738460c4a41d6bbf451aa097fcb0ccfba4337956b321ad",
+      "number": 46,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 24.44912928702392,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-46.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-46.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "ee8945c02cf6d31c7b1dca112d1f95bacd684a93608fe8f7b0e5049a4f1528a6",
+      "number": 8,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 24.32983936477236,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-08.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-08.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "e03fb8d1eb27987ab9e1352027184b133762bf494e2379d6c3b86e8730ccb937",
+      "number": 7,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 23.855366266942365,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-07.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-07.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "8ec7741534e0e12cfaad6a5466297af7b42be6fd1821bea11879e7096b36be29",
+      "number": 10,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 22.091106145903503,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-10.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-10.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "f154a97f161fd1a14a8a7f0980465763d60107130eb274cbe76aa9c8aaef9754",
+      "number": 4,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 21.819128047049322,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-04.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-04.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "1a6f272a6cec08a1da46e88bacd9a7132c70656ce9c8db7c965d36d4b7be90e6",
+      "number": 9,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 21.06436572171142,
+      "reasons": [
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-09.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-09.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "d77bfeb16581bca1fc0c1d9297a069fbf0ba6ca612c87ab0168de4ebf74b8781",
+      "number": 1,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 15.17521275834567,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-01.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-01.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "f4a33f8588cd20739863e8f70752800c9dd0e8018acbd052941d76edce9a4eda",
+      "number": 51,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 15.015228196997198,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-51.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-51.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "1f83bcbaccfcee249ec1a79e37e61963e6fb2c510086c9629a6832cf07286b09",
+      "number": 11,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 14.58532076472156,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-11.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-11.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "9755a867a3aef90124025a95fba4d5f31d66065904025a4191c2145fe1a0affd",
+      "number": 50,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 12.258658620578338,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-50.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-50.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "11116fe9774e0d04d909388ba7c739c91bceb48b20bd47c4656251d2714e2136",
+      "number": 40,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 12.112138431809349,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-40.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-40.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "02b34cb08186c354800ea70f9bf797ed2bc1634bb7db11c6c25ecb4cae8348c1",
+      "number": 32,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 12.039759191852887,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-32.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-32.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "80334cbf6f6bbbcc20ac21ca59854106ded8ae986fbe3e093c26a2051248e0c5",
+      "number": 12,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 11.03288737340867,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-12.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-12.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "7696c8ac7a9939e31845576c71ac3f421e4dd64f4d37c661c34e461129152c95",
+      "number": 2,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 10.091554178536166,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-02.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-02.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "2beed1cfbf74f3c955c878d8dfe9efb5c39a3fa1ca939c695771f42790f6f8d7",
+      "number": 57,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 9.988837733531437,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-57.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-57.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "092da99e2e267706e0cadfaf22f7979077820462197f605e50297a992dc94a25",
+      "number": 34,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 9.595564488433865,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-34.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-34.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "b065474778bb8abfc725e38e4b811c129ad3ba70e6f460563c6b2a09f3fa4759",
+      "number": 45,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 8.045811068784813,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-45.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-45.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "af6761155ae386c26ac964a8455b7ca6c94f7ca2ba15cf575d925697a10c36de",
+      "number": 47,
+      "baseline_status": "TOO_BLURRY",
+      "new_status": "TOO_BLURRY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 7.968029277915684,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-47.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-47.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "54582e8abdb981f51ad86f74f58d8051e7e1129c1fd0b14e33fa255bc07edbd2",
+      "number": 54,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 7.07660301610933,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-54.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-54.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "880908ba4138f73ddaf83f449a28886c8dcd8488a05ca0dd4b9ed55b19cbf418",
+      "number": 35,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 6.891619458402307,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-35.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-35.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "9d32f47b25f255cc31dc70bd79a617bd5344e797a4d6f0bc409d2494522b0fae",
+      "number": 43,
+      "baseline_status": "TOO_BLURRY",
+      "new_status": "TOO_BLURRY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 6.183120122616691,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-43.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-43.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "36abda75b502615d02844ae2d16d3ea82f586c3dc3924fb13908b92cf8cb1c58",
+      "number": 39,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 5.793449213607657,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-39.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-39.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "b85853c2c1d50b3b2f7cfc1e30730db672002a8730111a6a3f239ecf0c69e120",
+      "number": 6,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "TARGET_NOT_FOUND",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 5.086592658240443,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement",
+        "insufficient_angular_coverage",
+        "insufficient_independent_rings",
+        "unstable_center"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-06.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-06.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "8e91331aaaf2f5976cf221d545280514c08f46d79f716774432f9f536ada4c7c",
+      "number": 27,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 4.83308014821399,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-27.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-27.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "a6d8cfd3cde7c0b7da8d0696e6a707232a5b7fe611cbb6924e57bd8ad4d32ffc",
+      "number": 49,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 4.7740271524373625,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-49.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-49.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "8eadd4b75e043286e6aa748e1f9be39719cf404fe03ddb5e8ddd7f9ba5d1db26",
+      "number": 37,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 3.0915923400356724,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-37.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-37.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "40a6fb49e9e171113fc407fc3b2e18de51b6ed019de37576eed5fd461ceccae3",
+      "number": 22,
+      "baseline_status": "TOO_BLURRY",
+      "new_status": "TOO_BLURRY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 2.5909178030406266,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-22.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-22.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "1e3ee722329f3749c354fbcdc37ed30c6a3abe910dfb638050b3b60412b38b45",
+      "number": 58,
+      "baseline_status": "TARGET_CLIPPED",
+      "new_status": "TARGET_CLIPPED",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 1.5470854371199225,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-58.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-58.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "bf83f6865784ca78fbe35ca3f4a917ae41bdf190216f33e8fe64952f6effe55d",
+      "number": 41,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.42612471420086034,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-41.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-41.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-12-missing_yellow",
+      "number": null,
+      "baseline_status": "TOO_BLURRY",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [
+        "insufficient_independent_rings"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-12-missing_yellow.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-12-missing_yellow.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-14-blur_jpeg",
+      "number": null,
+      "baseline_status": "TOO_BLURRY",
+      "new_status": "TOO_BLURRY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-14-blur_jpeg.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-14-blur_jpeg.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-15-clipped",
+      "number": null,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "TARGET_CLIPPED",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-15-clipped.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-15-clipped.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-16-blank",
+      "number": null,
+      "baseline_status": "TARGET_NOT_FOUND",
+      "new_status": "TARGET_NOT_FOUND",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-16-blank.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-16-blank.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-17-false_colors",
+      "number": null,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "TARGET_NOT_FOUND",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-17-false_colors.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-17-false_colors.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-18-insufficient",
+      "number": null,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [
+        "insufficient_angular_coverage",
+        "insufficient_independent_rings",
+        "unstable_center"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-18-insufficient.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-18-insufficient.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-22-occlusion",
+      "number": null,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "GEOMETRY_UNCERTAIN",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [
+        "held_sector_disagreement",
+        "unstable_center"
+      ],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-22-occlusion.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-22-occlusion.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "c98b8c2027250195c540524e34e848620f084f68fb8e1328ce29f3f27a25549f",
+      "number": 30,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 10.212779391010175,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-30.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-30.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "5ed7b92a3038448a415c93b3cfacaa09f2442ee70f26e5d7e2b4204ca1ef6a85",
+      "number": 3,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 9.557908746323406,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-03.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-03.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "b3a1635b482acd6eeb2750329659831c80369f99bb42b19545aedc4b81f70617",
+      "number": 16,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 9.335119692148218,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-16.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-16.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "2a577df049d3d7b4bbd790668a338b3feee8f2394636e62c336ce9dc2d068529",
+      "number": 52,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 6.839230127283752,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-52.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-52.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "8cb15159b30c356f4902ab9bd23b1d9eda4a36d35d493d31956794d0c6ef6e7a",
+      "number": 36,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 5.806714167979372,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-36.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-36.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "6e5f9c2c46d911a0766de8121ac50fcb39066a770e53fba0fde8e0029e121b44",
+      "number": 29,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 5.425616890573475,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-29.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-29.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "0d9b616cd5fe04525e72134390af8477e3575fe0728aca752f0282f1e5132ce4",
+      "number": 31,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 5.281820210971665,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-31.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-31.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "e0bdc4227b016597cce632fd012693d31b4ef91b4a66960523b9a8b607091d2e",
+      "number": 56,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 3.6056490457491583,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-56.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-56.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "41fec70e010c189d4d1dba325f2304813a0ddcc12f287dfd4306d1610a8020b3",
+      "number": 23,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 3.134660883080125,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-23.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-23.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "239c66cf276abaaaa523656d016a10c9d65c89f47a856534dff576ea8ae1d3fd",
+      "number": 24,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 3.0537887439114146,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-24.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-24.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "eb656f6b38312e967e31ad46b5ddce7d4f9fa0d18ce755c8a53cf00d6392f095",
+      "number": 5,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 2.7377848334175985,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-05.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-05.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "9fe432d2129924b01c069a3412f313a7d0f90f0b365f923a16dec7acede8b0ca",
+      "number": 19,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 2.622523741347586,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-19.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-19.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "8f96f6c5aeab98588067dafb99717f8af426fa54a4e2a4f12e10793a59e4de3e",
+      "number": 20,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.8643254598447196,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-20.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-20.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "36e5ad87e711dbfbad337b8201dfcdad2c70e63ed690906d4f4f2363787071c3",
+      "number": 26,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.7882421875151234,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-26.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-26.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "ebe59d468cb74f47f9b5056f1b0923b5c7eb7f11ef16a1fa46e55fc25681ba1e",
+      "number": 28,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.699358196312353,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-28.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-28.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "1ad072ae28b5d76865fae27c5036745ec4c48154becf51d260f5dabe22d9627a",
+      "number": 55,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.6443934090923403,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-55.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-55.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "d4adc62d459a1bc6e5ac7bba3b3a35ee996c2d2c74cf6ddeeb93eebfccd5c038",
+      "number": 44,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.6409194795729339,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-44.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-44.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "bceec129088ea2bf1c3e520825f1db25e751efa199bd9779bbe9ed60dc579fa2",
+      "number": 38,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.5995488967279339,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-38.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-38.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "54d6492d3ab7486fd3934326309bcc2e18062f720cb382fe4324b4b35ec25639",
+      "number": 18,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.5617976414785725,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-18.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-18.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "fc73c9ecbe027fce55d04e1a3b9b59e3d9f349901c97c502f212fbff155deeed",
+      "number": 17,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": 0.3737301236627768,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/real-17.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/real-17.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-00-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-00-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-00-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-01-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-01-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-01-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-02-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-02-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-02-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-03-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-03-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-03-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-04-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-04-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-04-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-05-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-05-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-05-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-06-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-06-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-06-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-07-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-07-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-07-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-08-clean",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-08-clean.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-08-clean.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-09-center_destroyed",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-09-center_destroyed.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-09-center_destroyed.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-10-arrows",
+      "number": null,
+      "baseline_status": "WRONG_FACE_COUNT",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-10-arrows.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-10-arrows.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-11-damaged_ring",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-11-damaged_ring.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-11-damaged_ring.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-13-lighting",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-13-lighting.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-13-lighting.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-19-occlusion",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-19-occlusion.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-19-occlusion.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-20-occlusion",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-20-occlusion.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-20-occlusion.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-21-occlusion",
+      "number": null,
+      "baseline_status": "GEOMETRY_UNCERTAIN",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-21-occlusion.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-21-occlusion.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-23-perspective",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-23-perspective.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-23-perspective.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-24-perspective",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-24-perspective.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-24-perspective.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-25-perspective",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-25-perspective.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-25-perspective.jpg",
+      "input_identity_verified": true
+    },
+    {
+      "id": "synthetic-26-perspective",
+      "number": null,
+      "baseline_status": "READY",
+      "new_status": "READY",
+      "acceptance_regression": false,
+      "new_max_center_error_px": null,
+      "reasons": [],
+      "baseline_preview": "data/reports/robust-geometry/review11-legacy/previews/synthetic-26-perspective.jpg",
+      "new_preview": "data/reports/robust-geometry/review11-robust/previews/synthetic-26-perspective.jpg",
+      "input_identity_verified": true
+    }
+  ],
+  "production_validation": "NOT_VALIDATED",
+  "center_gate_proposal": {
+    "maximum_median_center_error_norm": 0.005,
+    "maximum_p95_center_error_norm": 0.01,
+    "maximum_ready_center_error_norm": 0.02,
+    "maximum_center_stability_norm": 0.025,
+    "angular_fraction_minimum": 0.5,
+    "status": "development proposal based on synthetic center calibration; real center accuracy gate NOT_VALIDATED"
+  },
+  "regression_diagnostic_audit": [
+    {
+      "number": 13,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement"
+      ],
+      "max_held_sector_error": 0.03125368311920442,
+      "max_center_sensitivity_norm": 0.01471123769545979,
+      "max_local_scale_change_fraction": 0.0060957382887546485,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    },
+    {
+      "number": 48,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "max_held_sector_error": 0.003967338403733761,
+      "max_center_sensitivity_norm": 0.0021008704265927207,
+      "max_local_scale_change_fraction": 0.012314259271802408,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    },
+    {
+      "number": 33,
+      "reasons": [
+        "insufficient_held_sector_evidence"
+      ],
+      "max_held_sector_error": 0.006659899191670714,
+      "max_center_sensitivity_norm": 0.008770452570086204,
+      "max_local_scale_change_fraction": 0.012344995268234293,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    },
+    {
+      "number": 25,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "max_held_sector_error": 0.024843306272635063,
+      "max_center_sensitivity_norm": 0.006614483932618516,
+      "max_local_scale_change_fraction": 0.015109899521195125,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    },
+    {
+      "number": 21,
+      "reasons": [
+        "extrapolation_limit_reached",
+        "held_sector_disagreement",
+        "unstable_center"
+      ],
+      "max_held_sector_error": 0.09122477844607955,
+      "max_center_sensitivity_norm": 0.027002463754333465,
+      "max_local_scale_change_fraction": 0.009302776909951183,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    },
+    {
+      "number": 14,
+      "reasons": [
+        "held_sector_disagreement"
+      ],
+      "max_held_sector_error": 0.03201616616122289,
+      "max_center_sensitivity_norm": 0.0024584661280429116,
+      "max_local_scale_change_fraction": 0.0010701197925420125,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    },
+    {
+      "number": 42,
+      "reasons": [
+        "extrapolation_limit_reached"
+      ],
+      "max_held_sector_error": 0.021290259917517602,
+      "max_center_sensitivity_norm": 0.008201663569102593,
+      "max_local_scale_change_fraction": 0.0005393104219859612,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    },
+    {
+      "number": 53,
+      "reasons": [
+        "held_sector_disagreement"
+      ],
+      "max_held_sector_error": 0.03354718179762157,
+      "max_center_sensitivity_norm": 0.006734167422175044,
+      "max_local_scale_change_fraction": 0.0025985748753802884,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    },
+    {
+      "number": 15,
+      "reasons": [
+        "held_sector_disagreement"
+      ],
+      "max_held_sector_error": 0.03198127108234137,
+      "max_center_sensitivity_norm": 0.0021986589674021784,
+      "max_local_scale_change_fraction": 0.00032290189769779154,
+      "finite_invertible_homographies": true,
+      "physical_center_scale_and_homography_gt": "NOT_VALIDATED"
+    }
+  ],
+  "benchmark_scope": "Fresh legacy/robust rerun at 78b93bc; original pre-change baseline is retained unchanged; no independent real holdout.",
+  "tests": {
+    "run": 127,
+    "passed": 127,
+    "skipped": 0,
+    "seconds": 21.338
+  }
+}

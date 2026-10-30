@@ -1,6 +1,6 @@
 # Multi-Ring Robust Geometry Estimator
 
-Вердикт: **IMPLEMENTED_AWAITING_HOLDOUT**. Код и доступные локальные проверки завершены. Независимая точность реальных фотографий — **NOT_VALIDATED**. Публикация ветки и Draft PR ожидает отдельного разрешения после отклонения автоматической проверкой.
+Вердикт: **IMPLEMENTED_AWAITING_HOLDOUT**. Код и доступные локальные проверки завершены. Независимая точность реальных фотографий — **NOT_VALIDATED**. Ветка опубликована, открыт [Draft PR #11](https://github.com/Sasha-v-tanke/ArcheryHelper/pull/11).
 
 ## 1. Изменения
 
@@ -124,8 +124,8 @@ macOS27.0.1 ARM64; отдельный процесс для каждой пар�
 
 Ветка `feature/robust-target-geometry`, база main `9212f88`. Коммиты реализации: `03eef83` baseline; `5d4fa60` multi-ring estimator; `24834b5` comparison/performance; `6665396` template/diagnostic integration. Финальные документы записываются отдельным коммитом без изменения измеренного кода.
 
-Подготовлен локальный `docs/robust-target-geometry-pr.md`. **Ветка не опубликована, PR не создан.** Автоматическая проверка разрешений отклонила push во внешний `https://github.com/Sasha-v-tanke/ArcheryHelper`; требуется отдельное разрешение на публикацию ветки и создание одного Draft PR. Merge не выполнялся.
+Подготовлен локальный `docs/robust-target-geometry-pr.md`. После явного разрешения пользователя ветка опубликована в `https://github.com/Sasha-v-tanke/ArcheryHelper`, открыт [Draft PR #11](https://github.com/Sasha-v-tanke/ArcheryHelper/pull/11). Merge не выполнялся.
 
 ## 10. Вердикт
 
-**IMPLEMENTED_AWAITING_HOLDOUT**: multi-ring solver, integration, synthetic/negative tests, реальные development-измерения, previews, производительность и воспроизводимое сравнение выполнены. Production-quality на реальных снимках **NOT_VALIDATED**: требуется независимый holdout по существующей политике. Покрытие real READY снизилось, один центр не восстановлен, тяжёлые случаи остаются в отчёте. GitHub delivery ожидает разрешения на публикацию.
+**IMPLEMENTED_AWAITING_HOLDOUT**: multi-ring solver, integration, synthetic/negative tests, реальные development-измерения, previews, производительность и воспроизводимое сравнение выполнены. Production-quality на реальных снимках **NOT_VALIDATED**: требуется независимый holdout по существующей политике. Покрытие real READY снизилось, один центр не восстановлен, тяжёлые случаи остаются в отчёте. GitHub delivery: ветка опубликована, открыт Draft PR #11.

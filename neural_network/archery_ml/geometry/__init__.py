@@ -10,6 +10,7 @@ from neural_network.archery_ml.geometry.evaluate import (
     GeometryEvaluator,
 )
 from neural_network.archery_ml.geometry.normalize import CanonicalFace, TargetNormalizer
+from neural_network.archery_ml.geometry.orientation import OrientationCalibration, apply_orientation
 from neural_network.archery_ml.geometry.quality import (
     ImageQualityGate,
     QualityResult,
@@ -37,6 +38,8 @@ __all__ = [
     "GeometryResult",
     "GeometryTemplate",
     "ImageQualityGate",
+    "OrientationCalibration",
+    "apply_orientation",
     "QualityResult",
     "QualityStatus",
     "QualityThresholds",

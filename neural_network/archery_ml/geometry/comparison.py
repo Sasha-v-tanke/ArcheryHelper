@@ -81,6 +81,11 @@ def compare(baseline, candidate, output):
     cases = []
     for key, row in second.items():
         previous = first[key]
+        input_rejected = previous["status"] == row["status"] == "INPUT_REJECTED"
+        if not input_rejected and (
+            not previous.get("input_sha256") or not row.get("input_sha256")
+        ):
+            raise ValueError("comparison requires input_sha256 for evaluated inputs")
         if previous.get("roi") != row.get("roi") or previous.get(
             "input_sha256"
         ) != row.get("input_sha256"):
@@ -117,9 +122,19 @@ def compare(baseline, candidate, output):
                         for f in row.get("faces", [])
                         for reason in f.get("rejection_reasons", [])
                     }
+                    | {r["reason"] for r in (previous, row) if r.get("reason")}
                 ),
-                "baseline_preview": str((baseline / previous["preview"]).resolve()),
-                "new_preview": str((candidate / row["preview"]).resolve()),
+                "baseline_preview": (
+                    str((baseline / previous["preview"]).resolve())
+                    if previous.get("preview")
+                    else None
+                ),
+                "new_preview": (
+                    str((candidate / row["preview"]).resolve())
+                    if row.get("preview")
+                    else None
+                ),
+                "input_identity_verified": not input_rejected,
             }
         )
     cases.sort(
@@ -162,12 +177,21 @@ def compare(baseline, candidate, output):
     )
     rows = []
     for case in cases:
-        before = html.escape(os.path.relpath(case["baseline_preview"], output))
-        after = html.escape(os.path.relpath(case["new_preview"], output))
+
+        def preview(path):
+            if not path:
+                return (
+                    '<span class="missing">Preview unavailable (input rejected)</span>'
+                )
+            escaped = html.escape(os.path.relpath(path, output), quote=True)
+            return f"<a href='{escaped}'><img src='{escaped}'></a>"
+
         rows.append(
             f"<article><h3>{html.escape(str(case['number'] or case['id']))}: {case['baseline_status']} → {case['new_status']}</h3>"
-            f"<p>{html.escape(', '.join(case['reasons']))}</p><a href='{before}'><img src='{before}'></a>"
-            f"<a href='{after}'><img src='{after}'></a></article>"
+            f"<p>{html.escape(', '.join(case['reasons']))}</p>"
+            + preview(case["baseline_preview"])
+            + preview(case["new_preview"])
+            + "</article>"
         )
     (output / "index.html").write_text(
         '<!doctype html><meta charset="utf-8"><title>Target geometry comparison</title>'

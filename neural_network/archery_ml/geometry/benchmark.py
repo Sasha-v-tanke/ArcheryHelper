@@ -352,6 +352,7 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
             record = {
                 "id": key,
                 "number": row["number"],
+                "input_sha256": hashlib.sha256(rgb.tobytes()).hexdigest(),
                 "dataset": "development_real",
                 "status": quality.status.value,
                 "latency_ms": elapsed,
@@ -383,6 +384,7 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
         records.append(
             {
                 "id": name,
+                "input_sha256": hashlib.sha256(rgb.tobytes()).hexdigest(),
                 "dataset": "unlabeled",
                 "status": status,
                 "latency_ms": elapsed,
@@ -410,14 +412,13 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
             "ring_boundary_error": summary(
                 [e for r in synthetic for e in r["ring_boundary_errors"]]
             ),
-            "false_accept_fraction": sum(
-                r["expected_reject"]
-                or not r["center_errors_norm"]
-                or max(r["center_errors_norm"]) > 0.035
-                or len(r["center_errors_norm"]) != r["expected_faces"]
-                for r in ready
-            )
-            / max(1, len(ready)),
+            "negative_scenes": sum(r["expected_reject"] for r in synthetic),
+            "false_accept_fraction": (
+                sum(r["expected_reject"] and r["status"] == "READY" for r in synthetic)
+                / sum(r["expected_reject"] for r in synthetic)
+                if any(r["expected_reject"] for r in synthetic)
+                else None
+            ),
             "false_reject_fraction": sum(
                 r["status"] != "READY" and not r["expected_reject"] for r in synthetic
             )

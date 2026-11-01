@@ -1,0 +1,717 @@
+{
+  "date": "2026-10-26",
+  "engineering_status": "READY FOR REVIEW",
+  "stage3_status": "BLOCKED: INDEPENDENT REAL-DATA VALIDATION",
+  "stage4_started": false,
+  "pr_url": "https://github.com/Sasha-v-tanke/ArcheryHelper/pull/10",
+  "base_sha": "9212f88c5e38eb89b547bed8089d2d94bb3a3bd5",
+  "algorithm_sha": "e050d22eb35e90d5fd239caee048cfafc4241a68",
+  "pilot": {
+    "files": 58,
+    "read": 58,
+    "unique_originals": 58,
+    "exact_duplicates": 0,
+    "images_with_multiple_triple_groups": 20,
+    "detected_face_counts": {
+      "6": 15,
+      "9": 4,
+      "8": 1,
+      "5": 4,
+      "4": 8,
+      "3": 25,
+      "1": 1
+    },
+    "images_with_more_than_three_face": 32,
+    "selection_statuses": {
+      "USER_CONFIRMED": 57,
+      "AUTO_CONFIDENT": 1
+    },
+    "user_confirmed_groups": 57,
+    "correct_user_group_count": 57,
+    "ownership_pending_original_numbers": [
+      23
+    ],
+    "ready": 52,
+    "quality_statuses": {
+      "READY": 52,
+      "GEOMETRY_UNCERTAIN": 1,
+      "TOO_BLURRY": 3,
+      "TARGET_CLIPPED": 2
+    },
+    "images_with_ready_group_preview": 52,
+    "visually_correct_geometry": 0,
+    "visual_review_statuses": {},
+    "visual_review_sources": {},
+    "historical_user_ratings": {
+      "Correct": 25,
+      "Wrong geometry": 32,
+      "Uncertain": 1
+    },
+    "user_ratings_requiring_recheck": 58,
+    "visual_layout_counts": {},
+    "layouts_proposed": {
+      "SINGLE": 262,
+      "VERTICAL": 81
+    },
+    "physical_orientation": {
+      "UNANCHORED": 58
+    },
+    "display_boundary_statuses": {
+      "OBSERVED_BOUNDARY": 106,
+      "BOUNDARY_UNCERTAIN": 50
+    },
+    "display_boundary_uncertain_photo_numbers": [
+      1,
+      3,
+      5,
+      8,
+      9,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      23,
+      30,
+      31,
+      33,
+      38,
+      39,
+      40,
+      41,
+      42,
+      44,
+      48,
+      52,
+      53,
+      57
+    ],
+    "quantitative": {
+      "status": "QUALITATIVE ONLY / QUANTITATIVE NOT VERIFIED",
+      "independent_gt_images": 0,
+      "median_2d": null,
+      "p95_2d": null,
+      "per_image": [],
+      "issues": [],
+      "total_images": 58,
+      "ready_images": 52
+    },
+    "stage3_status": "BLOCKED",
+    "provenance": {
+      "algorithm_sha": "e050d22eb35e90d5fd239caee048cfafc4241a68",
+      "working_tree_dirty": false,
+      "python": "3.12.7",
+      "opencv": "4.12.0",
+      "selection_policy": "no ownership inference from arrow counts",
+      "capture_plan": "not_pre_registered"
+    }
+  },
+  "reproducibility": {
+    "status": "VERIFIED",
+    "differences": [],
+    "previous": {
+      "algorithm_sha": "e050d22eb35e90d5fd239caee048cfafc4241a68",
+      "working_tree_dirty": false,
+      "algorithm_content_sha256": "482b0d467bd56c5bef8a4674d3c33a604a47217f1bef98a2dc71e4adf1990650",
+      "inputs_sha256": "032828f4fd64c2ff49fba49ecf168d83fb146a9f64a9a2ddf774839a153c8ecc",
+      "results_sha256": "eb0f027959b49862cb462a437df5a3c3fe4c8dffa1d6cf0580b8c40afa8def10",
+      "dependencies": {
+        "python": "3.12.7",
+        "numpy": "2.2.6",
+        "opencv": "4.12.0",
+        "pillow": "11.3.0"
+      }
+    },
+    "current": {
+      "algorithm_sha": "e050d22eb35e90d5fd239caee048cfafc4241a68",
+      "working_tree_dirty": false,
+      "algorithm_content_sha256": "482b0d467bd56c5bef8a4674d3c33a604a47217f1bef98a2dc71e4adf1990650",
+      "inputs_sha256": "032828f4fd64c2ff49fba49ecf168d83fb146a9f64a9a2ddf774839a153c8ecc",
+      "results_sha256": "eb0f027959b49862cb462a437df5a3c3fe4c8dffa1d6cf0580b8c40afa8def10",
+      "dependencies": {
+        "python": "3.12.7",
+        "numpy": "2.2.6",
+        "opencv": "4.12.0",
+        "pillow": "11.3.0"
+      }
+    },
+    "excluded_fields": [
+      "processing_seconds"
+    ]
+  },
+  "original_hashes_unchanged": 58,
+  "maximum_round_trip_px": 2.2737367544323206e-12,
+  "rejected_images": [
+    {
+      "number": 4,
+      "quality_status": "GEOMETRY_UNCERTAIN",
+      "diagnostics": [
+        "GEOMETRY_UNCERTAIN"
+      ]
+    },
+    {
+      "number": 22,
+      "quality_status": "TOO_BLURRY",
+      "diagnostics": [
+        "TOO_BLURRY"
+      ]
+    },
+    {
+      "number": 34,
+      "quality_status": "TARGET_CLIPPED",
+      "diagnostics": [
+        "TARGET_CLIPPED"
+      ]
+    },
+    {
+      "number": 43,
+      "quality_status": "TOO_BLURRY",
+      "diagnostics": [
+        "TOO_BLURRY"
+      ]
+    },
+    {
+      "number": 47,
+      "quality_status": "TOO_BLURRY",
+      "diagnostics": [
+        "TOO_BLURRY"
+      ]
+    },
+    {
+      "number": 58,
+      "quality_status": "TARGET_CLIPPED",
+      "diagnostics": [
+        "TARGET_CLIPPED"
+      ]
+    }
+  ],
+  "synthetic_resolution_study": [
+    {
+      "layout": "single",
+      "pixels_per_mm": 1,
+      "image_size": [
+        800,
+        600
+      ],
+      "radius_px": 100,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.0119093807274479,
+        "median": 0.011938007113546213,
+        "p95": 0.012045053626769992,
+        "max": 0.012047279716317366,
+        "count": 4
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.028051923368581644,
+        "orientation_error_deg": 0.00020900339461548195,
+        "affine_center_offset_norm": 0.0003654240707432705,
+        "affine_axis_ratio": 1.0009809398585578,
+        "affine_residual_p95_norm": 0.00016767748859184317,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    },
+    {
+      "layout": "single",
+      "pixels_per_mm": 2,
+      "image_size": [
+        1600,
+        1200
+      ],
+      "radius_px": 200,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.005927686991249275,
+        "median": 0.005947296773968476,
+        "p95": 0.006077129527262304,
+        "max": 0.006099473359471914,
+        "count": 4
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.013969000243168939,
+        "orientation_error_deg": -3.087375713823098e-05,
+        "affine_center_offset_norm": 0.0001352676067377955,
+        "affine_axis_ratio": 1.0005158775265428,
+        "affine_residual_p95_norm": 3.836021991897937e-05,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    },
+    {
+      "layout": "single",
+      "pixels_per_mm": 4,
+      "image_size": [
+        3200,
+        2400
+      ],
+      "radius_px": 400,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.002933104910409896,
+        "median": 0.00293799904239508,
+        "p95": 0.0030353508214690543,
+        "max": 0.003042600752267788,
+        "count": 4
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.0069074230556605,
+        "orientation_error_deg": -5.652778173190141e-06,
+        "affine_center_offset_norm": 0.00014965249169666516,
+        "affine_axis_ratio": 1.0000473054864132,
+        "affine_residual_p95_norm": 2.2506456568180487e-05,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    },
+    {
+      "layout": "vertical",
+      "pixels_per_mm": 1,
+      "image_size": [
+        800,
+        600
+      ],
+      "radius_px": 100,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.011909380638463097,
+        "median": 0.011938007113546213,
+        "p95": 0.012047279716317366,
+        "max": 0.012047279716317366,
+        "count": 12
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.028051948217892475,
+        "orientation_error_deg": 0.00021038751797396095,
+        "affine_center_offset_norm": 0.00036540943828584514,
+        "affine_axis_ratio": 1.0009808844258237,
+        "affine_residual_p95_norm": 0.00016768019199831706,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    },
+    {
+      "layout": "vertical",
+      "pixels_per_mm": 2,
+      "image_size": [
+        1600,
+        1200
+      ],
+      "radius_px": 200,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.005927693917851251,
+        "median": 0.005947296773968476,
+        "p95": 0.006099492410651819,
+        "max": 0.006099515695427257,
+        "count": 12
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.013969049925731447,
+        "orientation_error_deg": -2.8067050574363447e-05,
+        "affine_center_offset_norm": 0.00013528134721145087,
+        "affine_axis_ratio": 1.0005157852829594,
+        "affine_residual_p95_norm": 3.831575654177324e-05,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    },
+    {
+      "layout": "vertical",
+      "pixels_per_mm": 4,
+      "image_size": [
+        3200,
+        2400
+      ],
+      "radius_px": 400,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.0029331123065581438,
+        "median": 0.0029380434192845667,
+        "p95": 0.003042600752267788,
+        "max": 0.003042600752267788,
+        "count": 12
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.006907472724677399,
+        "orientation_error_deg": -8.479166843819037e-06,
+        "affine_center_offset_norm": 0.00014966074993654816,
+        "affine_axis_ratio": 1.000047433510236,
+        "affine_residual_p95_norm": 2.2536251348645272e-05,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    },
+    {
+      "layout": "triangular",
+      "pixels_per_mm": 1,
+      "image_size": [
+        800,
+        600
+      ],
+      "radius_px": 100,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.011909352032690397,
+        "median": 0.011937964651218491,
+        "p95": 0.012047255224103267,
+        "max": 0.012047279716317366,
+        "count": 12
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.028051948217892475,
+        "orientation_error_deg": 0.00021038751797396095,
+        "affine_center_offset_norm": 0.00036540943828584514,
+        "affine_axis_ratio": 1.0009808844258237,
+        "affine_residual_p95_norm": 0.00016768019199831706,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    },
+    {
+      "layout": "triangular",
+      "pixels_per_mm": 2,
+      "image_size": [
+        1600,
+        1200
+      ],
+      "radius_px": 200,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.005927700987067001,
+        "median": 0.005947296773968476,
+        "p95": 0.006099492410651819,
+        "max": 0.006099515695427257,
+        "count": 12
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.013969099578969635,
+        "orientation_error_deg": -3.087375410972105e-05,
+        "affine_center_offset_norm": 0.00013527911495136408,
+        "affine_axis_ratio": 1.0005159178628638,
+        "affine_residual_p95_norm": 3.831624332919419e-05,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    },
+    {
+      "layout": "triangular",
+      "pixels_per_mm": 4,
+      "image_size": [
+        3200,
+        2400
+      ],
+      "radius_px": 400,
+      "quality": {
+        "READY": 1
+      },
+      "point_error_2d": {
+        "mean": 0.0029331123065581438,
+        "median": 0.0029380434192845667,
+        "p95": 0.003042600752267788,
+        "max": 0.003042600752267788,
+        "count": 12
+      },
+      "components": {
+        "status": "MEASURED",
+        "scale_bias_fraction": 0.006907472724677399,
+        "orientation_error_deg": -8.479166843819037e-06,
+        "affine_center_offset_norm": 0.00014966074993654816,
+        "affine_axis_ratio": 1.000047433510236,
+        "affine_residual_p95_norm": 2.2536251348645272e-05,
+        "reference": "evaluation landmarks; diagnostic affine fit only, predictions unchanged"
+      },
+      "synthetic_only": true
+    }
+  ],
+  "tests": {
+    "local_python": {
+      "run": 163,
+      "passed": 163,
+      "skipped": 0
+    },
+    "local_android": {
+      "run": 8,
+      "passed": 8,
+      "gradle_rerun_tasks": true,
+      "debug_build": "PASS"
+    },
+    "ci_head_sha": "e050d22eb35e90d5fd239caee048cfafc4241a68",
+    "ci_python": "success",
+    "ci_android": "success",
+    "ci_external_v9_skips": 2,
+    "ci_url": "https://github.com/Sasha-v-tanke/ArcheryHelper/actions/runs/40277056918"
+  },
+  "policy": {
+    "policy_revision": "stage3-draft-3-calibration-tooling",
+    "maximum_gt_uncertainty_norm": 0.00375,
+    "status": "development-proposal-not-final-holdout-approval",
+    "maximum_median_2d": 0.0075,
+    "maximum_p95_2d": 0.015,
+    "maximum_ready_error_2d": 0.035,
+    "maximum_false_accept_fraction": 0.01,
+    "maximum_false_reject_fraction": 0.2,
+    "minimum_sessions": 6,
+    "minimum_devices": 3,
+    "minimum_originals": 200,
+    "require_physical_orientation": true,
+    "configuration_scope": "All combinations supported by TargetConfig and TargetTemplate; subgroup sizes remain draft pending independent calibration.",
+    "required_configurations": [
+      {
+        "format": "SINGLE",
+        "triple_layout": null,
+        "minimum_scoring_zone": 1,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "SINGLE",
+        "triple_layout": null,
+        "minimum_scoring_zone": 1,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "SINGLE",
+        "triple_layout": null,
+        "minimum_scoring_zone": 5,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "SINGLE",
+        "triple_layout": null,
+        "minimum_scoring_zone": 5,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "SINGLE",
+        "triple_layout": null,
+        "minimum_scoring_zone": 6,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "SINGLE",
+        "triple_layout": null,
+        "minimum_scoring_zone": 6,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "VERTICAL",
+        "minimum_scoring_zone": 1,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "VERTICAL",
+        "minimum_scoring_zone": 1,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "VERTICAL",
+        "minimum_scoring_zone": 5,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "VERTICAL",
+        "minimum_scoring_zone": 5,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "VERTICAL",
+        "minimum_scoring_zone": 6,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "VERTICAL",
+        "minimum_scoring_zone": 6,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "TRIANGULAR",
+        "minimum_scoring_zone": 1,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "TRIANGULAR",
+        "minimum_scoring_zone": 1,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "TRIANGULAR",
+        "minimum_scoring_zone": 5,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "TRIANGULAR",
+        "minimum_scoring_zone": 5,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "TRIANGULAR",
+        "minimum_scoring_zone": 6,
+        "ten_ring_mode": "RECURVE",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      },
+      {
+        "format": "TRIPLE",
+        "triple_layout": "TRIANGULAR",
+        "minimum_scoring_zone": 6,
+        "ten_ring_mode": "COMPOUND",
+        "minimum_originals": 10,
+        "minimum_sessions": 2,
+        "minimum_ready": 8,
+        "minimum_acceptance_rate": 0.8
+      }
+    ]
+  },
+  "changed_modules": [
+    ".gitignore",
+    "archery_ml/data/mobile_workflow.py",
+    "archery_ml/geometry/calibration_tools.py",
+    "archery_ml/geometry/pilot.py",
+    "dataset_tools/boards/single-v1.json",
+    "dataset_tools/boards/triangular-v1.json",
+    "dataset_tools/boards/vertical-v1.json",
+    "dataset_tools/mobile/PILOT.md",
+    "dataset_tools/mobile/README.md",
+    "dataset_tools/mobile/make_example.py",
+    "dataset_tools/mobile/validate_all.py",
+    "dataset_tools/stage3_geometry_policy.json",
+    "docs/project-layout.md",
+    "docs/reports/stage-3-validation-2026-10-22.json",
+    "docs/stage-0-baseline.md",
+    "docs/stage-1-contracts-scoring-v2.md",
+    "docs/stage-2-dataset-pipeline.md",
+    "docs/stage-2.5-dataset-infrastructure.md",
+    "docs/stage-3-target-normalization.md",
+    "docs/stage-3-validation-2026-10-22.md",
+    "neural_network/archery_ml/contracts.py",
+    "neural_network/archery_ml/data/annotation_editor.py",
+    "neural_network/archery_ml/data/geometry_provenance.py",
+    "neural_network/archery_ml/data/importers/mobile_geometry.py",
+    "neural_network/archery_ml/data/mobile_workflow.py",
+    "neural_network/archery_ml/geometry/__init__.py",
+    "neural_network/archery_ml/geometry/audit.py",
+    "neural_network/archery_ml/geometry/boundary.py",
+    "neural_network/archery_ml/geometry/calibration.py",
+    "neural_network/archery_ml/geometry/calibration_tools.py",
+    "neural_network/archery_ml/geometry/cli.py",
+    "neural_network/archery_ml/geometry/detector.py",
+    "neural_network/archery_ml/geometry/evaluate.py",
+    "neural_network/archery_ml/geometry/pilot.py",
+    "neural_network/archery_ml/geometry/pilot_inventory.py",
+    "neural_network/archery_ml/geometry/pilot_metrics.py",
+    "neural_network/archery_ml/geometry/pilot_viewer.py",
+    "neural_network/archery_ml/geometry/selected_geometry.py",
+    "neural_network/archery_ml/geometry/selection.py",
+    "neural_network/archery_ml/geometry/validation.py",
+    "neural_network/tests/test_geometry_boundary.py",
+    "neural_network/tests/test_geometry_oblique_initialization.py",
+    "neural_network/tests/test_stage3_calibration.py",
+    "neural_network/tests/test_stage3_finalization.py",
+    "neural_network/tests/test_stage3_mobile_workflow.py",
+    "neural_network/tests/test_stage3_pilot.py",
+    "neural_network/tests/test_stage3_validation.py"
+  ]
+}

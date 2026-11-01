@@ -1,0 +1,2062 @@
+{
+  "annotation_issues": [
+    {
+      "annotation_issues": [
+        "cumulative ring 1 is not larger than ring 2"
+      ],
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/10ring-fig12_png.rf.0b43b8423ac32d13c484e7aa93c71673.jpg",
+      "sample_id": "archery_aiscore_ounar:train/10ring-fig12_png.rf.0b43b8423ac32d13c484e7aa93c71673",
+      "split": "train"
+    },
+    {
+      "annotation_issues": [
+        "cumulative ring 1 is not larger than ring 2"
+      ],
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/10ring-fig12_png.rf.502ae7ad145a1419cfd33b4c2d195fbb.jpg",
+      "sample_id": "archery_aiscore_ounar:train/10ring-fig12_png.rf.502ae7ad145a1419cfd33b4c2d195fbb",
+      "split": "train"
+    },
+    {
+      "annotation_issues": [
+        "cumulative ring 1 is not larger than ring 2"
+      ],
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/10ring-fig12_png.rf.eb745c9776175e5ea14b1a5dac8a4c4d.jpg",
+      "sample_id": "archery_aiscore_ounar:train/10ring-fig12_png.rf.eb745c9776175e5ea14b1a5dac8a4c4d",
+      "split": "train"
+    }
+  ],
+  "baseline_commit": "52c418d412cbac5a020301a5dde2336fa752c88b",
+  "center_reference": "Outer GT ellipse center proxy; not the physical projected bullseye under perspective. Kept unchanged for baseline comparability.",
+  "coco_integrity": {
+    "coco_files": {
+      "test/_annotations.coco.json": {
+        "annotations": 165,
+        "images": 8,
+        "sha256": "5d079106e79306c600d688f3c1c59fbb358b9607f567863500b28e6ac1399563"
+      },
+      "train/_annotations.coco.json": {
+        "annotations": 2805,
+        "images": 132,
+        "sha256": "b0463b2c1797cf9f6d7ca0327d4c31513fe524f740919a1da94098745e11333b"
+      },
+      "valid/_annotations.coco.json": {
+        "annotations": 281,
+        "images": 13,
+        "sha256": "2b151a115b464935b4cb91fc573d5dae0372bb42b5f670cb82319a497967f021"
+      }
+    },
+    "geometry_kinds": {
+      "ring": 1530
+    },
+    "image_dimensions_match_coco": true,
+    "labels": {
+      "Ring-1-Polygon": 153,
+      "Ring-10-Polygon": 153,
+      "Ring-2-Polygon": 153,
+      "Ring-3-Polygon": 153,
+      "Ring-4-Polygon": 153,
+      "Ring-5-Polygon": 153,
+      "Ring-6-Polygon": 153,
+      "Ring-7-Polygon": 153,
+      "Ring-8-Polygon": 153,
+      "Ring-9-Polygon": 153
+    },
+    "manifest_geometry_matches_raw_coco": true,
+    "raw_images": 153
+  },
+  "geometry_commit": "c092af7eea59f9b6dbb76376d44daf265bf8212c",
+  "manifest_sha256": "448b42cec5163da27e6ebbe5395cb8926d80a3c22070c620bad46270f222405e",
+  "metric_weighting": "Radial errors pool annotation vertices, center errors pool images; families and READY/rejected partitions reported separately. No GT relabeling or sample removal.",
+  "rejected": [
+    {
+      "family": "archery_aiscore_ounar:10ring-fig5",
+      "fit_error": 0.06849073462250838,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/10ring-fig5_png.rf.7ffe43aea5bbab1c4cc4eb10b9edf4a3.jpg",
+      "radial_error": {
+        "count": 206,
+        "max": 0.05919905679323967,
+        "mean": 0.011578829318118189,
+        "median": 0.007650829013869903,
+        "p95": 0.040744757284154776
+      },
+      "sample_id": "archery_aiscore_ounar:train/10ring-fig5_png.rf.7ffe43aea5bbab1c4cc4eb10b9edf4a3",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:10ring-fig5",
+      "fit_error": 0.0687868498665503,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/10ring-fig5_png.rf.f981b9916eefef6999c7057aa413d7ec.jpg",
+      "radial_error": {
+        "count": 206,
+        "max": 0.06167782310324754,
+        "mean": 0.011746692673413139,
+        "median": 0.007336621062077275,
+        "p95": 0.04303821567574137
+      },
+      "sample_id": "archery_aiscore_ounar:train/10ring-fig5_png.rf.f981b9916eefef6999c7057aa413d7ec",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:fig10",
+      "fit_error": 0.06776158266747784,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/Fig10_jpg.rf.20e7c5350eed681b4a360b3130a7a575.jpg",
+      "radial_error": {
+        "count": 228,
+        "max": 0.08200024919497717,
+        "mean": 0.027757852083329475,
+        "median": 0.021974870200489882,
+        "p95": 0.06353983734890237
+      },
+      "sample_id": "archery_aiscore_ounar:train/Fig10_jpg.rf.20e7c5350eed681b4a360b3130a7a575",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:fig10",
+      "fit_error": 0.06794688543333943,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/Fig10_jpg.rf.4a21ab4c20ed0c2169b0f431f5d40bf5.jpg",
+      "radial_error": {
+        "count": 229,
+        "max": 0.08447000720309927,
+        "mean": 0.027921766421135252,
+        "median": 0.021772284192548785,
+        "p95": 0.06556206957798356
+      },
+      "sample_id": "archery_aiscore_ounar:train/Fig10_jpg.rf.4a21ab4c20ed0c2169b0f431f5d40bf5",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:fig10",
+      "fit_error": 0.06741092367789593,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/Fig10_jpg.rf.e3c2355ed63521611ec8a09cdf25e039.jpg",
+      "radial_error": {
+        "count": 228,
+        "max": 0.0851391737939593,
+        "mean": 0.028579032428317917,
+        "median": 0.02317604613989177,
+        "p95": 0.06630334329990384
+      },
+      "sample_id": "archery_aiscore_ounar:train/Fig10_jpg.rf.e3c2355ed63521611ec8a09cdf25e039",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:fig7",
+      "fit_error": 0.06851082405910364,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/Fig7_jpg.rf.57ca582743e20fbb64f8a9172be3a6b7.jpg",
+      "radial_error": {
+        "count": 220,
+        "max": 0.07072232221329955,
+        "mean": 0.025051386515983,
+        "median": 0.022366825794110146,
+        "p95": 0.055447208142010776
+      },
+      "sample_id": "archery_aiscore_ounar:train/Fig7_jpg.rf.57ca582743e20fbb64f8a9172be3a6b7",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:fig8",
+      "fit_error": 0.06936989188778492,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/Fig8_jpg.rf.96f70576de65e16e78ffd5952dbb1568.jpg",
+      "radial_error": {
+        "count": 217,
+        "max": 0.10287862437619322,
+        "mean": 0.0332688339779766,
+        "median": 0.0278815336469187,
+        "p95": 0.08266228068567807
+      },
+      "sample_id": "archery_aiscore_ounar:train/Fig8_jpg.rf.96f70576de65e16e78ffd5952dbb1568",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:naggro3w659n_vtez7lwf_zhkg63g9",
+      "fit_error": 0.04430853286128927,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/NaggRo3W659n_vTeZ7Lwf_ZHkg63G9_png.rf.9a320cc0c6f4dddeff72ba935b64d643.jpg",
+      "radial_error": {
+        "count": 300,
+        "max": 0.20108250540815464,
+        "mean": 0.067775935087679,
+        "median": 0.05676874869544721,
+        "p95": 0.17384084300151492
+      },
+      "sample_id": "archery_aiscore_ounar:train/NaggRo3W659n_vTeZ7Lwf_ZHkg63G9_png.rf.9a320cc0c6f4dddeff72ba935b64d643",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:naggro3w659n_vtez7lwf_zhkg63g9",
+      "fit_error": 0.05301653929418955,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/NaggRo3W659n_vTeZ7Lwf_ZHkg63G9_png.rf.ada1612eb920b5ff33de9ddfc4017305.jpg",
+      "radial_error": {
+        "count": 300,
+        "max": 0.2374874479214566,
+        "mean": 0.08052588060326471,
+        "median": 0.0662712884651119,
+        "p95": 0.20223357832065278
+      },
+      "sample_id": "archery_aiscore_ounar:train/NaggRo3W659n_vTeZ7Lwf_ZHkg63G9_png.rf.ada1612eb920b5ff33de9ddfc4017305",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:naggro3w659n_vtez7lwf_zhkg63g9",
+      "fit_error": 0.04459403462719623,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/NaggRo3W659n_vTeZ7Lwf_ZHkg63G9_png.rf.daa251746711f37a2b45527964701d7a.jpg",
+      "radial_error": {
+        "count": 300,
+        "max": 0.21143179236644838,
+        "mean": 0.0681145998187556,
+        "median": 0.05603112739523164,
+        "p95": 0.17541310630276488
+      },
+      "sample_id": "archery_aiscore_ounar:train/NaggRo3W659n_vTeZ7Lwf_ZHkg63G9_png.rf.daa251746711f37a2b45527964701d7a",
+      "split": "train",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:fig13",
+      "fit_error": 0.06846948504877476,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/Fig13_jpg.rf.3d138e88e787d89547d891004c5631d7.jpg",
+      "radial_error": {
+        "count": 263,
+        "max": 0.06877027013577197,
+        "mean": 0.02385570706490957,
+        "median": 0.019177804173456048,
+        "p95": 0.05456355914760768
+      },
+      "sample_id": "archery_aiscore_ounar:train/Fig13_jpg.rf.3d138e88e787d89547d891004c5631d7",
+      "split": "test",
+      "status": "GEOMETRY_UNCERTAIN"
+    },
+    {
+      "family": "archery_aiscore_ounar:fig9",
+      "fit_error": 0.06894837751461394,
+      "image_path": "data/sources/archery_aiscore_ounar/v9/train/Fig9_jpg.rf.c0ccba7e8d1d84ff700b33a790b0388b.jpg",
+      "radial_error": {
+        "count": 233,
+        "max": 0.0874452031330597,
+        "mean": 0.0283314096509466,
+        "median": 0.02313939096344486,
+        "p95": 0.0640769899261715
+      },
+      "sample_id": "archery_aiscore_ounar:train/Fig9_jpg.rf.c0ccba7e8d1d84ff700b33a790b0388b",
+      "split": "test",
+      "status": "GEOMETRY_UNCERTAIN"
+    }
+  ],
+  "results": {
+    "baseline": {
+      "supplemental": {
+        "acceptance": {
+          "ready": {
+            "center_error": {
+              "count": 6,
+              "max": 0.0242232760383132,
+              "mean": 0.019745084771600693,
+              "median": 0.020373375479840104,
+              "p95": 0.02386693451939263
+            },
+            "evaluated_samples": 6,
+            "radial_error": {
+              "count": 1689,
+              "max": 0.13188449200334318,
+              "mean": 0.012344477277818457,
+              "median": 0.00863950792273166,
+              "p95": 0.03546075064790064
+            },
+            "ready_samples": 6,
+            "samples": 6
+          }
+        },
+        "annotation_issue_samples": 0,
+        "center_error": {
+          "count": 6,
+          "max": 0.0242232760383132,
+          "mean": 0.019745084771600693,
+          "median": 0.020373375479840104,
+          "p95": 0.02386693451939263
+        },
+        "evaluated_samples": 6,
+        "radial_error": {
+          "count": 1689,
+          "max": 0.13188449200334318,
+          "mean": 0.012344477277818457,
+          "median": 0.00863950792273166,
+          "p95": 0.03546075064790064
+        },
+        "ready_samples": 6,
+        "ring_error": {
+          "1": {
+            "count": 249,
+            "max": 0.13188449200334318,
+            "mean": 0.019862573079682252,
+            "median": 0.014778344510386843,
+            "p95": 0.05740794365057277
+          },
+          "10": {
+            "count": 75,
+            "max": 0.01673825060843792,
+            "mean": 0.006117839981174573,
+            "median": 0.005698847135667887,
+            "p95": 0.013673565345755765
+          },
+          "2": {
+            "count": 228,
+            "max": 0.12688308160071593,
+            "mean": 0.016744971365731002,
+            "median": 0.013429862409128523,
+            "p95": 0.04010138727384094
+          },
+          "3": {
+            "count": 243,
+            "max": 0.10615343038742997,
+            "mean": 0.01391991134715594,
+            "median": 0.009264131420677724,
+            "p95": 0.030335118908364798
+          },
+          "4": {
+            "count": 204,
+            "max": 0.0851055113783099,
+            "mean": 0.010953994392183128,
+            "median": 0.008711581116677802,
+            "p95": 0.02390224526322994
+          },
+          "5": {
+            "count": 222,
+            "max": 0.06994130285753908,
+            "mean": 0.01035778913555995,
+            "median": 0.007295711934745708,
+            "p95": 0.024359636768546536
+          },
+          "6": {
+            "count": 132,
+            "max": 0.053715364133543164,
+            "mean": 0.00968530723594713,
+            "median": 0.007353888861769464,
+            "p95": 0.024503523681904827
+          },
+          "7": {
+            "count": 129,
+            "max": 0.04237826010167434,
+            "mean": 0.007550971808771838,
+            "median": 0.005143319230635712,
+            "p95": 0.021128561852526345
+          },
+          "8": {
+            "count": 114,
+            "max": 0.027132210987713345,
+            "mean": 0.00661988549919464,
+            "median": 0.004702831969610827,
+            "p95": 0.017906471557958194
+          },
+          "9": {
+            "count": 93,
+            "max": 0.02305926410281886,
+            "mean": 0.007565210629853673,
+            "median": 0.005937147695556949,
+            "p95": 0.01724931646895561
+          }
+        },
+        "samples": 6,
+        "status_counts": {
+          "READY": 6
+        }
+      },
+      "test": {
+        "acceptance": {
+          "ready": {
+            "center_error": {
+              "count": 3,
+              "max": 0.0441571956627253,
+              "mean": 0.04390372947503952,
+              "median": 0.04400991446561733,
+              "p95": 0.044142467543014506
+            },
+            "evaluated_samples": 3,
+            "radial_error": {
+              "count": 939,
+              "max": 0.07669334424291385,
+              "mean": 0.0164400016288428,
+              "median": 0.014865976634801825,
+              "p95": 0.039285022801734105
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "rejected": {
+            "center_error": {
+              "count": 13,
+              "max": 0.033927522569963835,
+              "mean": 0.026987481520177735,
+              "median": 0.02603286912198092,
+              "p95": 0.0326294651750805
+            },
+            "evaluated_samples": 13,
+            "radial_error": {
+              "count": 3064,
+              "max": 0.3942330439452333,
+              "mean": 0.16823676065645896,
+              "median": 0.16955124286720125,
+              "p95": 0.30680624759222647
+            },
+            "ready_samples": 0,
+            "samples": 13
+          }
+        },
+        "annotation_issue_samples": 0,
+        "center_error": {
+          "count": 16,
+          "max": 0.0441571956627253,
+          "mean": 0.030159278011714318,
+          "median": 0.029104489285996002,
+          "p95": 0.04404673476489432
+        },
+        "evaluated_samples": 16,
+        "radial_error": {
+          "count": 4003,
+          "max": 0.3942330439452333,
+          "mean": 0.13262917716234662,
+          "median": 0.1328007207377051,
+          "p95": 0.29344793671213254
+        },
+        "ready_samples": 3,
+        "ring_error": {
+          "1": {
+            "count": 560,
+            "max": 0.3942330439452333,
+            "mean": 0.21797338643669972,
+            "median": 0.2479885257165082,
+            "p95": 0.36081362066869094
+          },
+          "10": {
+            "count": 191,
+            "max": 0.07997716075034647,
+            "mean": 0.02004526925998999,
+            "median": 0.017142625807576403,
+            "p95": 0.046109164345397385
+          },
+          "2": {
+            "count": 508,
+            "max": 0.35351207771392046,
+            "mean": 0.20288381056996277,
+            "median": 0.2210329614025786,
+            "p95": 0.3293938445220193
+          },
+          "3": {
+            "count": 523,
+            "max": 0.32198587428514974,
+            "mean": 0.161306684911493,
+            "median": 0.1925457969465303,
+            "p95": 0.30057917644668947
+          },
+          "4": {
+            "count": 421,
+            "max": 0.28058496535227395,
+            "mean": 0.15530149108674046,
+            "median": 0.16756202092851646,
+            "p95": 0.26617248027279455
+          },
+          "5": {
+            "count": 453,
+            "max": 0.24304992123984137,
+            "mean": 0.11934165645238509,
+            "median": 0.13885549279276432,
+            "p95": 0.23176734771698146
+          },
+          "6": {
+            "count": 374,
+            "max": 0.2131497842187811,
+            "mean": 0.10916602263609539,
+            "median": 0.11790216831053468,
+            "p95": 0.20061064749620144
+          },
+          "7": {
+            "count": 341,
+            "max": 0.1772779523026914,
+            "mean": 0.0789120145282899,
+            "median": 0.08993184428249801,
+            "p95": 0.15561160241182517
+          },
+          "8": {
+            "count": 334,
+            "max": 0.15073456612062433,
+            "mean": 0.05552744430026775,
+            "median": 0.06370510948292296,
+            "p95": 0.11763002475909817
+          },
+          "9": {
+            "count": 298,
+            "max": 0.11337876525074388,
+            "mean": 0.039817206149757006,
+            "median": 0.041235937755901134,
+            "p95": 0.08311228265970148
+          }
+        },
+        "samples": 16,
+        "status_counts": {
+          "READY": 3,
+          "TARGET_CLIPPED": 13
+        }
+      },
+      "train": {
+        "acceptance": {
+          "ready": {
+            "center_error": {
+              "count": 97,
+              "max": 0.06716353794797816,
+              "mean": 0.022271319994402055,
+              "median": 0.020832132630941302,
+              "p95": 0.039462658637190944
+            },
+            "evaluated_samples": 97,
+            "radial_error": {
+              "count": 28022,
+              "max": 0.17930718256948686,
+              "mean": 0.013764442562918706,
+              "median": 0.008897457740297016,
+              "p95": 0.04106349330521156
+            },
+            "ready_samples": 97,
+            "samples": 97
+          },
+          "rejected": {
+            "center_error": {
+              "count": 25,
+              "max": 0.0246093879830883,
+              "mean": 0.013506218788255073,
+              "median": 0.012790416816835789,
+              "p95": 0.023502920831846193
+            },
+            "evaluated_samples": 25,
+            "radial_error": {
+              "count": 6129,
+              "max": 0.45472410685512166,
+              "mean": 0.17295289623720164,
+              "median": 0.15882669510239167,
+              "p95": 0.41030946322641026
+            },
+            "ready_samples": 0,
+            "samples": 25
+          }
+        },
+        "annotation_issue_samples": 3,
+        "center_error": {
+          "count": 122,
+          "max": 0.06716353794797816,
+          "mean": 0.02047519269806046,
+          "median": 0.0196575798411099,
+          "p95": 0.037574282720013355
+        },
+        "evaluated_samples": 122,
+        "radial_error": {
+          "count": 34151,
+          "max": 0.45472410685512166,
+          "mean": 0.042333621578750764,
+          "median": 0.01162306578486244,
+          "p95": 0.2328629132083496
+        },
+        "ready_samples": 97,
+        "ring_error": {
+          "1": {
+            "count": 4804,
+            "max": 0.45472410685512166,
+            "mean": 0.07018698043337152,
+            "median": 0.022094211229427896,
+            "p95": 0.4216407967419717
+          },
+          "10": {
+            "count": 1740,
+            "max": 0.05620963196830583,
+            "mean": 0.009501238007410234,
+            "median": 0.006154839974964785,
+            "p95": 0.03698112707363832
+          },
+          "2": {
+            "count": 4062,
+            "max": 0.40991526792507443,
+            "mean": 0.06723823650126388,
+            "median": 0.020428982501128956,
+            "p95": 0.3816931885015595
+          },
+          "3": {
+            "count": 4730,
+            "max": 0.3636442278800305,
+            "mean": 0.049633810686917516,
+            "median": 0.014651587957980716,
+            "p95": 0.3315970772382961
+          },
+          "4": {
+            "count": 3564,
+            "max": 0.3224432319987234,
+            "mean": 0.0487646627810887,
+            "median": 0.013544586566909711,
+            "p95": 0.2967298010335366
+          },
+          "5": {
+            "count": 4042,
+            "max": 0.27622158927123547,
+            "mean": 0.03523348722837985,
+            "median": 0.01009126603715188,
+            "p95": 0.24159396692488838
+          },
+          "6": {
+            "count": 3147,
+            "max": 0.23290214411416083,
+            "mean": 0.034127446067873934,
+            "median": 0.009713354178786382,
+            "p95": 0.21204927085746086
+          },
+          "7": {
+            "count": 3068,
+            "max": 0.18596098834337094,
+            "mean": 0.024215425628679465,
+            "median": 0.0070551029420280464,
+            "p95": 0.16124598285961944
+          },
+          "8": {
+            "count": 2638,
+            "max": 0.14544659390411013,
+            "mean": 0.019142744155500095,
+            "median": 0.006953985830005283,
+            "p95": 0.1208259116116229
+          },
+          "9": {
+            "count": 2356,
+            "max": 0.09950169335427571,
+            "mean": 0.015167185894882964,
+            "median": 0.007097303822405643,
+            "p95": 0.08063585118039178
+          }
+        },
+        "samples": 122,
+        "status_counts": {
+          "READY": 97,
+          "TARGET_CLIPPED": 25
+        }
+      },
+      "val": {
+        "acceptance": {
+          "ready": {
+            "center_error": {
+              "count": 15,
+              "max": 0.04054033821319998,
+              "mean": 0.02613893196066686,
+              "median": 0.025501383324671823,
+              "p95": 0.04041937580337084
+            },
+            "evaluated_samples": 15,
+            "radial_error": {
+              "count": 3931,
+              "max": 0.09638542741553846,
+              "mean": 0.011795473041524009,
+              "median": 0.008017077086103094,
+              "p95": 0.035114667102489894
+            },
+            "ready_samples": 15,
+            "samples": 15
+          }
+        },
+        "annotation_issue_samples": 0,
+        "center_error": {
+          "count": 15,
+          "max": 0.04054033821319998,
+          "mean": 0.02613893196066686,
+          "median": 0.025501383324671823,
+          "p95": 0.04041937580337084
+        },
+        "evaluated_samples": 15,
+        "radial_error": {
+          "count": 3931,
+          "max": 0.09638542741553846,
+          "mean": 0.011795473041524009,
+          "median": 0.008017077086103094,
+          "p95": 0.035114667102489894
+        },
+        "ready_samples": 15,
+        "ring_error": {
+          "1": {
+            "count": 490,
+            "max": 0.09638542741553846,
+            "mean": 0.021795492202543815,
+            "median": 0.01744999991455337,
+            "p95": 0.05576078934979653
+          },
+          "10": {
+            "count": 239,
+            "max": 0.030369878842846948,
+            "mean": 0.0072669065251917365,
+            "median": 0.005637025233976606,
+            "p95": 0.01832963338715499
+          },
+          "2": {
+            "count": 407,
+            "max": 0.08020329891268141,
+            "mean": 0.01676432591630708,
+            "median": 0.013948845025562706,
+            "p95": 0.044274323578724566
+          },
+          "3": {
+            "count": 557,
+            "max": 0.05997259047739334,
+            "mean": 0.013989600875592475,
+            "median": 0.010701675147676504,
+            "p95": 0.0415579406494823
+          },
+          "4": {
+            "count": 357,
+            "max": 0.047559607666438186,
+            "mean": 0.012264039078084075,
+            "median": 0.00922437777226992,
+            "p95": 0.03411725284185999
+          },
+          "5": {
+            "count": 468,
+            "max": 0.0430216359584481,
+            "mean": 0.009544274218467179,
+            "median": 0.006012349213448898,
+            "p95": 0.029202204598703138
+          },
+          "6": {
+            "count": 306,
+            "max": 0.04721141393455636,
+            "mean": 0.009183387784775328,
+            "median": 0.006337429393452443,
+            "p95": 0.025655051825347636
+          },
+          "7": {
+            "count": 410,
+            "max": 0.04713089271459109,
+            "mean": 0.007382967228549689,
+            "median": 0.0045901131075847534,
+            "p95": 0.023576249942268566
+          },
+          "8": {
+            "count": 363,
+            "max": 0.03578817214468227,
+            "mean": 0.0071421913725627445,
+            "median": 0.004818172896166262,
+            "p95": 0.021104878730952407
+          },
+          "9": {
+            "count": 334,
+            "max": 0.03441814593918646,
+            "mean": 0.006171866385077953,
+            "median": 0.004025052770868787,
+            "p95": 0.01801063116418541
+          }
+        },
+        "samples": 15,
+        "status_counts": {
+          "READY": 15
+        }
+      }
+    },
+    "final": {
+      "supplemental": {
+        "acceptance": {
+          "ready": {
+            "center_error": {
+              "count": 6,
+              "max": 0.025375411609932265,
+              "mean": 0.023846181760571957,
+              "median": 0.024069063380442665,
+              "p95": 0.025204641534674794
+            },
+            "evaluated_samples": 6,
+            "radial_error": {
+              "count": 1689,
+              "max": 0.061423902382702344,
+              "mean": 0.011136804598757318,
+              "median": 0.008388102038163203,
+              "p95": 0.03079444096325832
+            },
+            "ready_samples": 6,
+            "samples": 6
+          }
+        },
+        "annotation_issue_samples": 0,
+        "center_error": {
+          "count": 6,
+          "max": 0.025375411609932265,
+          "mean": 0.023846181760571957,
+          "median": 0.024069063380442665,
+          "p95": 0.025204641534674794
+        },
+        "evaluated_samples": 6,
+        "families": {
+          "archery_aiscore_ounar:bg5put18tjeuxd3-z-po-_kycnni7e": {
+            "radial_error": {
+              "count": 739,
+              "max": 0.038176545946114526,
+              "mean": 0.00905418708917867,
+              "median": 0.0069627591797293276,
+              "p95": 0.02664369379826368
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:vfkjihu71vnzdpbxcbepo_2uvkvsbh": {
+            "radial_error": {
+              "count": 950,
+              "max": 0.061423902382702344,
+              "mean": 0.012756861798313762,
+              "median": 0.010197417144612697,
+              "p95": 0.034943158129976774
+            },
+            "ready_samples": 3,
+            "samples": 3
+          }
+        },
+        "radial_error": {
+          "count": 1689,
+          "max": 0.061423902382702344,
+          "mean": 0.011136804598757318,
+          "median": 0.008388102038163203,
+          "p95": 0.03079444096325832
+        },
+        "ready_samples": 6,
+        "ring_error": {
+          "1": {
+            "count": 249,
+            "max": 0.061423902382702344,
+            "mean": 0.025319065764110978,
+            "median": 0.022983132957637098,
+            "p95": 0.043421148575575816
+          },
+          "10": {
+            "count": 75,
+            "max": 0.010496910964034226,
+            "mean": 0.003538330710783336,
+            "median": 0.0035148292454146163,
+            "p95": 0.009051360244118789
+          },
+          "2": {
+            "count": 228,
+            "max": 0.05229154288582072,
+            "mean": 0.01791632114686824,
+            "median": 0.014659066036322055,
+            "p95": 0.0343225725573546
+          },
+          "3": {
+            "count": 243,
+            "max": 0.0410762808418037,
+            "mean": 0.011496191094317296,
+            "median": 0.010121706047192203,
+            "p95": 0.02262642683187133
+          },
+          "4": {
+            "count": 204,
+            "max": 0.0333120384294624,
+            "mean": 0.009151452636803949,
+            "median": 0.008224167825477802,
+            "p95": 0.02013327981981292
+          },
+          "5": {
+            "count": 222,
+            "max": 0.022773576580577992,
+            "mean": 0.0062757254392277785,
+            "median": 0.006195932106869473,
+            "p95": 0.014351573206828103
+          },
+          "6": {
+            "count": 132,
+            "max": 0.018270620871902232,
+            "mean": 0.006152484719437312,
+            "median": 0.005694328826422457,
+            "p95": 0.013775910239734176
+          },
+          "7": {
+            "count": 129,
+            "max": 0.020380085607509646,
+            "mean": 0.004142069382663381,
+            "median": 0.003649925574152002,
+            "p95": 0.008607795363350644
+          },
+          "8": {
+            "count": 114,
+            "max": 0.012028998621469611,
+            "mean": 0.003840099547363176,
+            "median": 0.0029916363231703436,
+            "p95": 0.010550730278589993
+          },
+          "9": {
+            "count": 93,
+            "max": 0.01561327788994199,
+            "mean": 0.003413026496541825,
+            "median": 0.0016632617698742191,
+            "p95": 0.011604574408251522
+          }
+        },
+        "samples": 6,
+        "status_counts": {
+          "READY": 6
+        }
+      },
+      "test": {
+        "acceptance": {
+          "ready": {
+            "center_error": {
+              "count": 14,
+              "max": 0.04658732069815574,
+              "mean": 0.034304276191003465,
+              "median": 0.03181960247721479,
+              "p95": 0.04626176106388625
+            },
+            "evaluated_samples": 14,
+            "radial_error": {
+              "count": 3507,
+              "max": 0.05205401996899317,
+              "mean": 0.008764775572344957,
+              "median": 0.007106053227804221,
+              "p95": 0.022652191274863214
+            },
+            "ready_samples": 14,
+            "samples": 14
+          },
+          "rejected": {
+            "center_error": {
+              "count": 2,
+              "max": 0.03532756278388871,
+              "mean": 0.03204595678178858,
+              "median": 0.03204595678178858,
+              "p95": 0.034999402183678696
+            },
+            "evaluated_samples": 2,
+            "radial_error": {
+              "count": 496,
+              "max": 0.0874452031330597,
+              "mean": 0.02595820444907616,
+              "median": 0.02073688568330162,
+              "p95": 0.059514796749231325
+            },
+            "ready_samples": 0,
+            "samples": 2
+          }
+        },
+        "annotation_issue_samples": 0,
+        "center_error": {
+          "count": 16,
+          "max": 0.04658732069815574,
+          "mean": 0.0340219862648516,
+          "median": 0.03181960247721479,
+          "p95": 0.04621167496630633
+        },
+        "evaluated_samples": 16,
+        "families": {
+          "archery_aiscore_ounar:10ring-fig11": {
+            "radial_error": {
+              "count": 939,
+              "max": 0.05131421142458059,
+              "mean": 0.007457395027250093,
+              "median": 0.005459727970171913,
+              "p95": 0.021722814769121718
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig11": {
+            "radial_error": {
+              "count": 652,
+              "max": 0.05205401996899317,
+              "mean": 0.010772666691580089,
+              "median": 0.00825898831984416,
+              "p95": 0.031167632771994216
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig12": {
+            "radial_error": {
+              "count": 672,
+              "max": 0.03773671126545097,
+              "mean": 0.010385060939207305,
+              "median": 0.00906235592178481,
+              "p95": 0.024024135205515402
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig13": {
+            "radial_error": {
+              "count": 787,
+              "max": 0.06877027013577197,
+              "mean": 0.01264813642829649,
+              "median": 0.008687412209204326,
+              "p95": 0.04088089451467735
+            },
+            "ready_samples": 2,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig14": {
+            "radial_error": {
+              "count": 254,
+              "max": 0.030812403435104496,
+              "mean": 0.00770015518007209,
+              "median": 0.006528834100529013,
+              "p95": 0.018436886454122507
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:fig9": {
+            "radial_error": {
+              "count": 699,
+              "max": 0.0874452031330597,
+              "mean": 0.015305266079402758,
+              "median": 0.010602954879356585,
+              "p95": 0.049542233847070065
+            },
+            "ready_samples": 2,
+            "samples": 3
+          }
+        },
+        "radial_error": {
+          "count": 4003,
+          "max": 0.0874452031330597,
+          "mean": 0.010895162962516998,
+          "median": 0.008002220290153517,
+          "p95": 0.03209536385029618
+        },
+        "ready_samples": 14,
+        "ring_error": {
+          "1": {
+            "count": 560,
+            "max": 0.0874452031330597,
+            "mean": 0.018661731603579052,
+            "median": 0.015350118393169354,
+            "p95": 0.05242088120632218
+          },
+          "10": {
+            "count": 191,
+            "max": 0.018218316657992104,
+            "mean": 0.006341495828350236,
+            "median": 0.005347450007448032,
+            "p95": 0.01477459687259472
+          },
+          "2": {
+            "count": 508,
+            "max": 0.06419610304288492,
+            "mean": 0.015074600132424669,
+            "median": 0.011998417712108023,
+            "p95": 0.045552775170232644
+          },
+          "3": {
+            "count": 523,
+            "max": 0.05523858200658038,
+            "mean": 0.010383355350316993,
+            "median": 0.008187743963976368,
+            "p95": 0.03456409453709544
+          },
+          "4": {
+            "count": 421,
+            "max": 0.04756894734381445,
+            "mean": 0.011648930783751624,
+            "median": 0.00975434393888297,
+            "p95": 0.032113584590691135
+          },
+          "5": {
+            "count": 453,
+            "max": 0.04681669421464241,
+            "mean": 0.01207830868716954,
+            "median": 0.010151574092110982,
+            "p95": 0.030858244720549828
+          },
+          "6": {
+            "count": 374,
+            "max": 0.030944505132611044,
+            "mean": 0.007397339520670761,
+            "median": 0.005464463378316797,
+            "p95": 0.020879443266374052
+          },
+          "7": {
+            "count": 341,
+            "max": 0.03066140217203306,
+            "mean": 0.006902780414152843,
+            "median": 0.004980478044601333,
+            "p95": 0.01960780131352835
+          },
+          "8": {
+            "count": 334,
+            "max": 0.019886445742748393,
+            "mean": 0.005620195329808019,
+            "median": 0.004981698760718273,
+            "p95": 0.014875621049198477
+          },
+          "9": {
+            "count": 298,
+            "max": 0.02619905413064766,
+            "mean": 0.004999591224458924,
+            "median": 0.004292326968662524,
+            "p95": 0.010891075351103263
+          }
+        },
+        "samples": 16,
+        "status_counts": {
+          "GEOMETRY_UNCERTAIN": 2,
+          "READY": 14
+        }
+      },
+      "train": {
+        "acceptance": {
+          "ready": {
+            "center_error": {
+              "count": 112,
+              "max": 0.06009087184220089,
+              "mean": 0.022163343186512547,
+              "median": 0.021726715359500458,
+              "p95": 0.03504361170553922
+            },
+            "evaluated_samples": 112,
+            "radial_error": {
+              "count": 31717,
+              "max": 0.13427426698183142,
+              "mean": 0.009394402351850767,
+              "median": 0.006816406964180954,
+              "p95": 0.025531893554578015
+            },
+            "ready_samples": 112,
+            "samples": 112
+          },
+          "rejected": {
+            "center_error": {
+              "count": 10,
+              "max": 0.03523192344109088,
+              "mean": 0.021681663045679807,
+              "median": 0.020102210916264827,
+              "p95": 0.03447701123806552
+            },
+            "evaluated_samples": 10,
+            "radial_error": {
+              "count": 2434,
+              "max": 0.2374874479214566,
+              "mean": 0.04178287525431307,
+              "median": 0.02458638055909551,
+              "p95": 0.1469563632565282
+            },
+            "ready_samples": 0,
+            "samples": 10
+          }
+        },
+        "annotation_issue_samples": 3,
+        "center_error": {
+          "count": 122,
+          "max": 0.06009087184220089,
+          "mean": 0.022123861207755762,
+          "median": 0.021726715359500458,
+          "p95": 0.035115826635781715
+        },
+        "evaluated_samples": 122,
+        "families": {
+          "archery_aiscore_ounar:-thxz9n0zhlqx06ubug5m_63lmhokj": {
+            "radial_error": {
+              "count": 300,
+              "max": 0.0438489371912234,
+              "mean": 0.00791682542999564,
+              "median": 0.005754353816477431,
+              "p95": 0.024287572424426408
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:0zc2n3o8qybpoe-kaaauf_o7lxqgav": {
+            "radial_error": {
+              "count": 247,
+              "max": 0.05425979140224868,
+              "mean": 0.011359904731908002,
+              "median": 0.009726435561424995,
+              "p95": 0.024340244930761767
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:10ring-fig10": {
+            "radial_error": {
+              "count": 1004,
+              "max": 0.04830774487805978,
+              "mean": 0.010176519764006573,
+              "median": 0.007498193273526348,
+              "p95": 0.028750281579111317
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig12": {
+            "radial_error": {
+              "count": 846,
+              "max": 0.13427426698183142,
+              "mean": 0.027090376295275914,
+              "median": 0.007352540924833728,
+              "p95": 0.11881179625493715
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig13": {
+            "radial_error": {
+              "count": 306,
+              "max": 0.033964707928593074,
+              "mean": 0.008355815460896344,
+              "median": 0.007520798143489854,
+              "p95": 0.02309798228589305
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:10ring-fig14": {
+            "radial_error": {
+              "count": 870,
+              "max": 0.039394384405997185,
+              "mean": 0.00874478072476143,
+              "median": 0.006835654536325592,
+              "p95": 0.025437613788118006
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig15": {
+            "radial_error": {
+              "count": 286,
+              "max": 0.03255503316929231,
+              "mean": 0.007508616856744979,
+              "median": 0.005884379702646103,
+              "p95": 0.019834727209813552
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:10ring-fig16": {
+            "radial_error": {
+              "count": 825,
+              "max": 0.033822249725346865,
+              "mean": 0.008704826545952003,
+              "median": 0.0071700088782390425,
+              "p95": 0.022045241853688655
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig17": {
+            "radial_error": {
+              "count": 279,
+              "max": 0.03974090750444437,
+              "mean": 0.008028368991317892,
+              "median": 0.005762997889337318,
+              "p95": 0.024813803273465395
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:10ring-fig18": {
+            "radial_error": {
+              "count": 682,
+              "max": 0.048031486668794754,
+              "mean": 0.009715294397105265,
+              "median": 0.006273073015019948,
+              "p95": 0.028899629518599763
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig3": {
+            "radial_error": {
+              "count": 915,
+              "max": 0.040087062694419195,
+              "mean": 0.008883720657835511,
+              "median": 0.007233784127574916,
+              "p95": 0.02408034567199082
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig4": {
+            "radial_error": {
+              "count": 903,
+              "max": 0.03630935664061241,
+              "mean": 0.009269185758544263,
+              "median": 0.0074850960038187475,
+              "p95": 0.02516561102124257
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig5": {
+            "radial_error": {
+              "count": 618,
+              "max": 0.06514986014536661,
+              "mean": 0.011157539243219309,
+              "median": 0.0072665672005785,
+              "p95": 0.038037112568785225
+            },
+            "ready_samples": 1,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig6": {
+            "radial_error": {
+              "count": 306,
+              "max": 0.037515498419399274,
+              "mean": 0.008576559011224635,
+              "median": 0.007232595608531733,
+              "p95": 0.024066548178259622
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:10ring-fig7": {
+            "radial_error": {
+              "count": 266,
+              "max": 0.03924303235945681,
+              "mean": 0.006548911128646911,
+              "median": 0.00488046285516508,
+              "p95": 0.017124240294142334
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:10ring-fig8": {
+            "radial_error": {
+              "count": 981,
+              "max": 0.033393214492413614,
+              "mean": 0.008810739503589569,
+              "median": 0.006822265528014654,
+              "p95": 0.02419464250576675
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig9": {
+            "radial_error": {
+              "count": 906,
+              "max": 0.030603703774857327,
+              "mean": 0.007900891164596273,
+              "median": 0.0062983864212995955,
+              "p95": 0.02161586761167511
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:3swrrof1dlvxw5961zf-f_drophdqg": {
+            "radial_error": {
+              "count": 873,
+              "max": 0.04644381201777681,
+              "mean": 0.009015996439064897,
+              "median": 0.007441469794107425,
+              "p95": 0.024485291521343617
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:7xh_cedj2ceumq2ab-ped_rwfwuxb9": {
+            "radial_error": {
+              "count": 1034,
+              "max": 0.04446467133100773,
+              "mean": 0.011460055723184967,
+              "median": 0.00927627734085057,
+              "p95": 0.029148201519269716
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:875lsoyney4iilv3wmqwk_zbaffzul": {
+            "radial_error": {
+              "count": 293,
+              "max": 0.031232806882528497,
+              "mean": 0.010331292720015685,
+              "median": 0.008894452981285661,
+              "p95": 0.026143748324926983
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:8ototj80hk340hyqbzdzc_jtmllvlo": {
+            "radial_error": {
+              "count": 966,
+              "max": 0.034998506299111276,
+              "mean": 0.006227181636926372,
+              "median": 0.004603419438713285,
+              "p95": 0.017066595751823732
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:8v_zy88zqju0su11n5ind_f50v4rxq": {
+            "radial_error": {
+              "count": 356,
+              "max": 0.0353020379607365,
+              "mean": 0.006083868974452361,
+              "median": 0.004729502624317816,
+              "p95": 0.017965680783789573
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:_u4xenzwfadqouk-ktnlq_xvihqpcz": {
+            "radial_error": {
+              "count": 735,
+              "max": 0.048034933597931095,
+              "mean": 0.010282076553316762,
+              "median": 0.007800216357949474,
+              "p95": 0.027319276909230035
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:ajtpadeskerhfxwrsr9d__xjpzrehd": {
+            "radial_error": {
+              "count": 1041,
+              "max": 0.03321654086475567,
+              "mean": 0.006001224423962959,
+              "median": 0.004288410910179841,
+              "p95": 0.01835035709731936
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:aysvkcbw1eszgamjbecf5_2ccqcaen": {
+            "radial_error": {
+              "count": 287,
+              "max": 0.04511329984954182,
+              "mean": 0.009642799507830487,
+              "median": 0.006997838485091834,
+              "p95": 0.02693645451025912
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:bg5put18tjeuxd3-z-po-_kycnni7e": {
+            "radial_error": {
+              "count": 739,
+              "max": 0.038176545946114526,
+              "mean": 0.00905418708917867,
+              "median": 0.0069627591797293276,
+              "p95": 0.02664369379826368
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:cjskklgej-iolm9h5mqnf_kojx8mhe": {
+            "radial_error": {
+              "count": 1026,
+              "max": 0.045177112762048166,
+              "mean": 0.010019425670446286,
+              "median": 0.007780392775092737,
+              "p95": 0.026181298734670455
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:duwhecoeonbqthk6j0vov_3xk9oqr2": {
+            "radial_error": {
+              "count": 999,
+              "max": 0.03166191223688575,
+              "mean": 0.008073637720349683,
+              "median": 0.006154944016402153,
+              "p95": 0.022588955691312432
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:e6ko-drruh9ds299itukq_aqb2jvx7": {
+            "radial_error": {
+              "count": 327,
+              "max": 0.027491626369406275,
+              "mean": 0.007775389849287378,
+              "median": 0.005871825643524842,
+              "p95": 0.021523532822155664
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:fig10": {
+            "radial_error": {
+              "count": 685,
+              "max": 0.0851391737939593,
+              "mean": 0.028085976903789164,
+              "median": 0.022126462541801728,
+              "p95": 0.06567330805357414
+            },
+            "ready_samples": 0,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig16": {
+            "radial_error": {
+              "count": 228,
+              "max": 0.05758545304983831,
+              "mean": 0.0125915968522675,
+              "median": 0.009095896824157346,
+              "p95": 0.0349005526002955
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:fig18": {
+            "radial_error": {
+              "count": 245,
+              "max": 0.04761775338256036,
+              "mean": 0.012122570270823842,
+              "median": 0.008891229668739231,
+              "p95": 0.03736286858250044
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:fig2": {
+            "radial_error": {
+              "count": 669,
+              "max": 0.028274384734847224,
+              "mean": 0.007526188145572932,
+              "median": 0.005875867264273582,
+              "p95": 0.01920217947132115
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig20": {
+            "radial_error": {
+              "count": 229,
+              "max": 0.05296367939562008,
+              "mean": 0.013437375641588532,
+              "median": 0.009100371857157508,
+              "p95": 0.04016714802553351
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:fig3": {
+            "radial_error": {
+              "count": 766,
+              "max": 0.022789786790251787,
+              "mean": 0.008000399467100497,
+              "median": 0.007301228292500073,
+              "p95": 0.017076313273827692
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig4": {
+            "radial_error": {
+              "count": 750,
+              "max": 0.028170165864869867,
+              "mean": 0.007824012845595169,
+              "median": 0.007269751897386045,
+              "p95": 0.01721701244487383
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig6": {
+            "radial_error": {
+              "count": 660,
+              "max": 0.036110376339289374,
+              "mean": 0.007997000803620742,
+              "median": 0.0065686180744036204,
+              "p95": 0.021430666524628203
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig7": {
+            "radial_error": {
+              "count": 660,
+              "max": 0.07072232221329955,
+              "mean": 0.015370212457454336,
+              "median": 0.011092818023159812,
+              "p95": 0.04518581202554609
+            },
+            "ready_samples": 2,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:fig8": {
+            "radial_error": {
+              "count": 652,
+              "max": 0.10287862437619322,
+              "mean": 0.01726945662706656,
+              "median": 0.011943557768370083,
+              "p95": 0.05753926627362759
+            },
+            "ready_samples": 2,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:hjniadougat36lnn9ye38_sxitsfmx": {
+            "radial_error": {
+              "count": 732,
+              "max": 0.03900259557709962,
+              "mean": 0.008447834565469228,
+              "median": 0.0058567673403853715,
+              "p95": 0.025046384615877708
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:i4ppxx0ctop3fmw2-c1s8_ic5wlazz": {
+            "radial_error": {
+              "count": 744,
+              "max": 0.03411612105344841,
+              "mean": 0.008971218011731195,
+              "median": 0.007135476437392596,
+              "p95": 0.024133881489938634
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:k9axcst6jsstdozespara_zh26ufqn": {
+            "radial_error": {
+              "count": 321,
+              "max": 0.029461759561683287,
+              "mean": 0.00671853930189025,
+              "median": 0.005276338273254799,
+              "p95": 0.019354319665725095
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:naggro3w659n_vtez7lwf_zhkg63g9": {
+            "radial_error": {
+              "count": 900,
+              "max": 0.2374874479214566,
+              "mean": 0.07213880516989978,
+              "median": 0.05940352535166932,
+              "p95": 0.18583738594731242
+            },
+            "ready_samples": 0,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:nzwtzlbg5z5_khabqnqky_olh4zoz9": {
+            "radial_error": {
+              "count": 356,
+              "max": 0.04179826058223268,
+              "mean": 0.01093764309769328,
+              "median": 0.008097417251484329,
+              "p95": 0.03133009234804221
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:qijol1cy6xcfqza6d3sm-_v1qc7lqq": {
+            "radial_error": {
+              "count": 354,
+              "max": 0.11428662415326463,
+              "mean": 0.00841500397714513,
+              "median": 0.006036076006120772,
+              "p95": 0.01985333050124801
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:sqp66n3d6idsqjenzdvmv_lo5qilzl": {
+            "radial_error": {
+              "count": 749,
+              "max": 0.036764120700012004,
+              "mean": 0.00882257707068991,
+              "median": 0.005961060353715492,
+              "p95": 0.02617283224134668
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:uwwnf244ukjct6-xzcopc_gyyumwkn": {
+            "radial_error": {
+              "count": 1068,
+              "max": 0.0423455150289771,
+              "mean": 0.008308994318425892,
+              "median": 0.006153130700543075,
+              "p95": 0.025516643170514934
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:uzniu3glozmfdhtok-vmn_vepwihqg": {
+            "radial_error": {
+              "count": 760,
+              "max": 0.04758496676124491,
+              "mean": 0.008820388251029546,
+              "median": 0.006250996352867688,
+              "p95": 0.02326855769052492
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:v0n8t4s9tohllyqh6udvn_qg1n0tfn": {
+            "radial_error": {
+              "count": 711,
+              "max": 0.04076011197835849,
+              "mean": 0.008942453362380852,
+              "median": 0.007188343099875039,
+              "p95": 0.02279076881545239
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:v2nfdifwqwdigxp1e_qe2_8of3zibe": {
+            "radial_error": {
+              "count": 1008,
+              "max": 0.03651484766668189,
+              "mean": 0.007333181321697251,
+              "median": 0.004753643368424543,
+              "p95": 0.022371532218102473
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:vfkjihu71vnzdpbxcbepo_2uvkvsbh": {
+            "radial_error": {
+              "count": 950,
+              "max": 0.061423902382702344,
+              "mean": 0.012756861798313762,
+              "median": 0.010197417144612697,
+              "p95": 0.034943158129976774
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:zpzbq6cckp0jhqot7f39u_eawym1fe": {
+            "radial_error": {
+              "count": 738,
+              "max": 0.030141465201019457,
+              "mean": 0.010305933281772608,
+              "median": 0.008831092153640752,
+              "p95": 0.02515048058143635
+            },
+            "ready_samples": 3,
+            "samples": 3
+          }
+        },
+        "radial_error": {
+          "count": 34151,
+          "max": 0.2374874479214566,
+          "mean": 0.011702784040369207,
+          "median": 0.007305211569730186,
+          "p95": 0.03114699170906443
+        },
+        "ready_samples": 112,
+        "ring_error": {
+          "1": {
+            "count": 4804,
+            "max": 0.2374874479214566,
+            "mean": 0.023986000421839918,
+            "median": 0.01984904097693596,
+            "p95": 0.05758053781433358
+          },
+          "10": {
+            "count": 1740,
+            "max": 0.030141128754647972,
+            "mean": 0.004993667883941561,
+            "median": 0.003979314794682658,
+            "p95": 0.012893315662514497
+          },
+          "2": {
+            "count": 4062,
+            "max": 0.22127019143713766,
+            "mean": 0.019153662547174,
+            "median": 0.014124324594584736,
+            "p95": 0.05027551815595226
+          },
+          "3": {
+            "count": 4730,
+            "max": 0.19338343326603935,
+            "mean": 0.01175273136224547,
+            "median": 0.009088337213690567,
+            "p95": 0.024835325114009012
+          },
+          "4": {
+            "count": 3564,
+            "max": 0.1641229388249208,
+            "mean": 0.011485787585180377,
+            "median": 0.007918070713351932,
+            "p95": 0.026850189813507945
+          },
+          "5": {
+            "count": 4042,
+            "max": 0.1419031898233286,
+            "mean": 0.009455162739967929,
+            "median": 0.006634805066957461,
+            "p95": 0.025980920616882626
+          },
+          "6": {
+            "count": 3147,
+            "max": 0.13452405736935624,
+            "mean": 0.007428773727509026,
+            "median": 0.00456792222204494,
+            "p95": 0.020633102796076188
+          },
+          "7": {
+            "count": 3068,
+            "max": 0.10340072941693024,
+            "mean": 0.005444727424766244,
+            "median": 0.002962032913876478,
+            "p95": 0.017656818445841844
+          },
+          "8": {
+            "count": 2638,
+            "max": 0.07407131360616498,
+            "mean": 0.004755917381210297,
+            "median": 0.0033506024293760706,
+            "p95": 0.01214891509920028
+          },
+          "9": {
+            "count": 2356,
+            "max": 0.054026753990535026,
+            "mean": 0.004486185716557667,
+            "median": 0.0032773526229562533,
+            "p95": 0.011442972657862316
+          }
+        },
+        "samples": 122,
+        "status_counts": {
+          "GEOMETRY_UNCERTAIN": 10,
+          "READY": 112
+        }
+      },
+      "val": {
+        "acceptance": {
+          "ready": {
+            "center_error": {
+              "count": 15,
+              "max": 0.03893672404816499,
+              "mean": 0.0256462633337912,
+              "median": 0.027940750242673694,
+              "p95": 0.03860799549371996
+            },
+            "evaluated_samples": 15,
+            "radial_error": {
+              "count": 3931,
+              "max": 0.07035604107095139,
+              "mean": 0.01126179177628132,
+              "median": 0.008568799348038003,
+              "p95": 0.03160230976358125
+            },
+            "ready_samples": 15,
+            "samples": 15
+          }
+        },
+        "annotation_issue_samples": 0,
+        "center_error": {
+          "count": 15,
+          "max": 0.03893672404816499,
+          "mean": 0.0256462633337912,
+          "median": 0.027940750242673694,
+          "p95": 0.03860799549371996
+        },
+        "evaluated_samples": 15,
+        "families": {
+          "archery_aiscore_ounar:10ring-fig1": {
+            "radial_error": {
+              "count": 288,
+              "max": 0.03309593807592226,
+              "mean": 0.007657109044201465,
+              "median": 0.006368058986102598,
+              "p95": 0.019964215850370566
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:10ring-fig19": {
+            "radial_error": {
+              "count": 843,
+              "max": 0.04642077610389439,
+              "mean": 0.008955986448848043,
+              "median": 0.007818789409849702,
+              "p95": 0.022681844332478218
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:10ring-fig2": {
+            "radial_error": {
+              "count": 913,
+              "max": 0.0496139615518536,
+              "mean": 0.01041927060471156,
+              "median": 0.007678745842322199,
+              "p95": 0.029318235750738705
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:b2dvz-p_hcgqh8vm7mk_t_kfvbr2b5": {
+            "radial_error": {
+              "count": 247,
+              "max": 0.04203984440757047,
+              "mean": 0.011461198491795324,
+              "median": 0.009166400678907727,
+              "p95": 0.03238750841527975
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:fig17": {
+            "radial_error": {
+              "count": 219,
+              "max": 0.04890762237881785,
+              "mean": 0.012375623727659674,
+              "median": 0.010027969785701085,
+              "p95": 0.03080279616642094
+            },
+            "ready_samples": 1,
+            "samples": 1
+          },
+          "archery_aiscore_ounar:fig19": {
+            "radial_error": {
+              "count": 703,
+              "max": 0.07035604107095139,
+              "mean": 0.016340171190416832,
+              "median": 0.012511322425147742,
+              "p95": 0.052535003438872685
+            },
+            "ready_samples": 3,
+            "samples": 3
+          },
+          "archery_aiscore_ounar:w0bhfqht4cde31r0qtnra_5z0l1cbs": {
+            "radial_error": {
+              "count": 718,
+              "max": 0.04440955906042521,
+              "mean": 0.011105637129049236,
+              "median": 0.009637922751661643,
+              "p95": 0.029099276710191635
+            },
+            "ready_samples": 3,
+            "samples": 3
+          }
+        },
+        "radial_error": {
+          "count": 3931,
+          "max": 0.07035604107095139,
+          "mean": 0.01126179177628132,
+          "median": 0.008568799348038003,
+          "p95": 0.03160230976358125
+        },
+        "ready_samples": 15,
+        "ring_error": {
+          "1": {
+            "count": 490,
+            "max": 0.07035604107095139,
+            "mean": 0.025250944327688273,
+            "median": 0.02389776993305126,
+            "p95": 0.053961636319987724
+          },
+          "10": {
+            "count": 239,
+            "max": 0.016894943742410407,
+            "mean": 0.005031141333197331,
+            "median": 0.004041767605351229,
+            "p95": 0.013413898551901775
+          },
+          "2": {
+            "count": 407,
+            "max": 0.05712644770137598,
+            "mean": 0.02006723943752567,
+            "median": 0.019048131183468153,
+            "p95": 0.04310949715645237
+          },
+          "3": {
+            "count": 557,
+            "max": 0.03971296064020391,
+            "mean": 0.014239796813794402,
+            "median": 0.01294283588053402,
+            "p95": 0.031663854194877654
+          },
+          "4": {
+            "count": 357,
+            "max": 0.037233638920613155,
+            "mean": 0.012630457490390953,
+            "median": 0.011885223770448872,
+            "p95": 0.028168587385983223
+          },
+          "5": {
+            "count": 468,
+            "max": 0.02819014845029999,
+            "mean": 0.00869894376673009,
+            "median": 0.0077751854738171144,
+            "p95": 0.020138184217416505
+          },
+          "6": {
+            "count": 306,
+            "max": 0.022868315213219303,
+            "mean": 0.006614187236636981,
+            "median": 0.006079605861546489,
+            "p95": 0.015081630700704923
+          },
+          "7": {
+            "count": 410,
+            "max": 0.019005581700664353,
+            "mean": 0.003086360358669753,
+            "median": 0.0025805671495557903,
+            "p95": 0.008018700262469638
+          },
+          "8": {
+            "count": 363,
+            "max": 0.021977874928011787,
+            "mean": 0.004182914398299398,
+            "median": 0.003919219065658952,
+            "p95": 0.00946482468440989
+          },
+          "9": {
+            "count": 334,
+            "max": 0.012147074210965753,
+            "mean": 0.003616283598971807,
+            "median": 0.002781080620222226,
+            "p95": 0.010193970736313689
+          }
+        },
+        "samples": 15,
+        "status_counts": {
+          "READY": 15
+        }
+      }
+    }
+  },
+  "runtime": {
+    "numpy": "2.2.6",
+    "opencv": "4.12.0",
+    "pillow": "11.3.0",
+    "python": "3.12.7"
+  },
+  "split_audit": {
+    "exact_image_leaks": {},
+    "export_folder_to_manifest_split": {
+      "test->test": 1,
+      "test->train": 7,
+      "train->test": 15,
+      "train->train": 105,
+      "train->val": 12,
+      "valid->train": 10,
+      "valid->val": 3
+    },
+    "group_count": 18,
+    "group_leaks": {},
+    "limitations": [
+      "Filename lineage and dHash cannot certify capture-session or cross-source independence.",
+      "A previously diagnosed test split is development data regardless of its name."
+    ],
+    "near_image_leaks_dhash_4": [],
+    "original_families": 65,
+    "original_family_leaks": {},
+    "samples": 153,
+    "split_counts": {
+      "test": 16,
+      "train": 122,
+      "val": 15
+    }
+  },
+  "stage_status": "BLOCKED: independent mobile_real_test geometry data and real triple/configuration coverage are unavailable",
+  "supplemental_selection": {
+    "detector_sha256": "3fee98947b7f654e863130aa92140effade1d0e8d83b3b2c198a81f9f81b82f0",
+    "groups": [
+      "archery_aiscore_ounar:BG5Put18tjEUXD3-z-po-_KYCNNI7e",
+      "archery_aiscore_ounar:VFkjihU71vnZDPBXcbEPo_2uVKvSbh"
+    ],
+    "manifest_sha256": "448b42cec5163da27e6ebbe5395cb8926d80a3c22070c620bad46270f222405e",
+    "purpose": "Whole train groups with no Fig originals, reserved before inspecting train metrics/images. Prior historical exposure unknown. Supplemental only, not mobile_real_test.",
+    "sample_ids": [
+      "archery_aiscore_ounar:train/BG5Put18tjEUXD3-z-po-_KYCNNI7e_png.rf.43e4a787944527facb62cfeb60cdf947",
+      "archery_aiscore_ounar:train/BG5Put18tjEUXD3-z-po-_KYCNNI7e_png.rf.62c67aaa55b27b643e45ef487ec7ddf5",
+      "archery_aiscore_ounar:train/BG5Put18tjEUXD3-z-po-_KYCNNI7e_png.rf.af08a7d6c9a526a804a604c54bd95e9d",
+      "archery_aiscore_ounar:train/VFkjihU71vnZDPBXcbEPo_2uVKvSbh_png.rf.29351c9e463001c77409b449cb4f6a4a",
+      "archery_aiscore_ounar:train/VFkjihU71vnZDPBXcbEPo_2uVKvSbh_png.rf.b4d2ac006ae310ad2deb643800392e8e",
+      "archery_aiscore_ounar:train/VFkjihU71vnZDPBXcbEPo_2uVKvSbh_png.rf.bf942cc4189d05dd70aedeb8d439e079"
+    ]
+  }
+}

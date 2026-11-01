@@ -17,9 +17,16 @@ def audit_splits(view: DatasetView) -> dict:
     groups: dict[str, list] = defaultdict(list)
     originals: dict[str, list] = defaultdict(list)
     exact: dict[str, list] = defaultdict(list)
+    sessions: dict[str, list] = defaultdict(list)
+    original_hashes: dict[str, list] = defaultdict(list)
     hashes = []
     folder_splits: Counter[str] = Counter()
     for sample in view:
+        meta = sample.capture_metadata or {}
+        if meta.get("capture_session_id"):
+            sessions[meta["capture_session_id"]].append(sample)
+        if meta.get("original_sha256"):
+            original_hashes[meta["original_sha256"]].append(sample)
         groups[sample.group_id or sample.id].append(sample)
         originals[f"{sample.source_id}:{original_family(sample.image_path)}"].append(sample)
         exact[hashlib.sha256(sample.image_path.read_bytes()).hexdigest()].append(sample)
@@ -45,6 +52,8 @@ def audit_splits(view: DatasetView) -> dict:
         "split_counts": dict(sorted(Counter(sample.split for sample in view).items())),
         "export_folder_to_manifest_split": dict(sorted(folder_splits.items())),
         "group_leaks": leaks(groups),
+        "capture_session_leaks": leaks(sessions),
+        "original_sha256_leaks": leaks(original_hashes),
         "original_family_leaks": leaks(originals),
         "exact_image_leaks": leaks(exact),
         "near_image_leaks_dhash_4": near_leaks,
@@ -53,6 +62,15 @@ def audit_splits(view: DatasetView) -> dict:
             "A previously diagnosed test split is development data regardless of its name.",
         ],
     }
+
+
+def require_holdout_isolation(view: DatasetView) -> dict:
+    """Audit the entire supplied manifest before selecting test/configuration rows."""
+    audit = audit_splits(view)
+    if any(audit[key] for key in ("group_leaks", "capture_session_leaks", "original_sha256_leaks",
+            "original_family_leaks", "exact_image_leaks", "near_image_leaks_dhash_4")):
+        raise ValueError("cross-split leakage in evaluation manifest; holdout isolation failed")
+    return audit
 
 
 def main() -> int:
@@ -68,7 +86,8 @@ def main() -> int:
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2, sort_keys=True))
     return int(any(report[key] for key in (
-        "group_leaks", "original_family_leaks", "exact_image_leaks", "near_image_leaks_dhash_4",
+        "group_leaks", "capture_session_leaks", "original_sha256_leaks",
+        "original_family_leaks", "exact_image_leaks", "near_image_leaks_dhash_4",
     )))
 
 

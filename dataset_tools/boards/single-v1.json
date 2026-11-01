@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "board_template_id": "stage3-single-200mm",
+  "revision": "draft-v1",
+  "status": "development-template-not-real-validated",
+  "dictionary": "DICT_4X4_50",
+  "width_mm": 600,
+  "height_mm": 800,
+  "format": "SINGLE",
+  "triple_layout": null,
+  "faces": [
+    {
+      "face_index": 0,
+      "center_mm": [
+        300,
+        400
+      ],
+      "radius_mm": 100
+    }
+  ],
+  "markers": [
+    {
+      "id": 0,
+      "corners_mm": [
+        [
+          20,
+          20
+        ],
+        [
+          70,
+          20
+        ],
+        [
+          70,
+          70
+        ],
+        [
+          20,
+          70
+        ]
+      ]
+    },
+    {
+      "id": 1,
+      "corners_mm": [
+        [
+          530,
+          20
+        ],
+        [
+          580,
+          20
+        ],
+        [
+          580,
+          70
+        ],
+        [
+          530,
+          70
+        ]
+      ]
+    },
+    {
+      "id": 2,
+      "corners_mm": [
+        [
+          530,
+          730
+        ],
+        [
+          580,
+          730
+        ],
+        [
+          580,
+          780
+        ],
+        [
+          530,
+          780
+        ]
+      ]
+    },
+    {
+      "id": 3,
+      "corners_mm": [
+        [
+          20,
+          730
+        ],
+        [
+          70,
+          730
+        ],
+        [
+          70,
+          780
+        ],
+        [
+          20,
+          780
+        ]
+      ]
+    }
+  ],
+  "quality": {
+    "minimum_markers": 3,
+    "maximum_reprojection_px": 2,
+    "maximum_center_distance_radius": 0.25,
+    "maximum_axis_anisotropy": 1.15
+  }
+}

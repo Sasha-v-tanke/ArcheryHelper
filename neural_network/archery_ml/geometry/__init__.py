@@ -23,8 +23,15 @@ from neural_network.archery_ml.geometry.target_templates import (
     GeometryTemplate,
     geometry_template,
 )
+from neural_network.archery_ml.geometry.calibration import (
+    BoardCalibration, BoardTemplate, CalibratedGeometryResult, TargetOrientationCalibrator,
+)
 
 __all__ = [
+    "BoardCalibration",
+    "BoardTemplate",
+    "CalibratedGeometryResult",
+    "TargetOrientationCalibrator",
     "CANONICAL_CENTER_PX",
     "CANONICAL_RADIUS_PX",
     "CANONICAL_SIZE",

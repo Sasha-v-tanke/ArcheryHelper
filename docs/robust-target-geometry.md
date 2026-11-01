@@ -210,7 +210,11 @@ preprocessing. Отсутствие любого обязательного ат
 проекта и отсутствуют оригинальные 58 development real фотографий, inventory,
 detections, selections и center-reviews. Поэтому новый парный прогон
 27 synthetic + 58 real **не выполнялся**, а прежние geometry-метрики
-**не переутверждались**. Новые тесты, Ruff и полный local unittest suite
-до независимого запуска помечаются **NOT_VERIFIED**; наличие исходного кода
-тестов не равно их успешному прохождению. Набор из 58 фотографий остаётся
+**не переутверждались**. На HEAD `0bc2cef` GitHub Actions `python-unit` завершился успешно:
+129 обнаруженных тестов, из них 127 PASS, 2 skipped (отсутствует внешний
+v9 export), 0 failures. Этот CI не запускает Ruff и не содержит
+реальные development photos. Полный local unittest suite, Ruff и
+`git diff --check` в среде данного запуска **NOT_VERIFIED**.
+Дополнительный тест на фиксацию shape/dtype и C-order добавлен
+после этого CI, поэтому требует повторной проверки на финальном SHA. Набор из 58 фотографий остаётся
 development feedback, а независимый real holdout остаётся **NOT_VALIDATED**.

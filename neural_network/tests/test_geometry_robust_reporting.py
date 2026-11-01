@@ -333,3 +333,20 @@ class RobustReportingTest(unittest.TestCase):
                 fraction,
                 json.loads(json.dumps(result))["false_accept_fraction_on_negative_scenes"],
             )
+
+    def test_pixel_hash_includes_array_shape_and_canonical_c_order(self):
+        import numpy as np
+
+        pixels = np.arange(18, dtype=np.uint8).reshape((2, 3, 3))
+        self.assertNotEqual(
+            rgb_pixel_sha256(pixels),
+            rgb_pixel_sha256(pixels.reshape((3, 2, 3))),
+        )
+        self.assertEqual(
+            rgb_pixel_sha256(pixels), rgb_pixel_sha256(np.asfortranarray(pixels))
+        )
+        altered = pixels.copy()
+        altered[0, 0, 0] ^= 1
+        self.assertNotEqual(rgb_pixel_sha256(pixels), rgb_pixel_sha256(altered))
+        with self.assertRaisesRegex(ValueError, "RGB uint8"):
+            rgb_pixel_sha256(pixels.astype(np.uint16))

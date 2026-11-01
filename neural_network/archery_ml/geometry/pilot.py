@@ -376,6 +376,20 @@ def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=Fa
     algorithm_sha, dirty = _git_state()
     if baseline and (output/"baseline-metrics.json").exists():
         raise ValueError("baseline already exists; use a new output revision")
+    source = Path(input_dir).resolve()
+    if output == source or output.is_relative_to(source):
+        raise ValueError("output must be outside the original photograph tree")
+    if not inventory_only:
+        mark_reseal_required(output,"normal batch in progress; incomplete until a new manifest is written")
+        # Only known generated image directories are rebuilt. Never touch
+        # original photographs or user-authored JSON sidecars.
+        for name in ("rgb","previews","crops" if not baseline else "baseline-crops",
+                     "overlays" if not baseline else "baseline-overlays"):
+            directory = output/name
+            if directory.is_symlink():
+                raise ValueError(f"symlink in generated output: {directory}")
+            if directory.is_dir():
+                shutil.rmtree(directory)
     inv = inventory(input_dir,output)
     if inventory_only:
         return inv
@@ -418,10 +432,12 @@ def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=Fa
             for name in ("board-template.json","independent-gt.json") if (output/name).exists()}}
     record = {"algorithm_sha":algorithm_sha,"working_tree_dirty":dirty,"algorithm_content_sha256":source_digest,
         "inputs_sha256":_digest(binding),"results_sha256":_digest(_stable({"detections":detections,"results":results})),
-        "dependencies":{"python":platform.python_version(),"numpy":np.__version__,"opencv":cv2.__version__,"pillow":PIL.__version__}}
-    save_json(output/"reproducibility.json",{"status":"NOT_CHECKED",
-        "differences":[],"previous":previous_run,"current":record,"excluded_fields":["processing_seconds"]})
+        "dependencies":{"python":platform.python_version(),"numpy":np.__version__,"opencv":cv2.__version__,"pillow":PIL.__version__},
+        "baseline_mode":bool(baseline),"artifact_manifest":artifact_inventory(output)}
     save_json(output/"run-manifest.json",record)
+    save_json(output/"reproducibility.json",{"status":"NOT_CHECKED",
+        "differences":[],"previous":previous_run,"current":record,
+        "excluded_fields":["geometry-results.json:processing_seconds"]})
     return statistics
 
 

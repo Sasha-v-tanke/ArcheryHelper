@@ -26,6 +26,32 @@ from neural_network.archery_ml.targets import (
 )
 
 
+# Hash version fixes dtype, HWC shape, RGB channel order and C-order bytes.
+RGB_PIXEL_HASH_SPEC = "rgb-uint8-hwc-c-v1"
+REAL_PREPROCESSING_VERSION = "foreign-ellipse-gray118-diameter1.1-v1"
+UNLABELED_PREPROCESSING_VERSION = "upright-rgb-full-frame-v1"
+
+
+def rgb_pixel_sha256(image):
+    """Fingerprint exactly the RGB uint8 pixels supplied to the detector."""
+    if image.ndim != 3 or image.shape[2] != 3 or image.dtype != np.uint8:
+        raise ValueError("pixel hash requires HWC RGB uint8 input")
+    header = json.dumps(
+        {
+            "shape": list(image.shape),
+            "dtype": "uint8",
+            "channel_order": "RGB",
+            "memory_order": "C",
+            "byte_order": "not_applicable_uint8",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+    digest = hashlib.sha256(b"archery-rgb-pixels-v1\\0" + header + b"\\0")
+    digest.update(np.ascontiguousarray(image).tobytes(order="C"))
+    return digest.hexdigest()
+
+
 def summary(values):
     return (
         {
@@ -263,7 +289,8 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
                 )
                 continue
             path = pilot / row["rgb_path"]
-            if hashlib.sha256(path.read_bytes()).hexdigest() != row["rgb_sha256"]:
+            cached_rgb_file_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+            if cached_rgb_file_sha256 != row["rgb_sha256"]:
                 raise ValueError("image binding changed")
             rgb = np.asarray(Image.open(path).convert("RGB"))
             selected = [
@@ -303,6 +330,8 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
                         -1,
                     )
             roi = isolated[y0:y1, x0:x1]
+            upright_rgb_sha256 = rgb_pixel_sha256(rgb)
+            detector_input_sha256 = rgb_pixel_sha256(roi)
             geometry, elapsed = timed_detect(detector, roi, target)
             quality = gate.evaluate(roi, geometry)
             truth = {
@@ -353,6 +382,13 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
                 "id": key,
                 "number": row["number"],
                 "input_sha256": hashlib.sha256(rgb.tobytes()).hexdigest(),
+                "cached_rgb_file_sha256": cached_rgb_file_sha256,
+                "upright_rgb_sha256": upright_rgb_sha256,
+                "effective_detector_input_sha256": detector_input_sha256,
+                "pixel_hash_spec": RGB_PIXEL_HASH_SPEC,
+                "target_config": asdict(target),
+                "candidate_ids": list(choice["candidate_ids"]),
+                "preprocessing_version": REAL_PREPROCESSING_VERSION,
                 "dataset": "development_real",
                 "status": quality.status.value,
                 "latency_ms": elapsed,
@@ -385,6 +421,14 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
             {
                 "id": name,
                 "input_sha256": hashlib.sha256(rgb.tobytes()).hexdigest(),
+                "source_file_sha256": name,
+                "upright_rgb_sha256": rgb_pixel_sha256(rgb),
+                "effective_detector_input_sha256": rgb_pixel_sha256(rgb),
+                "pixel_hash_spec": RGB_PIXEL_HASH_SPEC,
+                "target_config": asdict(config) if config is not None else None,
+                "candidate_ids": [],
+                "roi": [0, 0, int(rgb.shape[1]), int(rgb.shape[0])],
+                "preprocessing_version": UNLABELED_PREPROCESSING_VERSION,
                 "dataset": "unlabeled",
                 "status": status,
                 "latency_ms": elapsed,

@@ -308,6 +308,14 @@ def _digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
 
 
+def mark_reseal_required(output, reason):
+    """Invalidate verification before any interactive mutation is attempted."""
+    output = Path(output)
+    evidence = read_json(output/"reproducibility.json",{})
+    evidence.update(status="RESEAL_REQUIRED",reason=reason,differences=[])
+    save_json(output/"reproducibility.json",evidence)
+
+
 def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=False,verify_replay=False, *, replay_inputs=None):
     output = Path(output).resolve()
     previous_run = read_json(output/"run-manifest.json",{})
@@ -316,22 +324,49 @@ def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=Fa
     if verify_replay:
         if inventory_only or baseline:
             raise ValueError("verify-replay cannot be combined with inventory-only or baseline")
-        # Recompute into a sibling directory. Never mix a failed replay with the
-        # original evidence, even when loading or processing raises an exception.
+        expected = require_manifest(previous_run)
+        if read_json(output/"reproducibility.json",{}).get("status") == "RESEAL_REQUIRED":
+            raise ValueError("pilot reseal required: run a new normal batch before replay")
+        live = artifact_inventory(output)
+        artifact_changes = artifact_differences(expected,live,"existing")
+        # Recompute in an isolated sibling directory. Failed replay must not
+        # modify original evidence, even if processing raises an exception.
         with tempfile.TemporaryDirectory(prefix=f".{output.name}-replay-",dir=output.parent) as tmp:
             scratch = Path(tmp)
             for name in ("target-selections.json","visual-reviews.json","visual-review-history.json",
                     "board-template.json","independent-gt.json","baseline-metrics.json"):
-                if (output/name).is_file():
+                if (output/name).is_file() and not (previous_run.get("baseline_mode") and name=="baseline-metrics.json"):
                     shutil.copy2(output/name,scratch/name)
+            if not previous_run.get("baseline_mode"):
+                for path in output.rglob("*"):
+                    if not path.is_file():
+                        continue
+                    relative = path.relative_to(output)
+                    if path.name.startswith("baseline-") or relative.parts[0] in ("baseline-crops","baseline-overlays"):
+                        destination = scratch/relative
+                        destination.parent.mkdir(parents=True,exist_ok=True)
+                        shutil.copy2(path,destination)
             for name,content in (replay_inputs or {}).items():
                 (scratch/name).write_bytes(content)
-            statistics = batch(input_dir,scratch,selections_path)
-            record = read_json(scratch/"run-manifest.json",{})
-            keys = ("algorithm_content_sha256","inputs_sha256","results_sha256","dependencies")
-            differences = [key for key in keys if record.get(key)!=previous_run.get(key)]
+            try:
+                statistics = batch(input_dir,scratch,selections_path,baseline=bool(previous_run.get("baseline_mode")))
+                record = read_json(scratch/"run-manifest.json",{})
+                keys = ("algorithm_content_sha256","inputs_sha256","results_sha256","dependencies","baseline_mode")
+                differences = [key for key in keys if record.get(key)!=previous_run.get(key)]
+                artifact_changes += artifact_differences(expected,record["artifact_manifest"],"recomputed")
+            except Exception as error:
+                if not artifact_changes:
+                    raise
+                evidence = {"status":"MISMATCH","differences":["artifact_manifest"],
+                    "artifact_differences":artifact_changes,"processing_error":str(error),
+                    "previous":previous_run,"excluded_fields":["geometry-results.json:processing_seconds"]}
+                save_json(output.parent/(output.name+"-replay-mismatch.json"),evidence)
+                raise ValueError("pilot replay differs: artifact_manifest; processing error: "+str(error)) from error
+            if artifact_changes:
+                differences.append("artifact_manifest")
             evidence = {"status":"MISMATCH" if differences else "VERIFIED","differences":differences,
-                "previous":previous_run,"current":record,"excluded_fields":["processing_seconds"]}
+                "artifact_differences":artifact_changes,"previous":previous_run,"current":record,
+                "excluded_fields":["geometry-results.json:processing_seconds"]}
             if differences:
                 save_json(output.parent/(output.name+"-replay-mismatch.json"),evidence)
                 raise ValueError("pilot replay differs: "+", ".join(differences))

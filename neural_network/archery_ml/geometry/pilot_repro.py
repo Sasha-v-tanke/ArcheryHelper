@@ -24,7 +24,12 @@ def _stable_geometry(value):
 
 def _content(path, relative):
     if relative == "geometry-results.json":
-        value = _stable_geometry(json.loads(path.read_text()))
+        try:
+            value = _stable_geometry(json.loads(path.read_text()))
+        except (ValueError, UnicodeError):
+            # Corrupted JSON must be reported as a mismatched file, not crash
+            # the artifact scan before diagnostics can be produced.
+            return b"invalid-json\0" + path.read_bytes()
         return json.dumps(value, sort_keys=True, separators=(",", ":"),
                           ensure_ascii=False, allow_nan=False).encode("utf-8")
     return path.read_bytes()
@@ -42,7 +47,10 @@ def artifact_inventory(output):
     files = []
     for path in sorted(output.rglob("*")):
         if path.is_symlink():
-            raise ValueError(f"symlink in pilot output: {path.relative_to(output)}")
+            # Never follow links; record replacement/extra links as mismatches.
+            files.append({"path": path.relative_to(output).as_posix(), "kind": "symlink",
+                          "sha256": hashlib.sha256(str(path.readlink()).encode()).hexdigest()})
+            continue
         if not path.is_file():
             continue
         relative = path.relative_to(output).as_posix()

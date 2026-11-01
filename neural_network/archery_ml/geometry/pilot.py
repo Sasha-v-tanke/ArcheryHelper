@@ -110,6 +110,16 @@ def process_frame(row,detection,selection,output,previews=True,artifact_prefix="
     return result
 
 
+def result_category(selection, result):
+    if selection["status"] in {"AMBIGUOUS","NO_GROUP"}:
+        return "selection"
+    if result["status"] != "READY":
+        return "geometry"
+    if result.get("orientation_status") != "ANCHORED":
+        return "orientation"
+    return "success"
+
+
 def reports(output,inv,detections,selections,results,before=None):
     rows = inv["images"]
     reviews = read_json(output/"visual-reviews.json",{})
@@ -130,10 +140,7 @@ def reports(output,inv,detections,selections,results,before=None):
         key = row.get("original_id",f"unreadable-{row['number']}")
         result = results[key]
         selection = selections[key]
-        reason = ("selection" if selection["status"] in {"AMBIGUOUS","NO_GROUP"}
-                  else "geometry" if result["status"]!="READY"
-                  else "orientation" if result.get("orientation_status")!="ANCHORED"
-                  else "success")
+        reason = result_category(selection,result)
         preview_reasons = Counter(g["quality_status"] for g in result.get("group_results",{}).values())
         if reason == "success":
             continue
@@ -193,11 +200,8 @@ def reports(output,inv,detections,selections,results,before=None):
         "correct_user_group_count":sum(s["status"]=="USER_CONFIRMED" for s in selections.values()),
         "ownership_pending_original_numbers":[r["number"] for r in rows if selections[r.get("original_id",f"unreadable-{r['number']}")]["status"]!="USER_CONFIRMED"],
         "ready":sum(r["status"]=="READY" for r in results.values()),
-        "result_categories":dict(Counter(
-            "selection" if selections[key]["status"] in {"AMBIGUOUS","NO_GROUP"}
-            else "geometry" if result["status"]!="READY"
-            else "orientation" if result.get("orientation_status")!="ANCHORED"
-            else "success" for key,result in results.items())),
+        "result_categories":dict(Counter(result_category(selections[key],result)
+                    for key,result in results.items())),
         "quality_statuses":dict(Counter(r["quality_status"] for r in results.values())),
         "images_with_ready_group_preview":sum(any(g["status"]=="READY" for g in r.get("group_results",{}).values()) for r in results.values()),
         "visually_correct_geometry":sum(r.get("rating")=="Correct" and not r.get("stale") for r in reviews.values()),
@@ -420,6 +424,9 @@ def batch(input_dir,output,selections_path=None,inventory_only=False,baseline=Fa
         results[key]["processing_seconds"] = time.monotonic()-start
         print(f'#{row["number"]:02} faces={len(detections[key]["candidates"])} selection={selections[key]["status"]} geometry={results[key]["quality_status"]}',flush=True)
     save_json(output/"detections.json",detections)
+    # This batch is not yet verified; the manifest is sealed only after all
+    # reporting artifacts have been written successfully.
+    save_json(output/"reproducibility.json",{"status":"NOT_CHECKED","reason":"manifest pending"})
     statistics = reports(output,inv,detections,selections,results)
     if baseline:
         save_json(output/"baseline-geometry-results.json",results)

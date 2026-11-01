@@ -10,6 +10,7 @@ import unittest
 from PIL import Image
 
 from neural_network.archery_ml.geometry.pilot import batch, result_category
+from neural_network.archery_ml.geometry.pilot_viewer import update
 from neural_network.archery_ml.geometry.pilot_repro import (
     artifact_inventory, artifact_differences, require_manifest,
 )
@@ -88,3 +89,49 @@ class ArtifactManifestTest(unittest.TestCase):
             self.assertEqual("MISMATCH",diagnosis["status"])
             self.assertIn("metrics.json",{v["path"] for v in diagnosis["artifact_differences"]})
             self.assertFalse(list(base.glob(".output-replay-*")))
+
+    def test_replay_rejects_damaged_selected_crop_missing_file_and_extra_output(self):
+        with tempfile.TemporaryDirectory() as root:
+            base = Path(root)
+            source = base/"input"
+            source.mkdir()
+            Image.fromarray(scene(2)).save(source/"targets.png")
+            output = base/"pilot"
+            with redirect_stdout(io.StringIO()):
+                batch(source,output)
+            detections = json.loads((output/"detections.json").read_text())
+            key,det = next(iter(detections.items()))
+            group = next(g for g in det["groups"] if g["format"]=="TRIPLE")
+            selection = {**group,"status":"USER_CONFIRMED",
+                         "detection_fingerprint":det["fingerprint"]}
+            with redirect_stdout(io.StringIO()):
+                update(output,key,"selection",selection)
+                batch(source,output)
+                batch(source,output,verify_replay=True)
+            crops = sorted(output.glob("crops/*/selected/*.png"))
+            self.assertTrue(crops,"confirmed READY geometry must produce real crop PNGs")
+            crop = crops[0]
+            original = crop.read_bytes()
+            crop.write_bytes(b"damaged crop bytes")
+            prior = snapshot(output)
+            with redirect_stdout(io.StringIO()),self.assertRaisesRegex(ValueError,"pilot replay differs"):
+                batch(source,output,verify_replay=True)
+            self.assertEqual(prior,snapshot(output))
+            diagnosis = json.loads((base/"pilot-replay-mismatch.json").read_text())
+            self.assertIn(crop.relative_to(output).as_posix(),
+                          {item["path"] for item in diagnosis["artifact_differences"]})
+            crop.write_bytes(original)
+            (output/"metrics.json").unlink()
+            prior = snapshot(output)
+            with redirect_stdout(io.StringIO()),self.assertRaisesRegex(ValueError,"pilot replay differs"):
+                batch(source,output,verify_replay=True)
+            self.assertEqual(prior,snapshot(output))
+            (output/"unexpected.json").write_text('{"new":"artifact"}')
+            prior = snapshot(output)
+            with redirect_stdout(io.StringIO()),self.assertRaisesRegex(ValueError,"pilot replay differs"):
+                batch(source,output,verify_replay=True)
+            self.assertEqual(prior,snapshot(output))
+            diagnosis = json.loads((base/"pilot-replay-mismatch.json").read_text())
+            self.assertIn("unexpected.json",
+                          {item["path"] for item in diagnosis["artifact_differences"]})
+            self.assertFalse(list(base.glob(".pilot-replay-*")))

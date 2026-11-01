@@ -20,6 +20,7 @@ from neural_network.archery_ml.geometry.selected_geometry import SelectedTargetG
 from neural_network.archery_ml.geometry.calibration import project
 from neural_network.archery_ml.geometry.cli import _git_state
 from neural_network.archery_ml.geometry.evaluate import _metrics,_equal_group_metrics
+from neural_network.archery_ml.geometry.pilot_repro import artifact_inventory, artifact_differences, require_manifest
 
 
 def read_json(path, default):
@@ -129,13 +130,19 @@ def reports(output,inv,detections,selections,results,before=None):
         key = row.get("original_id",f"unreadable-{row['number']}")
         result = results[key]
         selection = selections[key]
-        reason = "selection" if selection["status"] in {"AMBIGUOUS","NO_GROUP"} else "geometry" if result["status"]!="READY" else "orientation"
+        reason = ("selection" if selection["status"] in {"AMBIGUOUS","NO_GROUP"}
+                  else "geometry" if result["status"]!="READY"
+                  else "orientation" if result.get("orientation_status")!="ANCHORED"
+                  else "success")
         preview_reasons = Counter(g["quality_status"] for g in result.get("group_results",{}).values())
-        severity = (100 if reason=="selection" else 60 if reason=="geometry" else 0)
+        if reason == "success":
+            continue
+        severity = (100 if reason=="selection" else 60 if reason=="geometry" else 20)
         severity += max(0,1-result.get("geometry_confidence",0))*10 + min(20,result.get("fit_error",0)*100)
         failures.append({"number":row["number"],"original_id":key,"category":reason,"quality_status":result["quality_status"],
             "selection_status":selection["status"],"severity":severity,"diagnostics":result.get("diagnostics",[]),
-            "group_preview_quality":dict(preview_reasons),"physical_orientation":"UNANCHORED",
+            "group_preview_quality":dict(preview_reasons),"physical_orientation":result.get("orientation_status","UNANCHORED"),
+            "calibration_reason":result.get("calibration",{}).get("reason"),
             "geometry_evidence_scope":"selected_group" if result.get("candidate_ids") else "unselected_group_previews",
             "geometry_issues":[{"group_id":gid,"status":g["quality_status"],"confidence":g.get("geometry_confidence"),
                 "fit_error":g.get("fit_error"),"diagnostics":g.get("diagnostics",[])} for gid,g in result.get("group_results",{}).items() if g["status"]!="READY"]})
@@ -186,6 +193,11 @@ def reports(output,inv,detections,selections,results,before=None):
         "correct_user_group_count":sum(s["status"]=="USER_CONFIRMED" for s in selections.values()),
         "ownership_pending_original_numbers":[r["number"] for r in rows if selections[r.get("original_id",f"unreadable-{r['number']}")]["status"]!="USER_CONFIRMED"],
         "ready":sum(r["status"]=="READY" for r in results.values()),
+        "result_categories":dict(Counter(
+            "selection" if selections[key]["status"] in {"AMBIGUOUS","NO_GROUP"}
+            else "geometry" if result["status"]!="READY"
+            else "orientation" if result.get("orientation_status")!="ANCHORED"
+            else "success" for key,result in results.items())),
         "quality_statuses":dict(Counter(r["quality_status"] for r in results.values())),
         "images_with_ready_group_preview":sum(any(g["status"]=="READY" for g in r.get("group_results",{}).values()) for r in results.values()),
         "visually_correct_geometry":sum(r.get("rating")=="Correct" and not r.get("stale") for r in reviews.values()),
@@ -204,8 +216,12 @@ def reports(output,inv,detections,selections,results,before=None):
     save_json(output/"failure-cases.json",failures)
     save_json(output/"problem-ranking.json",{
         "selection":[f for f in failures if f["category"]=="selection"][:15],
-        "geometry":sorted([f for f in failures if f["geometry_issues"]],key=lambda f:max(g.get("fit_error") or 0 for g in f["geometry_issues"]),reverse=True)[:15],
-        "orientation":{"statuses":statistics["physical_orientation"],"originals":len(results),"note":"separate limitation, not a geometry or ownership error"}})
+        "geometry":sorted([f for f in failures if f["category"]=="geometry"],
+            key=lambda f:max([g.get("fit_error") or 0 for g in f["geometry_issues"]] or [0]),reverse=True)[:15],
+        "orientation":{"statuses":statistics["physical_orientation"],"originals":len(results),
+            "issues":[f for f in failures if f["category"]=="orientation"][:15],
+            "note":"READY geometry can have unverified physical orientation; anchored results are successes"},
+         "successful_results":statistics["result_categories"].get("success",0)})
     save_json(output/"representative-sampling.json",strata[:15])
     save_json(output/"pseudo-gt-proposals.json",pseudo)
     save_json(output/"metrics.json",statistics)

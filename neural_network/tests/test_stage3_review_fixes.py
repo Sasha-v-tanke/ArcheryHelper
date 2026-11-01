@@ -141,11 +141,24 @@ class ReviewFixesTest(unittest.TestCase):
             det = detections[first]
             middle = next(g for g in det['groups'] if g['candidate_ids']==['f1','f4','f7'])
             result = update(output,first,'selection',confirmed(middle,det['candidates']))
+            self.assertEqual('RESEAL_REQUIRED',result['reproducibility']['status'])
+            self.assertEqual('RESEAL_REQUIRED',json.loads((output/'reproducibility.json').read_text())['status'])
+            with self.assertRaisesRegex(ValueError,'reseal required'):
+                batch(source,output,verify_replay=True)
             tracked = result['selections'][second]
             self.assertEqual('VISUAL_TRACKING_FROM_USER',tracked['source'])
             self.assertEqual('AUTO_CONFIDENT',tracked['status'])
             self.assertFalse(tracked['ownership_confirmed'])
             batch(source,output)
+            self.assertEqual('NOT_CHECKED',json.loads((output/'reproducibility.json').read_text())['status'])
+            batch(source,output,verify_replay=True)
+            self.assertEqual('VERIFIED',json.loads((output/'reproducibility.json').read_text())['status'])
+            before_geometry = (output/'geometry-results.json').read_bytes()
+            review = update(output,first,'review',{'rating':'Uncertain','candidate_ids':middle['candidate_ids']})
+            self.assertEqual('RESEAL_REQUIRED',review['reproducibility']['status'])
+            self.assertEqual(before_geometry,(output/'geometry-results.json').read_bytes())
+            batch(source,output)
+            batch(source,output,verify_replay=True)
         stored = json.loads((output/'target-selections.json').read_text())[second]
         self.assertEqual(tracked,stored)
         self.assertFalse(stored['ownership_confirmed'])

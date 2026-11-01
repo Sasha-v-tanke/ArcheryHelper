@@ -1,6 +1,7 @@
 """Paired fixed-input comparison, retaining rejections and unmatched references."""
 
 import argparse
+from dataclasses import fields
 import html
 import json
 import os
@@ -8,9 +9,71 @@ from pathlib import Path
 
 import numpy as np
 
-from neural_network.archery_ml.geometry.benchmark import summary
+from neural_network.archery_ml.geometry.benchmark import RGB_PIXEL_HASH_SPEC, summary
 from neural_network.archery_ml.geometry.geometry_math import project
 from neural_network.archery_ml.geometry.synthetic import scenarios
+from neural_network.archery_ml.targets import TargetConfig
+
+
+_TARGET_CONFIG_KEYS = {field.name for field in fields(TargetConfig)}
+_REAL_REQUIRED_FIELDS = (
+    "input_sha256",
+    "cached_rgb_file_sha256",
+    "upright_rgb_sha256",
+    "effective_detector_input_sha256",
+    "pixel_hash_spec",
+    "target_config",
+    "candidate_ids",
+    "roi",
+    "preprocessing_version",
+)
+_UNLABELED_REQUIRED_FIELDS = (
+    "input_sha256",
+    "source_file_sha256",
+    "upright_rgb_sha256",
+    "effective_detector_input_sha256",
+    "pixel_hash_spec",
+    "target_config",
+    "candidate_ids",
+    "roi",
+    "preprocessing_version",
+)
+
+
+def _validate_evaluated_input(image_id, previous, current):
+    """Fail closed unless both evaluated records describe identical detector inputs."""
+    dataset = previous["dataset"]
+    if dataset == "development_real":
+        required = _REAL_REQUIRED_FIELDS
+    elif dataset == "unlabeled":
+        required = _UNLABELED_REQUIRED_FIELDS
+    else:
+        required = ("input_sha256",)
+
+    for field in required:
+        for label, record in (("baseline", previous), ("candidate", current)):
+            if field not in record or record[field] is None or record[field] == "":
+                raise ValueError(f"image {image_id}: missing {field} in {label}")
+        if previous[field] != current[field]:
+            raise ValueError(f"image {image_id}: {field} changed")
+
+    if dataset not in ("development_real", "unlabeled"):
+        return
+    for label, record in (("baseline", previous), ("candidate", current)):
+        if record["pixel_hash_spec"] != RGB_PIXEL_HASH_SPEC:
+            raise ValueError(f"image {image_id}: invalid pixel_hash_spec in {label}")
+        if not isinstance(record["roi"], list) or len(record["roi"]) != 4:
+            raise ValueError(f"image {image_id}: invalid roi in {label}")
+        if not isinstance(record["candidate_ids"], list):
+            raise ValueError(f"image {image_id}: invalid candidate_ids in {label}")
+        config = record["target_config"]
+        if not isinstance(config, dict) or set(config) != _TARGET_CONFIG_KEYS:
+            raise ValueError(f"image {image_id}: incomplete target_config in {label}")
+        if not isinstance(record["preprocessing_version"], str) or not record[
+            "preprocessing_version"
+        ]:
+            raise ValueError(f"image {image_id}: invalid preprocessing_version in {label}")
+
 
 
 def synthetic_metrics(records):
@@ -59,7 +122,9 @@ def synthetic_metrics(records):
         "point_error_2d_external_axes_all_detected": summary(points),
         "center_error_norm_ready": summary(ready_center),
         "point_error_2d_external_axes_ready": summary(ready_points),
-        "false_accept_fraction_on_negative_scenes": false_accept / max(1, negative),
+        "false_accept_fraction_on_negative_scenes": (
+            false_accept / negative if negative > 0 else None
+        ),
         "negative_scenes": negative,
         "orientation_scope": "dedicated synthetic external x-axis reference; real physical axes remain unanchored",
     }
@@ -81,15 +146,13 @@ def compare(baseline, candidate, output):
     cases = []
     for key, row in second.items():
         previous = first[key]
+        if previous["dataset"] != row["dataset"]:
+            raise ValueError(f"image {key}: dataset changed")
         input_rejected = previous["status"] == row["status"] == "INPUT_REJECTED"
-        if not input_rejected and (
-            not previous.get("input_sha256") or not row.get("input_sha256")
-        ):
-            raise ValueError("comparison requires input_sha256 for evaluated inputs")
-        if previous.get("roi") != row.get("roi") or previous.get(
-            "input_sha256"
-        ) != row.get("input_sha256"):
-            raise ValueError("comparison inputs or selection ROI changed")
+        if not input_rejected:
+            if "INPUT_REJECTED" in (previous["status"], row["status"]):
+                raise ValueError(f"image {key}: INPUT_REJECTED cannot verify input identity")
+            _validate_evaluated_input(key, previous, row)
         old_points = {p["id"]: p for p in previous.get("pairs", [])}
         new_points = {p["id"]: p for p in row.get("pairs", [])}
         for cid in sorted(set(old_points) | set(new_points)):

@@ -48,6 +48,51 @@ run-manifest, previews и crops не изменяются. Диагностик�
 Board/GT из CLI сначала попадают во временный каталог. При успешной проверке обновляется
 только `reproducibility.json`; исходные результаты и run-manifest сохраняются.
 
+## Artifact manifest и жизненный цикл replay (доработка 01.11.2026)
+
+Новый run-manifest.json содержит artifact_manifest.version = 1 и список
+files с относительными POSIX-путями, типами и SHA256. Учитывается файловый
+вывод pilot: inventory, detections, selections, geometry, calibration evidence,
+GT, reports, previews, overlays, crops и дополнительные значимые файлы.
+Отсутствующие, неожиданные, изменённые и подменённые файлы выявляются
+с конкретным путём и типом различия. Symlink не разыменовывается.
+
+Исключены только run-manifest.json (самоссылка) и reproducibility.json
+(изменяемое workflow-состояние). В geometry-results.json рекурсивно
+нормализуется исключительно processing_seconds; в HTML viewer оно
+не записывается. Координаты, статусы, качество, calibration и изображения
+не исключаются. Абсолютные пути output не влияют на SHA256 inventory.
+Legacy manifest нельзя объявить VERIFIED: требуется новый обычный batch.
+
+Replay проверяет исходные файлы относительно manifest, пересчитывает
+результат в изолированном sibling-каталоге, затем сравнивает новые
+семантические hashes и content hashes каждого артефакта.
+В MISMATCH-файле содержится artifact_differences с путями и причинами.
+Failed replay не меняет исходный output; диагностика хранится рядом
+как <output-name>-replay-mismatch.json. При успешном replay обновляется
+только reproducibility.json.
+
+Жизненный цикл: обычный batch → NOT_CHECKED → интерактивный Confirm
+или изменение visual review → RESEAL_REQUIRED → обычный batch
+→ NOT_CHECKED → verify replay → VERIFIED. Состояние сбрасывается
+до начала интерактивных записей. Visual review без перерасчёта geometry
+не меняет geometry hash, но review evidence требует нового sealed manifest.
+USER_CONFIRMED возможен лишь после явного подтверждения; tracking остаётся
+AUTO_CONFIDENT. Offline browser storage не изменяет файлы output;
+File System Access сохраняет статус RESEAL_REQUIRED вместе с sidecar.
+В loopback viewer актуальный статус дополнительно читается с сервера.
+
+Категории отчётов теперь разделены на selection, geometry, orientation
+и success. READY + ANCHORED не является orientation failure.
+READY + UNANCHORED сохраняет geometry result, но отражает отсутствие
+доказанной physical orientation. Причина неудачной calibration записывается
+отдельно. Корректируется problem-ranking и сводная статистика.
+
+Новые регрессионные тесты добавлены в test_stage3_replay_integrity.py
+и test_stage3_review_fixes.py. Результаты 171 Python / 8 Android тестов
+ниже относятся к предыдущему HEAD и не подтверждают новую ревизию.
+Independent real-data holdout отсутствует; Stage 3 остаётся BLOCKED.
+
 ## Проверки и данные
 
 - Все Python unit tests: **171 PASS**, без локальных skips.

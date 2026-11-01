@@ -12,7 +12,10 @@ from neural_network.archery_ml.geometry.selection import fingerprint, validate_s
 
 
 def write_viewer(output,inventory,detections,selections,results,reviews):
-    data = {"inventory":inventory,"detections":detections,"selections":selections,"results":results,"reviews":reviews}
+    from neural_network.archery_ml.geometry.pilot import _stable, read_json
+    state = read_json(output/"reproducibility.json",{}).get("status","NOT_CHECKED")
+    data = {"inventory":inventory,"detections":detections,"selections":selections,
+            "results":_stable(results),"reviews":reviews,"reproducibility":{"status":state}}
     payload = json.dumps(data,ensure_ascii=False,allow_nan=False).replace("<","\\u003c")
     document = '''<!doctype html><html lang="ru"><meta charset="utf-8"><title>Mobile target pilot</title>
 <style>body{font:15px system-ui;margin:18px;background:#f4f5f6;color:#162331}button,select,input{padding:8px;margin:3px}button{cursor:pointer}button.active{background:#c9edcf}.top{position:sticky;top:0;background:#f4f5f6;z-index:2;padding:6px}.grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(280px,1fr);gap:18px}.panel{background:white;padding:12px;border-radius:10px}svg{max-height:75vh;width:100%;background:#ddd}ellipse{cursor:pointer}img.crop{width:31%;max-width:240px}pre{white-space:pre-wrap}#message{color:#254b86}label{display:inline-block}#groups{max-height:24vh;overflow:auto}@media(max-width:850px){.grid{grid-template-columns:1fr}}</style>
@@ -46,8 +49,8 @@ function download(name,value){const a=document.createElement('a');a.href=URL.cre
 async function persist(kind,value){
  if(location.protocol!=='file:'){
   const response=await fetch('/api/'+kind,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_id:key(),value})});
-  const result=await response.json();if(!response.ok)throw Error(result.error);Object.assign(data,result);$('message').textContent='Saved to report JSON';
- }else if(directory){const filename=kind==='selection'?'target-selections.json':'visual-reviews.json';const h=await directory.getFileHandle(filename,{create:true});const w=await h.createWritable();await w.write(JSON.stringify(kind==='selection'?data.selections:data.reviews,null,2));await w.close();$('message').textContent='Saved JSON; rerun batch for new crops';}
+  const result=await response.json();if(!response.ok)throw Error(result.error);Object.assign(data,result);$('message').textContent='Saved; '+(data.reproducibility?.status||'RESEAL_REQUIRED')+' — rerun normal batch, then --verify-replay';
+ }else if(directory){data.reproducibility={status:'RESEAL_REQUIRED',reason:'offline selection or review changed'};const state=await directory.getFileHandle('reproducibility.json',{create:true});const sw=await state.createWritable();await sw.write(JSON.stringify(data.reproducibility,null,2));await sw.close();const filename=kind==='selection'?'target-selections.json':'visual-reviews.json';const h=await directory.getFileHandle(filename,{create:true});const w=await h.createWritable();await w.write(JSON.stringify(kind==='selection'?data.selections:data.reviews,null,2));await w.close();$('message').textContent='RESEAL_REQUIRED — rerun batch then verify replay';}
  else $('message').textContent='Saved in browser. Export JSON / Connect directory, or use --serve-only for automatic processing.';
  localStorage.setItem(storage,JSON.stringify({selections:data.selections,reviews:data.reviews}));
 }
@@ -55,7 +58,7 @@ function render(reset=true){
  const row=rows[current],k=key(),det=data.detections[k],sel=data.selections[k],res=data.results[k];
  if(reset){chosen=[...(sel?.candidate_ids||[])];highlight=sel?.group_id||null;$('physicalOrder').checked=!!sel?.physical_face_order_confirmed;$('zone').value=sel?.minimum_scoring_zone||'auto';$('format').value=sel?.format||'TRIPLE';$('layout').value=sel?.layout||'VERTICAL';}
  $('photo').value=current;$('heading').textContent='#'+row.number+' '+row.filename;
- $('status').textContent=(sel?.status||'NO_GROUP')+' | ownership '+(sel?.status==='USER_CONFIRMED'?'USER CONFIRMED':'UNVERIFIED')+' | orientation '+(res?.orientation_status||'UNANCHORED')+(data.reviews[k]?.stale?' | Оценка '+data.reviews[k].rating+' сохранена для предыдущего результата; новый результат ещё не проверен':'');
+ $('status').textContent=(sel?.status||'NO_GROUP')+' | ownership '+(sel?.status==='USER_CONFIRMED'?'USER CONFIRMED':'UNVERIFIED')+' | orientation '+(res?.orientation_status||'UNANCHORED')+' | replay '+(data.reproducibility?.status||'UNKNOWN')+(data.reviews[k]?.stale?' | Оценка '+data.reviews[k].rating+' сохранена для предыдущего результата; новый результат ещё не проверен':'');
  const [w,h]=row.rgb_size||[1,1];$('image').setAttribute('viewBox',`0 0 ${w} ${h}`);
  $('image').innerHTML=`<image href="${esc(row.preview_path||'')}" width="${w}" height="${h}"/>`+(det?.candidates||[]).map(c=>`<g><ellipse data-face="${esc(c.id)}" cx="${c.ellipse.center_x}" cy="${c.ellipse.center_y}" rx="${c.ellipse.diameter_x/2}" ry="${c.ellipse.diameter_y/2}" transform="rotate(${c.ellipse.angle_deg} ${c.ellipse.center_x} ${c.ellipse.center_y})" fill="${chosen.includes(c.id)?'#00dd7744':'#ff990011'}" stroke="${chosen.includes(c.id)?'#00bb55':'#ff9900'}" stroke-width="${w/250}"/><text x="${c.center[0]}" y="${c.center[1]}" font-size="${w/40}" fill="#e500ff" pointer-events="none">${esc(c.id)}</text></g>`).join('');
  $('image').querySelectorAll('[data-face]').forEach(el=>el.onclick=()=>{const id=el.dataset.face;chosen=chosen.includes(id)?chosen.filter(c=>c!==id):[...chosen,id];if(chosen.length>3)chosen.shift();highlight=null;render(false);});
@@ -77,12 +80,13 @@ for(const rating of ['Correct','Wrong group','Wrong geometry','Wrong face order'
 $('exportSelections').onclick=()=>download('target-selections.json',data.selections);$('exportReviews').onclick=()=>download('visual-reviews.json',data.reviews);
 $('connect').onclick=async()=>{try{directory=await window.showDirectoryPicker({mode:'readwrite'});$('message').textContent='Directory connected. JSON will be saved automatically; rerun batch for updated crops.';}catch(e){$('message').textContent='Use Save JSON or loopback server: '+e.message;}};
 render();
+if(location.protocol!=='file:')fetch('reproducibility.json?cache='+Date.now()).then(r=>r.ok?r.json():null).then(state=>{if(state){data.reproducibility=state;render(false);}}).catch(()=>{});
 </script></html>'''.replace("__PAYLOAD__",payload)
     (output/"review.html").write_text(document)
 
 
 def update(output,original_id,kind,value):
-    from neural_network.archery_ml.geometry.pilot import read_json,process_frame,reports,reviewed_geometry
+    from neural_network.archery_ml.geometry.pilot import read_json,process_frame,reports,reviewed_geometry,mark_reseal_required
     inventory = read_json(output/"inventory.json",{})
     if not isinstance(original_id,str) or not isinstance(value,dict):
         raise ValueError("expected an original ID and a JSON object")
@@ -106,6 +110,7 @@ def update(output,original_id,kind,value):
             value["layout"] = None
         elif value.get("layout") not in {"VERTICAL","TRIANGULAR"}:
             value["layout"] = "VERTICAL"
+        mark_reseal_required(output,"interactive selection changed; rerun normal batch")
         selections[original_id] = value
         previews = results[original_id].get("group_results",{})
         results[original_id] = process_frame(row,det,value,output,previews=False)
@@ -137,6 +142,7 @@ def update(output,original_id,kind,value):
             raise ValueError("select and process this group before recording its visual review")
         value.update(source="USER_VISUAL_REVIEW",quantitative_gt=False,detection_fingerprint=detections[original_id]["fingerprint"],
                      geometry_artifact_revision=actual.get("artifact_revision"),stale=False,saved_at=datetime.now(timezone.utc).isoformat())
+        mark_reseal_required(output,"visual review evidence changed; rerun normal batch")
         if original_id in reviews:
             history=read_json(output/"visual-review-history.json",[])
             history.append({"original_id":original_id,"review":reviews[original_id]})
@@ -146,7 +152,7 @@ def update(output,original_id,kind,value):
     else:
         raise ValueError("unknown review operation")
     reports(output,inventory,detections,selections,results)
-    return {"selections":selections,"results":results,"reviews":read_json(output/"visual-reviews.json",{})}
+    return {"selections":selections,"results":results,"reviews":read_json(output/"visual-reviews.json",{}),"reproducibility":read_json(output/"reproducibility.json",{})}
 
 
 def serve(output,port=8765):

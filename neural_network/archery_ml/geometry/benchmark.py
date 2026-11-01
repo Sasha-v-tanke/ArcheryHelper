@@ -47,7 +47,7 @@ def rgb_pixel_sha256(image):
         sort_keys=True,
         separators=(",", ":"),
     ).encode("ascii")
-    digest = hashlib.sha256(b"archery-rgb-pixels-v1\\0" + header + b"\\0")
+    digest = hashlib.sha256(b"archery-rgb-pixels-v1\x00" + header + b"\x00")
     digest.update(np.ascontiguousarray(image).tobytes(order="C"))
     return digest.hexdigest()
 
@@ -441,7 +441,7 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
     ready = [r for r in synthetic if r["status"] == "READY"]
     real = [r for r in records if r["dataset"] == "development_real"]
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
         "provenance": provenance,
         "records": records,
         "synthetic": {

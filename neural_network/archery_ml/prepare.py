@@ -113,12 +113,19 @@ def reviewed_sample(sample, review: dict, *, data_root: Path, review_dir: Path, 
                         "sha256": _sha256(crop), "annotation_status": "verified",
                         "geometry_revision": geometry["artifact_revision"]})
 
+    assigned_indices = review.get("impact_face_indices")
+    if (not isinstance(assigned_indices, list)
+            or len(assigned_indices) != len(sample.raw_annotations)
+            or any(item is not None and (type(item) is not int or item not in transforms)
+                   for item in assigned_indices)):
+        raise ValueError(f"impact_face_indices must explicitly review every raw point: {sample.id}")
     transformed = []
     annotated_counts = {index: 0 for index in range(count)}
-    for point in sample.raw_annotations:
-        index = point.face_index
-        if index not in transforms:
-            raise ValueError(f"raw impact lacks reviewed target face index: {sample.id}")
+    for point, index in zip(sample.raw_annotations, assigned_indices):
+        if index is None:
+            # This raw annotation belongs to a foreign/irrelevant face, and
+            # cannot be treated as a supervised target on the selected board.
+            continue
         vec = transforms[index] @ np.asarray([point.x_fraction * original_width,
                                                point.y_fraction * original_height, 1.0])
         if not np.isfinite(vec).all() or abs(vec[2]) < 1e-12:
@@ -139,6 +146,7 @@ def reviewed_sample(sample, review: dict, *, data_root: Path, review_dir: Path, 
     metadata["stage4_review"] = {"source_image_sha256": original_sha,
                                  "source_annotations_sha256": _raw_labels_digest(sample),
                                  "geometry_sha256": review["geometry_sha256"],
+                                 "impact_face_indices": assigned_indices,
                                  "annotator": review["annotator"], "reviewer": review["reviewer"]}
     return replace(sample, annotations=tuple(transformed), capture_metadata=metadata)
 
@@ -181,6 +189,14 @@ def materialize(*, manifest: Path, snapshot: Path, review_map: Path,
     try:
         derived = dict(source_snapshot)
         derived["manifest_sha256"] = _sha256(output_manifest)
+        additional_canonical = sum(len(s.annotations) for s in prepared) - sum(
+            len(s.annotations) for s in source_samples
+        )
+        if isinstance(derived.get("report"), dict):
+            original_report = source_snapshot["report"]
+            derived["report"] = dict(original_report)
+            derived["report"]["canonical_impacts"] = int(original_report.get("canonical_impacts", 0)) + additional_canonical
+            derived["report"]["impacts"] = int(original_report["impacts"]) + additional_canonical
         derived["stage4_materialization"] = {"source_manifest_sha256": old_digest,
                                               "source_snapshot_sha256": _sha256(snapshot),
                                               "review_map_sha256": hashlib.sha256(review_bytes).hexdigest(),

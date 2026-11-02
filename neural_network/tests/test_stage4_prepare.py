@@ -51,6 +51,7 @@ class MaterializerTest(unittest.TestCase):
                 "original_sha256": hashlib.sha256(self.original.read_bytes()).hexdigest(),
                 "geometry_path": "stage3/selected.json",
                 "geometry_sha256": hashlib.sha256(self.geometry.read_bytes()).hexdigest(),
+                "impact_face_indices": [p.face_index for p in sample.raw_annotations],
                 "verified_empty_faces": []}
 
     def prepare_one(self, sample=None, review=None):
@@ -93,14 +94,30 @@ class MaterializerTest(unittest.TestCase):
 
     def test_outside_crop_and_missing_face_owner_rejected(self):
         sample = self.sample(raw=(ImagePointAnnotation(x_fraction=0.5, y_fraction=0.5),))
-        with self.assertRaisesRegex(ValueError, "lacks reviewed target face index"):
-            self.prepare_one(sample)
+        review_missing = self.review(sample)
+        del review_missing["impact_face_indices"]
+        with self.assertRaisesRegex(ValueError, "impact_face_indices"):
+            self.prepare_one(sample, review_missing)
+        reviewed = {**self.review(sample), "impact_face_indices": [0]}
+        self.assertEqual(1, len(self.prepare_one(sample, reviewed).annotations))
         sample = self.sample(raw=(ImagePointAnnotation(x_fraction=0.5, y_fraction=0.5, face_index=0),))
         geom = json.loads(self.geometry.read_text())
         geom["faces"][0]["original_to_canonical"][0][2] = 1000
         self.geometry.write_text(json.dumps(geom))
         with self.assertRaisesRegex(ValueError, "outside canonical crop"):
             self.prepare_one(sample)
+
+    def test_foreign_board_impacts_are_explicitly_excluded(self):
+        sample = self.sample(raw=(ImagePointAnnotation(x_fraction=0.5, y_fraction=0.5),
+                                  ImagePointAnnotation(x_fraction=0.8, y_fraction=0.8)))
+        reviewed = {**self.review(sample), "impact_face_indices": [0, None]}
+        prepared = self.prepare_one(sample, reviewed)
+        self.assertEqual(1, len(prepared.annotations))
+        self.assertEqual([0, None], prepared.capture_metadata["stage4_review"]["impact_face_indices"])
+        with self.assertRaisesRegex(ValueError, "impact_face_indices"):
+            self.prepare_one(sample, {**reviewed, "impact_face_indices": [0]})
+        with self.assertRaisesRegex(ValueError, "empty-face assertions"):
+            self.prepare_one(sample, {**reviewed, "impact_face_indices": [None, None]})
 
     def test_rejected_stage3_status_never_materialized(self):
         sample = self.sample()
@@ -116,7 +133,8 @@ class MaterializerTest(unittest.TestCase):
         save_manifest(manifest, [sample])
         snapshot = self.root / "dataset_snapshot.json"
         old_hash = hashlib.sha256(manifest.read_bytes()).hexdigest()
-        snapshot.write_text(json.dumps({"manifest_sha256": old_hash}))
+        snapshot.write_text(json.dumps({"manifest_sha256": old_hash,
+                                        "report": {"impacts": 1, "raw_impacts": 1, "canonical_impacts": 0}}))
         review_map = self.root / "review.json"
         review_map.write_text(json.dumps({sample.id: self.review(sample)}))
         out_manifest = self.manifests / "stage4_manifest.json"
@@ -130,6 +148,8 @@ class MaterializerTest(unittest.TestCase):
         derived = json.loads(out_snapshot.read_text())
         self.assertEqual(hashlib.sha256(out_manifest.read_bytes()).hexdigest(), derived["manifest_sha256"])
         self.assertEqual(old_hash, derived["stage4_materialization"]["source_manifest_sha256"])
+        self.assertEqual(1, derived["report"]["canonical_impacts"])
+        self.assertEqual(2, derived["report"]["impacts"])
         with self.assertRaisesRegex(ValueError, "outputs must be new"):
             materialize(manifest=manifest, snapshot=snapshot, review_map=review_map,
                         output_manifest=out_manifest, output_snapshot=out_snapshot,

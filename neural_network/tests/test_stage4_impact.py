@@ -179,6 +179,12 @@ class CanonicalDataTest(CanonicalFixture, unittest.TestCase):
             result = evaluate_checkpoint(config_path, run / "best_model.pt",
                                          run / "model_metadata.json", split="val")
         self.assertEqual(1, result["faces"])
+        with patch("neural_network.archery_ml.train.load_snapshot", return_value=fake):
+            second = train(config_path, output_root=self.root / "runs")
+        first_weights = torch.load(run / "best_model.pt", map_location="cpu", weights_only=True)["model_state"]
+        second_weights = torch.load(second / "best_model.pt", map_location="cpu", weights_only=True)["model_state"]
+        self.assertEqual(first_weights.keys(), second_weights.keys())
+        self.assertTrue(all(torch.equal(first_weights[k], second_weights[k]) for k in first_weights))
 
 
 class ReviewRegressions(CanonicalFixture, unittest.TestCase):

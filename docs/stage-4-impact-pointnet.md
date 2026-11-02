@@ -51,12 +51,13 @@ Create a JSON map under `data/` keyed by `DatasetSample.id`, for example:
     "raw_annotations_sha256": "<SHA256 of sorted-key compact JSON of raw_annotations array>",
     "geometry_path": "stage3/selected/result.json",
     "geometry_sha256": "<SHA256 of the selected Stage 3 result JSON>",
+    "impact_face_indices": [0, 0, null],
     "verified_empty_faces": []
   }
 }
 ```
 
-`geometry_path` is resolved relative to the review-map directory; geometry JSON must have `status=READY`, `quality_status=READY`, an `artifact_revision`, and `faces[i].crop_path` (relative to the geometry JSON directory) plus a `faces[i].original_to_canonical` 3x3 homography. Face index/ownership and every raw impact's `face_index` must be verified; triples require confirmed physical face order. `verified_empty_faces` is the list of independently checked empty face indices. A missing impact label is **not** proof of an empty target. Both review identities must be distinct nonblank strings. Reviewers should not enter invented verification values.
+`geometry_path` is resolved relative to the review-map directory; geometry JSON must have `status=READY`, `quality_status=READY`, an `artifact_revision`, and `faces[i].crop_path` (relative to the geometry JSON directory) plus a `faces[i].original_to_canonical` 3x3 homography. `impact_face_indices` must independently assign **every** raw annotation, in source order, to a selected face index; `null` explicitly marks an arrow belonging to a foreign board, which is not included in Stage 4 training. This is necessary when photos contain multiple targets or the source has `face_index=null`. The raw source annotations remain unchanged and hash-bound. Triples require confirmed physical face order. `verified_empty_faces` is the list of independently checked empty face indices. A missing impact label is **not** proof of an empty target. Both review identities must be distinct nonblank strings. Reviewers should not enter invented verification values.
 
 ```bash
 python -m archery_ml.prepare \
@@ -67,7 +68,7 @@ python -m archery_ml.prepare \
   --output-snapshot data/snapshots/stage4_snapshot.json
 ```
 
-The original Stage 2.5 manifest/snapshot remain unchanged. The bridge validates source photo, review digest, selected geometry and crop geometry; transforms review-bound original-image impact points to canonical face points (center 255.5 px, radius 256 px); then writes a **new** manifest/snapshot with crop hashes and parent source hashes. Training re-verifies crop bytes on every read. It refuses missing reviewed ownership, ambiguous raw impact face indices, invalid homographies, unconfirmed empty faces, non-RGB/incorrect crop sizes, or reusing output files. It cannot retroactively produce true impact annotations from the 58 unlabelled historical photos.
+The original Stage 2.5 manifest/snapshot remain unchanged. The bridge validates source photo, review digest, selected geometry and crop geometry; transforms review-bound original-image impact points to canonical face points (center 255.5 px, radius 256 px); then writes a **new** manifest/snapshot with crop hashes and parent source hashes. Training re-verifies crop bytes on every read. It refuses missing reviewed ownership, missing or ambiguous per-impact face assignments, invalid homographies, unconfirmed empty faces, non-RGB/incorrect crop sizes, or reusing output files. It cannot retroactively produce true impact annotations from the 58 unlabelled historical photos.
 
 ## Reproducible workflow
 
@@ -77,7 +78,7 @@ Install dependencies from `requirements.txt` in a Python 3.11 environment (not e
 python -m archery_ml.train --config neural_network/configs/impact_mobilenetv3.json
 ```
 
-All parameters are config-driven: seed, input size, FPN width, pretrained backbone flag, batch size, epochs, optimizer, Gaussian sigma, horizontal reflection, brightness and postprocess threshold/NMS. No geometric warps that would invalidate impact labels are applied. Optional per-channel `model.input_mean` and `model.input_std` are shared by the dataset, visualization, saved contract and inference. If using pretrained ImageNet V2 weights, configure mean `[0.485, 0.456, 0.406]`, std `[0.229, 0.224, 0.225]` and allow the weights download explicitly.
+All parameters are config-driven: seed, input size, FPN width, pretrained backbone flag, batch size, epochs, optimizer, Gaussian sigma, horizontal reflection, brightness and postprocess threshold/NMS. No geometric warps that would invalidate impact labels are applied. Per-channel `model.input_mean` and `model.input_std` are shared by the dataset, visualization, saved contract and inference. The production config enables **ImageNet V2 pretrained weights** with mean `[0.485, 0.456, 0.406]` and std `[0.229, 0.224, 0.225]` (validated as a pair); the first training run may download these public weights. Set `pretrained=false` only for an intentionally scratch-trained/offline experiment, not as an assumed production-quality baseline.
 
 Each run writes `runs/impact-<UTC timestamp>/` with `config.json`, `dataset_info.json` (Git commit, manifest and snapshot hashes, face/sample counts), `model_metadata.json` (contract v2, normalization, model version, source manifest hash), `metrics.csv`, `metrics.json`, `last_model.pt`, `best_model.pt` and per-epoch validation overlays. Only `train` samples affect gradients, only `val` selects the best checkpoint.
 

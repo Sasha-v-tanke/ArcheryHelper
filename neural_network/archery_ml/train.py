@@ -6,6 +6,8 @@ import argparse
 import csv
 import hashlib
 import json
+import os
+import platform
 import random
 import subprocess
 from datetime import datetime, timezone
@@ -13,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torchvision
 from PIL import ImageDraw, Image
 from torch.utils.data import DataLoader
 
@@ -42,6 +45,12 @@ def _load_configuration(path: Path) -> dict:
         raise ValueError("training parameters must be positive")
     if training["weight_decay"] < 0 or model["fpn_channels"] <= 0:
         raise ValueError("invalid model or optimizer settings")
+    if model.get("pretrained", False):
+        # V2 ImageNet weights were trained with this normalization. Failing
+        # early is safer than silent data distribution mismatch at inference.
+        if (list(model.get("input_mean", ())) != [0.485, 0.456, 0.406]
+                or list(model.get("input_std", ())) != [0.229, 0.224, 0.225]):
+            raise ValueError("pretrained MobileNetV3 requires ImageNet V2 RGB normalization")
     if not dataset.get("snapshot") or not dataset.get("manifest"):
         raise ValueError("manifest and snapshot are required")
     return config
@@ -94,6 +103,8 @@ def _verify_dataset(config: dict) -> str:
 
 
 def _seed(seed: int) -> None:
+    # Deterministic CUDA GEMM on supported PyTorch/CUDA versions; ignored on CPU.
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -187,9 +198,16 @@ def train(config_path: str | Path, *, output_root: str | Path = "runs", device: 
     info = {"manifest_sha256": dataset_hash,
             "snapshot_sha256": _sha256(Path(config["dataset"]["snapshot"])),
             "model_version": config["model"]["version"], "git_commit": commit,
+            "backbone_weights": "IMAGENET1K_V2" if config["model"].get("pretrained") else None,
+            "runtime": {"python": platform.python_version(),
+                        "torch": torch.__version__, "torchvision": torchvision.__version__},
             "seed": config["seed"], "train_faces": len(train_set), "val_faces": len(val_set),
             "excluded_unprepared_train_samples": train_set.unprepared_samples,
-            "excluded_unprepared_val_samples": val_set.unprepared_samples}
+            "excluded_unprepared_val_samples": val_set.unprepared_samples,
+            "train_positive_impacts": sum(len(item.points) for item in train_set.records),
+            "val_positive_impacts": sum(len(item.points) for item in val_set.records),
+            "train_verified_empty_faces": sum(not item.points for item in train_set.records),
+            "val_verified_empty_faces": sum(not item.points for item in val_set.records)}
     (root / "dataset_info.json").write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
     metadata = ModelMetadata(
         contract_version=2, model_version=config["model"]["version"],

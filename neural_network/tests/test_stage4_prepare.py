@@ -146,6 +146,25 @@ class MaterializerTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "independent annotation review"):
             self.prepare_one(sample, record)
 
+    def test_source_snapshot_rejects_inconsistent_impact_count(self):
+        sample = self.sample()
+        manifest = self.manifests / "raw.json"
+        save_manifest(manifest, [sample])
+        snapshot = self.root / "inconsistent_snapshot.json"
+        snapshot.write_text(json.dumps({"manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                                        "report": {"impacts": 5, "canonical_impacts": 0,
+                                                   "raw_impacts": 1}}))
+        review_map = self.root / "review.json"
+        review_map.write_text(json.dumps({sample.id: self.review(sample)}))
+        out_manifest = self.manifests / "prepared.json"
+        out_snapshot = self.root / "prepared_snapshot.json"
+        with self.assertRaisesRegex(ValueError, "source snapshot impact count"):
+            materialize(manifest=manifest, snapshot=snapshot, review_map=review_map,
+                        output_manifest=out_manifest, output_snapshot=out_snapshot,
+                        data_root=self.root)
+        self.assertFalse(out_manifest.exists())
+        self.assertFalse(out_snapshot.exists())
+
     def test_derived_manifest_snapshot_are_new_and_bound(self):
         sample = self.sample()
         manifest = self.manifests / "dataset_manifest.json"
@@ -168,7 +187,8 @@ class MaterializerTest(unittest.TestCase):
         self.assertEqual(hashlib.sha256(out_manifest.read_bytes()).hexdigest(), derived["manifest_sha256"])
         self.assertEqual(old_hash, derived["stage4_materialization"]["source_manifest_sha256"])
         self.assertEqual(1, derived["report"]["canonical_impacts"])
-        self.assertEqual(2, derived["report"]["impacts"])
+        self.assertEqual(1, derived["report"]["impacts"])
+        self.assertEqual(1, derived["report"]["raw_impacts"])
         with self.assertRaisesRegex(ValueError, "outputs must be new"):
             materialize(manifest=manifest, snapshot=snapshot, review_map=review_map,
                         output_manifest=out_manifest, output_snapshot=out_snapshot,

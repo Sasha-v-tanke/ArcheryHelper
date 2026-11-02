@@ -189,14 +189,22 @@ def materialize(*, manifest: Path, snapshot: Path, review_map: Path,
     try:
         derived = dict(source_snapshot)
         derived["manifest_sha256"] = _sha256(output_manifest)
-        additional_canonical = sum(len(s.annotations) for s in prepared) - sum(
-            len(s.annotations) for s in source_samples
-        )
         if isinstance(derived.get("report"), dict):
+            # Stage 2's "impacts" counts each source hit once, even if the same
+            # physical point has both raw-image and canonical annotations.
+            # Adding canonical counts blindly would double-count reviewed labels.
             original_report = source_snapshot["report"]
+            expected_original = sum(
+                max(len(s.annotations), len(s.raw_annotations)) for s in source_samples
+            )
+            if int(original_report["impacts"]) != expected_original:
+                raise ValueError("source snapshot impact count differs from manifest")
             derived["report"] = dict(original_report)
-            derived["report"]["canonical_impacts"] = int(original_report.get("canonical_impacts", 0)) + additional_canonical
-            derived["report"]["impacts"] = int(original_report["impacts"]) + additional_canonical
+            derived["report"]["canonical_impacts"] = sum(len(s.annotations) for s in prepared)
+            derived["report"]["raw_impacts"] = sum(len(s.raw_annotations) for s in prepared)
+            derived["report"]["impacts"] = sum(
+                max(len(s.annotations), len(s.raw_annotations)) for s in prepared
+            )
         derived["stage4_materialization"] = {"source_manifest_sha256": old_digest,
                                               "source_snapshot_sha256": _sha256(snapshot),
                                               "review_map_sha256": hashlib.sha256(review_bytes).hexdigest(),

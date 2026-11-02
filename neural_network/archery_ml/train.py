@@ -110,6 +110,10 @@ def _verify_dataset(config: dict) -> str:
 
 
 def _seed(seed: int) -> None:
+    # Keep reproducible CPU reductions regardless of OMP/MKL environment defaults.
+    # Set before any model execution; deterministic multilayer CPU kernels can
+    # otherwise exhibit cross-run numerical drift under parallel reductions.
+    torch.set_num_threads(1)
     # Deterministic CUDA GEMM on supported PyTorch/CUDA versions; ignored on CPU.
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     random.seed(seed)

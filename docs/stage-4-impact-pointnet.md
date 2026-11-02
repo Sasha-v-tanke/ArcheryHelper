@@ -35,9 +35,43 @@ For each sample with verified canonical impacts the Stage 3 materialization step
 
 If Stage 3 only has raw images or geometry without independently verified impact coordinates, **Stage 4 real training and acceptance are BLOCKED**. Do not fabricate annotation status, fill missing faces, or tune from holdout.
 
+## Stage 3 → 4 reviewed materialization
+
+The included bridge can transform *already reviewed* raw-image impact coordinates using Stage 3's selected-geometry `original_to_canonical` homographies and bind Stage 3's **existing raw (unmasked) canonical crop artifacts** by checksum. This is not a model-driven pseudo-labeling or ownership classifier. Its inputs must be independently reviewed.
+
+Create a JSON map under `data/` keyed by `DatasetSample.id`, for example:
+
+```json
+{
+  "sample-id": {
+    "annotator": "reviewer-A",
+    "reviewer": "reviewer-B",
+    "face_ownership_reviewed": true,
+    "original_sha256": "<64-char SHA256 of source photo>",
+    "raw_annotations_sha256": "<SHA256 of sorted-key compact JSON of raw_annotations array>",
+    "geometry_path": "stage3/selected/result.json",
+    "geometry_sha256": "<SHA256 of the selected Stage 3 result JSON>",
+    "verified_empty_faces": []
+  }
+}
+```
+
+`geometry_path` is resolved relative to the review-map directory; geometry JSON must have `status=READY`, `quality_status=READY`, an `artifact_revision`, and `faces[i].crop_path` (relative to the geometry JSON directory) plus a `faces[i].original_to_canonical` 3x3 homography. Face index/ownership and every raw impact's `face_index` must be verified; triples require confirmed physical face order. `verified_empty_faces` is the list of independently checked empty face indices. A missing impact label is **not** proof of an empty target. Both review identities must be distinct nonblank strings. Reviewers should not enter invented verification values.
+
+```bash
+python -m archery_ml.prepare \
+  --review-map data/stage4-review.json \
+  --manifest data/manifests/dataset_manifest.json \
+  --snapshot data/snapshots/dataset_snapshot.json \
+  --output-manifest data/manifests/stage4_manifest.json \
+  --output-snapshot data/snapshots/stage4_snapshot.json
+```
+
+The original Stage 2.5 manifest/snapshot remain unchanged. The bridge validates source photo, review digest, selected geometry and crop geometry; transforms review-bound original-image impact points to canonical face points (center 255.5 px, radius 256 px); then writes a **new** manifest/snapshot with crop hashes and parent source hashes. Training re-verifies crop bytes on every read. It refuses missing reviewed ownership, ambiguous raw impact face indices, invalid homographies, unconfirmed empty faces, non-RGB/incorrect crop sizes, or reusing output files. It cannot retroactively produce true impact annotations from the 58 unlabelled historical photos.
+
 ## Reproducible workflow
 
-Install dependencies from `requirements.txt` in a Python 3.11 environment (not every baseline CI job installs PyTorch). Verify a real Stage 3 canonical export, rebuild the manifest and snapshot together so `snapshot.manifest_sha256` binds the updated sample metadata, and inspect a representative sample and every split before running:
+Install dependencies from `requirements.txt` in a Python 3.11 environment (not every baseline CI job installs PyTorch). Verify a real Stage 3 canonical export, produce derived Stage 4 manifest and snapshot with the bridge above, and inspect a representative sample and every split before running:
 
 ```bash
 python -m archery_ml.train --config neural_network/configs/impact_mobilenetv3.json
@@ -73,8 +107,8 @@ The 58-image Stage 3 exploratory set is *not* a holdout and cannot establish thi
 
 ## Verification and deliberate exclusions
 
-The focused regression test is `OMP_NUM_THREADS=2 python -m unittest discover -s neural_network/tests -p test_stage4_impact.py -v`; the dedicated PR workflow runs it with locked Torch/TorchVision on CPU. It checks network shapes and gradients, negative faces, offsets, NMS ties, matching cardinality, split leakage, manifest/crop tampering, triplets, inference dimensions, a single deterministic training epoch and checkpoint reuse. Existing Stage 0–3 tests and Android remain authoritative for legacy behavior.
+The focused regression test is `OMP_NUM_THREADS=2 python -m unittest discover -s neural_network/tests -p 'test_stage4_*.py' -v`; the dedicated PR workflow runs it with locked Torch/TorchVision on CPU. It checks network shapes and gradients, negative faces, offsets, NMS ties, matching cardinality, split leakage, manifest/crop tampering, triplets, inference dimensions, a single deterministic training epoch and checkpoint reuse. Existing Stage 0–3 tests and Android remain authoritative for legacy behavior.
 
-Excluded: automatic Stage 3 crop materialization (needs approved, independently reviewed GT and ownership), actual multi-epoch training against real sources, Android deployment, ExecuTorch parity and claiming quality-gate success. These are separate prerequisites/next stages, not silently completed by this PR.
+Excluded: automatic unreviewed Stage 3 crop/impact-label creation, actual multi-epoch training against real sources, Android deployment, ExecuTorch parity and claiming quality-gate success. These are separate prerequisites/next stages, not silently completed by this PR.
 
 Sources: [TorchVision MobileNetV3](https://docs.pytorch.org/vision/0.23/models/generated/torchvision.models.mobilenet_v3_large.html), [PyTorch serialization](https://docs.pytorch.org/docs/2.8/notes/serialization.html), [Stage 2.5 dataset](stage-2.5-dataset-infrastructure.md), [Stage 3 finalization](stage-3-finalization-2026-10-26.md), [Notion implementation plan](https://app.notion.com/p/3f099ff957ed8108b097f02f508c7ffd).

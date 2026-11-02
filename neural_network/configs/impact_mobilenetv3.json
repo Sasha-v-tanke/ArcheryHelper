@@ -21,7 +21,7 @@
     "nms_radius": 4
   },
   "dataset": {
-    "manifest": "data/manifests/dataset_manifest.json",
-    "snapshot": "data/snapshots/dataset_snapshot.json"
+    "manifest": "data/manifests/stage4_manifest.json",
+    "snapshot": "data/snapshots/stage4_snapshot.json"
   }
 }

@@ -5,9 +5,10 @@ on:
     paths:
       - 'archery_ml/train.py'
       - 'archery_ml/inference.py'
+      - 'archery_ml/prepare.py'
       - 'neural_network/archery_ml/**'
       - 'neural_network/configs/impact_mobilenetv3.json'
-      - 'neural_network/tests/test_stage4_impact.py'
+      - 'neural_network/tests/test_stage4_*.py'
       - '.github/workflows/stage4-ml.yml'
   workflow_dispatch:
 
@@ -30,4 +31,4 @@ jobs:
       - name: Run Stage 4 focused regression suite
         env:
           OMP_NUM_THREADS: '2'
-        run: python -m unittest discover -s neural_network/tests -p test_stage4_impact.py -v
+        run: python -m unittest discover -s neural_network/tests -p 'test_stage4_*.py' -v

@@ -38,7 +38,9 @@ def predict_canonical_face(
 ) -> list[ImpactPrediction]:
     """Input MUST be a Stage 3 canonical face, not the original camera photo."""
     size = (metadata.input.width, metadata.input.height)
-    rgb = image.convert("RGB").resize(size, Image.Resampling.BILINEAR)
+    if image.size != size:
+        raise ValueError("expected Stage 3 canonical crop at exact model input size")
+    rgb = image.convert("RGB")
     array = np.asarray(rgb, dtype=np.float32) / 255.0
     mean = np.asarray(metadata.input.mean, dtype=np.float32)
     std = np.asarray(metadata.input.std, dtype=np.float32)

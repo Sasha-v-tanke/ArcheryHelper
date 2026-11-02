@@ -6,10 +6,8 @@ import argparse
 import csv
 import hashlib
 import json
-import os
 import random
 import subprocess
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,7 +36,7 @@ def _load_configuration(path: Path) -> dict:
     model = config["model"]
     training = config["training"]
     dataset = config["dataset"]
-    if model["input_size"] % 32 or model["output_stride"] != 2:
+    if model["input_size"] < 64 or model["input_size"] % 32 or model["output_stride"] != 2:
         raise ValueError("model must use input multiple of 32 and output stride two")
     if any(training[name] <= 0 for name in ("epochs", "batch_size", "learning_rate")):
         raise ValueError("training parameters must be positive")
@@ -54,6 +52,8 @@ def _prepare(config: dict, split: str) -> CanonicalImpactDataset:
     manifest = Path(dataset_config["manifest"])
     view = DatasetView.load(manifest).select(splits=[split])
     return CanonicalImpactDataset(view, manifest_dir=manifest.parent,
+                                  input_mean=tuple(config["model"].get("input_mean", (0, 0, 0))),
+                                  input_std=tuple(config["model"].get("input_std", (1, 1, 1))),
                                   input_size=config["model"]["input_size"],
                                   augment=split == "train",
                                   sigma=float(config["training"].get("gaussian_sigma", 1.5)),
@@ -69,15 +69,27 @@ def _verify_dataset(config: dict) -> str:
         raise ValueError("manifest SHA256 differs from immutable dataset snapshot")
     view = DatasetView.load(manifest)
     groups: dict[tuple[str | None, str], str] = {}
+    sample_ids: set[str] = set()
+    image_splits: dict[Path, str] = {}
     for sample in view:
+        if sample.id in sample_ids:
+            raise ValueError(f"duplicate manifest sample ID: {sample.id}")
+        sample_ids.add(sample.id)
+        if (sample.capture_metadata or {}).get("canonical_faces") is not None:
+            if not sample.group_id or not sample.source_id:
+                raise ValueError(f"canonical face requires source_id and group_id: {sample.id}")
         if sample.split not in ("train", "val", "test", "mobile_dev", "mobile_real_test"):
             raise ValueError("unknown split")
-        if sample.group_id is None:
-            continue
-        key = (sample.source_id, sample.group_id)
-        previous = groups.setdefault(key, sample.split)
-        if previous != sample.split:
-            raise ValueError(f"group leakage between {previous} and {sample.split}: {key}")
+        if sample.group_id is not None:
+            key = (sample.source_id, sample.group_id)
+            previous = groups.setdefault(key, sample.split)
+            if previous != sample.split:
+                raise ValueError(f"group leakage between {previous} and {sample.split}: {key}")
+        if (sample.capture_metadata or {}).get("canonical_faces") is not None:
+            image_path = sample.image_path.resolve()
+            previous_image_split = image_splits.setdefault(image_path, sample.split)
+            if previous_image_split != sample.split:
+                raise ValueError(f"raw image leakage between {previous_image_split} and {sample.split}")
     return digest
 
 
@@ -122,9 +134,12 @@ def _validation(model: ImpactPointNet, loader: DataLoader, device: torch.device,
     return sum(losses) / len(losses), results, first_visualization
 
 
-def _visualize(visualization: tuple, output: Path) -> None:
+def _visualize(visualization: tuple, output: Path, config: dict) -> None:
     tensor, predictions, truths = visualization
-    image = Image.fromarray((tensor.permute(1, 2, 0).numpy() * 255).clip(0, 255).astype("uint8"))
+    mean = torch.tensor(config["model"].get("input_mean", (0, 0, 0))).view(3, 1, 1)
+    std = torch.tensor(config["model"].get("input_std", (1, 1, 1))).view(3, 1, 1)
+    pixels = ((tensor * std + mean).permute(1, 2, 0).numpy() * 255).clip(0, 255)
+    image = Image.fromarray(pixels.astype("uint8"))
     draw = ImageDraw.Draw(image)
     size = image.width
     for x, y in truths:
@@ -150,6 +165,9 @@ def train(config_path: str | Path, *, output_root: str | Path = "runs", device: 
     dataset_hash = _verify_dataset(config)
     _seed(int(config["seed"]))
     train_set, val_set = _prepare(config, "train"), _prepare(config, "val")
+    for name, dataset in (("train", train_set), ("val", val_set)):
+        if not any(record.points for record in dataset.records):
+            raise ValueError(f"{name} has no verified positive impact annotations")
     batch_size = int(config["training"]["batch_size"])
     loader_train, loader_val = _loader(train_set, batch_size, True), _loader(val_set, batch_size, False)
     model = ImpactPointNet(fpn_channels=int(config["model"]["fpn_channels"]),
@@ -175,7 +193,9 @@ def train(config_path: str | Path, *, output_root: str | Path = "runs", device: 
     (root / "dataset_info.json").write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
     metadata = ModelMetadata(
         contract_version=2, model_version=config["model"]["version"],
-        input=ModelInputSpec(width=config["model"]["input_size"], height=config["model"]["input_size"]),
+        input=ModelInputSpec(width=config["model"]["input_size"], height=config["model"]["input_size"],
+                             mean=tuple(config["model"].get("input_mean", (0, 0, 0))),
+                             std=tuple(config["model"].get("input_std", (1, 1, 1)))),
         output=ModelOutputSpec(type="impact_heatmap_offset", stride=2),
         postprocess=ModelPostprocessSpec(**config["postprocess"]),
     )
@@ -208,7 +228,7 @@ def train(config_path: str | Path, *, output_root: str | Path = "runs", device: 
                 best_loss = val_loss
                 torch.save(_checkpoint(model, config, epoch), root / "best_model.pt")
             if visualization is not None:
-                _visualize(visualization, root / "visualizations" / f"epoch_{epoch:03d}.png")
+                _visualize(visualization, root / "visualizations" / f"epoch_{epoch:03d}.png", config)
             (root / "metrics.json").write_text(json.dumps(history, indent=2) + "\n", encoding="utf-8")
     return root
 
@@ -222,12 +242,53 @@ def evaluate_checkpoint(config_path: str | Path, checkpoint: str | Path, metadat
     dataset = _prepare(config, split)
     loader = _loader(dataset, int(config["training"]["batch_size"]), False)
     model, model_metadata = load_detector(Path(checkpoint), Path(metadata), device=device)
-    if model_metadata.input.width != config["model"]["input_size"]:
+    if (model_metadata.input.width != config["model"]["input_size"]
+            or tuple(model_metadata.input.mean) != tuple(config["model"].get("input_mean", (0, 0, 0)))
+            or tuple(model_metadata.input.std) != tuple(config["model"].get("input_std", (1, 1, 1)))):
         raise ValueError("evaluation input config differs from metadata")
     # Evaluation uses the checkpoint's published postprocessing, not a tuned CLI threshold.
     override = {**config, "postprocess": model_metadata.postprocess.to_dict()}
     _, metrics, _ = _validation(model, loader, torch.device(device), override)
-    return {"split": split, "faces": len(dataset), "metrics": metrics}
+    result = {"split": split, "faces": len(dataset), "metrics": metrics}
+    if split == "mobile_real_test":
+        result["quality_gate"] = mobile_quality_gate(
+            metrics, unique_images=len({item.sample_id for item in dataset.records})
+        )
+    return result
+
+
+def mobile_quality_gate(metrics: dict, *, unique_images: int, min_images: int = 300) -> dict:
+    """Fail closed when independent mobile evidence is absent or insufficient."""
+    blocked = []
+    if unique_images < min_images:
+        blocked.append(f"verified mobile images {unique_images} < {min_images}")
+    if metrics["true_positives"] + metrics["false_negatives"] == 0:
+        blocked.append("no annotated real impact points")
+    if metrics["empty_faces"] == 0:
+        blocked.append("no verified empty target faces")
+    if metrics["score_eligible_count"] == 0:
+        blocked.append("no score-eligible, non-line-call points")
+    for name in ("localization_median_ring", "localization_p95_ring",
+                 "exact_score_accuracy_non_line_call", "false_positives_per_empty_face"):
+        if metrics[name] is None:
+            blocked.append(f"missing {name}")
+    if blocked:
+        return {"status": "BLOCKED", "reasons": blocked}
+    thresholds = {
+        "precision": (0.97, ">="), "recall": (0.97, ">="),
+        "localization_median_ring": (0.15, "<="),
+        "localization_p95_ring": (0.35, "<="),
+        "exact_score_accuracy_non_line_call": (0.98, ">="),
+    }
+    failures = [
+        f"{name}={metrics[name]} does not satisfy {op} {value}"
+        for name, (value, op) in thresholds.items()
+        if (metrics[name] < value if op == ">=" else metrics[name] > value)
+    ]
+    # On verified empty targets, even one detected arrow is a false accept.
+    if metrics["false_positives_per_empty_face"] != 0:
+        failures.append("false positives on verified empty targets")
+    return {"status": "PASS" if not failures else "FAIL", "reasons": failures}
 
 
 def main() -> int:

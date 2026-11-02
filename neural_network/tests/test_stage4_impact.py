@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from dataclasses import replace
 from unittest.mock import patch
 
 import torch
@@ -15,9 +16,11 @@ from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.evaluate import evaluate_faces
 from neural_network.archery_ml.heatmap import canonical_to_grid, encode_impacts, grid_to_canonical, impact_loss
 from neural_network.archery_ml.impact_dataset import CanonicalImpactDataset, collate_faces
+from neural_network.archery_ml.inference import predict_canonical_face
+from neural_network.archery_ml.contracts import ModelInputSpec, ModelMetadata, ModelOutputSpec, ModelPostprocessSpec
 from neural_network.archery_ml.models import ImpactPointNet
 from neural_network.archery_ml.postprocess import ImpactPrediction, decode_impacts
-from neural_network.archery_ml.train import _verify_dataset, train, evaluate_checkpoint
+from neural_network.archery_ml.train import _verify_dataset, train, evaluate_checkpoint, mobile_quality_gate
 
 
 class ImpactTargetsTest(unittest.TestCase):
@@ -97,7 +100,8 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(2, metrics.true_positives)
 
 
-class CanonicalDataTest(unittest.TestCase):
+class CanonicalFixture:
+    """Reusable small dataset setup without inheriting parent tests."""
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -108,13 +112,17 @@ class CanonicalDataTest(unittest.TestCase):
                capture=None, group_id="g1"):
         if capture is None:
             capture = {"canonical_faces": [{"face_index": 0, "image_path": "canonical.png",
+                                              "sha256": hashlib.sha256((self.root / "canonical.png").read_bytes()).hexdigest(),
                                               "annotation_status": "verified"}]}
-        return DatasetSample(id=split + "-sample", image_path=self.root / "raw-photo.png",
+        return DatasetSample(id=split + "-sample", image_path=self.root / f"raw-{split}.png",
                              annotation_path=None, split=split, source_id="fixture", group_id=group_id,
                              annotations=annotations, capture_metadata=capture)
 
+
+
+class CanonicalDataTest(CanonicalFixture, unittest.TestCase):
     def test_fails_closed_on_raw_only_and_unverified(self):
-        with self.assertRaisesRegex(ValueError, "no verified canonical faces"):
+        with self.assertRaisesRegex(ValueError, "canonical impacts without Stage 3 crops"):
             CanonicalImpactDataset(DatasetView.from_samples([self.sample(capture={})]),
                                    manifest_dir=self.root, input_size=64)
         with self.assertRaisesRegex(ValueError, "unverified"):
@@ -171,6 +179,122 @@ class CanonicalDataTest(unittest.TestCase):
             result = evaluate_checkpoint(config_path, run / "best_model.pt",
                                          run / "model_metadata.json", split="val")
         self.assertEqual(1, result["faces"])
+
+
+class ReviewRegressions(CanonicalFixture, unittest.TestCase):
+    def test_changed_crop_bytes_and_missing_hash_rejected(self):
+        valid = self.sample()
+        image = self.root / "canonical.png"
+        image.write_bytes(image.read_bytes() + b"tampered")
+        with self.assertRaisesRegex(ValueError, "SHA256 mismatch"):
+            CanonicalImpactDataset(DatasetView.from_samples([valid]),
+                                   manifest_dir=self.root, input_size=64)
+        entry = {"face_index": 0, "image_path": "canonical.png", "annotation_status": "verified"}
+        with self.assertRaisesRegex(ValueError, "missing canonical crop SHA256"):
+            CanonicalImpactDataset(DatasetView.from_samples([
+                self.sample(capture={"canonical_faces": [entry]})]),
+                manifest_dir=self.root, input_size=64)
+
+    def test_crop_tampering_during_epoch_rejected(self):
+        dataset = CanonicalImpactDataset(DatasetView.from_samples([self.sample()]),
+                                         manifest_dir=self.root, input_size=64)
+        (self.root / "canonical.png").write_bytes((self.root / "canonical.png").read_bytes() + b"t")
+        with self.assertRaisesRegex(ValueError, "SHA256 mismatch during loading"):
+            dataset[0]
+
+    def test_non_rgb_canonical_crop_rejected(self):
+        image = self.root / "canonical.png"
+        Image.new("L", (64, 64), color=100).save(image)
+        record = self.sample()
+        with self.assertRaisesRegex(ValueError, "not RGB"):
+            CanonicalImpactDataset(DatasetView.from_samples([record]),
+                                   manifest_dir=self.root, input_size=64)
+
+    def test_wrong_crop_resolution_and_path_escape_rejected(self):
+        record = self.sample()
+        with self.assertRaisesRegex(ValueError, "dimensions mismatch"):
+            CanonicalImpactDataset(DatasetView.from_samples([record]),
+                                   manifest_dir=self.root, input_size=128)
+        entry = {"face_index": 0, "image_path": "/etc/hosts", "sha256": "0" * 64,
+                 "annotation_status": "verified"}
+        with self.assertRaisesRegex(ValueError, "escapes data workspace"):
+            CanonicalImpactDataset(DatasetView.from_samples([
+                self.sample(capture={"canonical_faces": [entry]})]),
+                manifest_dir=self.root, input_size=64)
+
+    def test_triple_missing_face_and_unmaterialized_canonical_labels_rejected(self):
+        one = self.sample()
+        triple = TargetMetadata(format="TRIPLE", minimum_scoring_zone=6,
+                                ten_ring_mode="RECURVE", triple_layout="VERTICAL")
+        one = DatasetSample(id=one.id, image_path=one.image_path,
+                            annotation_path=one.annotation_path, split=one.split,
+                            source_id=one.source_id, group_id=one.group_id,
+                            annotations=one.annotations, capture_metadata=one.capture_metadata,
+                            target_metadata=triple)
+        with self.assertRaisesRegex(ValueError, "incomplete canonical face layout"):
+            CanonicalImpactDataset(DatasetView.from_samples([one]),
+                                   manifest_dir=self.root, input_size=64)
+        with self.assertRaisesRegex(ValueError, "canonical impacts without Stage 3 crops"):
+            CanonicalImpactDataset(DatasetView.from_samples([
+                self.sample(capture={})]), manifest_dir=self.root, input_size=64)
+
+    def test_normalization_and_inference_must_use_exact_size(self):
+        data = CanonicalImpactDataset(DatasetView.from_samples([self.sample()]),
+                    manifest_dir=self.root, input_size=64, augment=False,
+                    input_mean=(0.5, 0.5, 0.5), input_std=(0.25, 0.25, 0.25))
+        self.assertAlmostEqual((50 / 255 - 0.5) / 0.25,
+                               float(data[0]["image"][0, 0, 0]), places=5)
+        with self.assertRaisesRegex(ValueError, "normalization"):
+            CanonicalImpactDataset(DatasetView.from_samples([self.sample()]),
+                                   manifest_dir=self.root, input_size=64,
+                                   input_std=(0, 1, 1))
+        metadata = ModelMetadata(contract_version=2, model_version="v1",
+                 input=ModelInputSpec(64, 64),
+                 output=ModelOutputSpec("impact_heatmap_offset", 2),
+                 postprocess=ModelPostprocessSpec(0.4, 2))
+        with self.assertRaisesRegex(ValueError, "exact model input size"):
+            predict_canonical_face(ImpactPointNet(fpn_channels=8), metadata,
+                                   Image.new("RGB", (120, 120)))
+
+    def test_duplicate_samples_and_image_leakage(self):
+        samples = [self.sample(split="train"), replace(self.sample(split="val", group_id="different"),
+                                                        image_path=self.root / "raw-train.png")]
+        manifest = self.root / "manifest.json"
+        save_manifest(manifest, samples)
+        snap = type("Snapshot", (), {"manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()})()
+        cfg = {"dataset": {"manifest": str(manifest), "snapshot": str(self.root / "snapshot.json")}}
+        with patch("neural_network.archery_ml.train.load_snapshot", return_value=snap):
+            with self.assertRaisesRegex(ValueError, "raw image leakage"):
+                _verify_dataset(cfg)
+        save_manifest(manifest, [samples[0], samples[0]])
+        snap.manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        with patch("neural_network.archery_ml.train.load_snapshot", return_value=snap):
+            with self.assertRaisesRegex(ValueError, "duplicate manifest sample ID"):
+                _verify_dataset(cfg)
+
+
+class QualityGateTest(unittest.TestCase):
+    def _metrics(self):
+        return {"precision": 0.98, "recall": 0.98, "true_positives": 98,
+                "false_negatives": 2, "localization_median_ring": 0.1,
+                "localization_p95_ring": 0.2, "exact_score_accuracy_non_line_call": 0.99,
+                "false_positives_per_empty_face": 0.0, "empty_faces": 10,
+                "score_eligible_count": 50}
+
+    def test_holdout_requires_sufficient_independent_evidence(self):
+        metrics = self._metrics()
+        self.assertEqual("BLOCKED", mobile_quality_gate(metrics, unique_images=299)["status"])
+        self.assertEqual("PASS", mobile_quality_gate(metrics, unique_images=300)["status"])
+        metrics["localization_median_ring"] = None
+        self.assertEqual("BLOCKED", mobile_quality_gate(metrics, unique_images=300)["status"])
+
+    def test_holdout_quality_fails_on_accuracy_or_empty_false_positives(self):
+        metrics = self._metrics()
+        metrics["recall"] = 0.95
+        self.assertEqual("FAIL", mobile_quality_gate(metrics, unique_images=300)["status"])
+        metrics["recall"] = 0.98
+        metrics["false_positives_per_empty_face"] = 0.1
+        self.assertEqual("FAIL", mobile_quality_gate(metrics, unique_images=300)["status"])
 
 
 if __name__ == "__main__":

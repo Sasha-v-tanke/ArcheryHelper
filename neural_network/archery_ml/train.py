@@ -80,6 +80,7 @@ def _verify_dataset(config: dict) -> str:
     groups: dict[tuple[str | None, str], str] = {}
     sample_ids: set[str] = set()
     image_splits: dict[Path, str] = {}
+    image_hash_splits: dict[str, str] = {}
     for sample in view:
         if sample.id in sample_ids:
             raise ValueError(f"duplicate manifest sample ID: {sample.id}")
@@ -99,6 +100,12 @@ def _verify_dataset(config: dict) -> str:
             previous_image_split = image_splits.setdefault(image_path, sample.split)
             if previous_image_split != sample.split:
                 raise ValueError(f"raw image leakage between {previous_image_split} and {sample.split}")
+            if not image_path.is_file():
+                raise ValueError(f"missing original source image: {sample.id}")
+            original_sha = _sha256(image_path)
+            previous_hash_split = image_hash_splits.setdefault(original_sha, sample.split)
+            if previous_hash_split != sample.split:
+                raise ValueError(f"original image SHA256 leakage between {previous_hash_split} and {sample.split}")
     return digest
 
 
@@ -270,7 +277,7 @@ def evaluate_checkpoint(config_path: str | Path, checkpoint: str | Path, metadat
     result = {"split": split, "faces": len(dataset), "metrics": metrics}
     if split == "mobile_real_test":
         result["quality_gate"] = mobile_quality_gate(
-            metrics, unique_images=len({item.sample_id for item in dataset.records})
+            metrics, unique_images=len({item.source_image_sha256 for item in dataset.records})
         )
     return result
 

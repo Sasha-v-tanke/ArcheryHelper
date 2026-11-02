@@ -124,6 +124,8 @@ class CanonicalFixture:
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         Image.new("RGB", (64, 64), color=(50, 100, 150)).save(self.root / "canonical.png")
+        Image.new("RGB", (64, 64), color=(10, 25, 35)).save(self.root / "raw-train.png")
+        Image.new("RGB", (64, 64), color=(15, 55, 75)).save(self.root / "raw-val.png")
 
     def sample(self, *, split="train", annotations=(ImpactAnnotation(0.1, 0.2),),
                capture=None, group_id="g1"):
@@ -278,6 +280,18 @@ class ReviewRegressions(CanonicalFixture, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exact model input size"):
             predict_canonical_face(ImpactPointNet(fpn_channels=8), metadata,
                                    Image.new("RGB", (120, 120)))
+
+    def test_same_image_bytes_under_different_filenames_cannot_cross_splits(self):
+        (self.root / "raw-val.png").write_bytes((self.root / "raw-train.png").read_bytes())
+        samples = [self.sample(split="train", group_id="train"),
+                   self.sample(split="val", group_id="val")]
+        manifest = self.root / "manifest.json"
+        save_manifest(manifest, samples)
+        snap = type("Snapshot", (), {"manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()})()
+        config = {"dataset": {"manifest": str(manifest), "snapshot": str(self.root / "snapshot.json")}}
+        with patch("neural_network.archery_ml.train.load_snapshot", return_value=snap):
+            with self.assertRaisesRegex(ValueError, "SHA256 leakage"):
+                _verify_dataset(config)
 
     def test_duplicate_samples_and_image_leakage(self):
         samples = [self.sample(split="train"), replace(self.sample(split="val", group_id="different"),

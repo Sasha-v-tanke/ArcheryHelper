@@ -23,6 +23,7 @@ class FaceRecord:
     sample_id: str
     image_path: Path
     sha256: str
+    source_image_sha256: str
     face_index: int
     points: tuple[tuple[float, float], ...]
     target_metadata: object | None
@@ -77,6 +78,13 @@ class CanonicalImpactDataset(Dataset):
                 continue
             if not isinstance(entries, list) or not entries:
                 raise ValueError(f"invalid canonical_faces for {sample.id}")
+            original = sample.image_path.resolve()
+            if not original.is_relative_to(workspace_root) or not original.is_file():
+                raise ValueError(f"missing or external original source image for {sample.id}")
+            original_sha = hashlib.sha256(original.read_bytes()).hexdigest()
+            attested_sha = ((sample.capture_metadata or {}).get("stage4_review") or {}).get("source_image_sha256")
+            if attested_sha is not None and attested_sha != original_sha:
+                raise ValueError(f"original image SHA256 differs from Stage 4 review in {sample.id}")
             indices = [entry.get("face_index") for entry in entries]
             if any(type(index) is not int or index < 0 for index in indices) or len(set(indices)) != len(indices):
                 raise ValueError(f"duplicate or invalid face_index in {sample.id}")
@@ -112,7 +120,7 @@ class CanonicalImpactDataset(Dataset):
                         raise ValueError(f"canonical crop is not RGB in {sample.id}")
                 index = entry["face_index"]
                 points = tuple((a.x_norm, a.y_norm) for a in sample.annotations if a.face_index == index)
-                self.records.append(FaceRecord(sample.id, image_path, expected_sha, index, points, sample.target_metadata))
+                self.records.append(FaceRecord(sample.id, image_path, expected_sha, original_sha, index, points, sample.target_metadata))
         if not self.records:
             raise ValueError("no verified canonical faces: Stage 3 materialization is required")
 

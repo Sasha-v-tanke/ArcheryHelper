@@ -13,7 +13,7 @@ from PIL import Image
 
 from neural_network.archery_ml.contracts import DatasetSample, ImpactAnnotation, TargetMetadata, save_manifest
 from neural_network.archery_ml.data.view import DatasetView
-from neural_network.archery_ml.evaluate import evaluate_faces
+from neural_network.archery_ml.evaluate import evaluate_faces, _match
 from neural_network.archery_ml.heatmap import canonical_to_grid, encode_impacts, grid_to_canonical, impact_loss
 from neural_network.archery_ml.impact_dataset import CanonicalImpactDataset, collate_faces
 from neural_network.archery_ml.inference import predict_canonical_face
@@ -61,6 +61,14 @@ class ImpactTargetsTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             decode_impacts(logits, offsets, confidence_threshold=-0.1, nms_radius=2)
 
+    def test_real_input_output_grid_and_model_size(self):
+        model = ImpactPointNet(fpn_channels=48).eval()
+        with torch.no_grad():
+            heatmap, offsets = model(torch.zeros(1, 3, 512, 512))
+        self.assertEqual((1, 1, 256, 256), tuple(heatmap.shape))
+        self.assertEqual((1, 2, 256, 256), tuple(offsets.shape))
+        self.assertLess(sum(p.numel() for p in model.parameters()) * 4, 30 * 1024 * 1024)
+
     def test_model_shapes_and_gradient(self):
         model = ImpactPointNet(fpn_channels=16)
         model.train()
@@ -90,6 +98,15 @@ class MetricsTest(unittest.TestCase):
         self.assertAlmostEqual(1 / 3, metrics.precision)
         self.assertAlmostEqual(0.5, metrics.recall)
         self.assertEqual(1.0, metrics.false_positives_per_empty_face)
+
+    def test_matching_is_minimum_cost_for_maximum_cardinality(self):
+        truths = [(0.08118804397, 0), (0.02866554588, 0)]
+        predictions = [ImpactPrediction(0.01458217017, 0, 0.9),
+                       ImpactPrediction(0.0352494738, 0, 0.9)]
+        matches = _match(predictions, truths, 0.07)
+        self.assertEqual(2, len(matches))
+        self.assertEqual({(0, 1), (1, 0)}, {(p, t) for p, t, _ in matches})
+        self.assertLess(sum(m[2] for m in matches), 0.061)
 
     def test_matching_maximum_cardinality(self):
         # First prediction may take either GT; second can only take first GT.

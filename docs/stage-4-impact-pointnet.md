@@ -100,7 +100,7 @@ python -m archery_ml.inference \
 
 ### Metrics and acceptance
 
-Evaluation computes one-to-one, maximum-cardinality point matching within **0.5 ring** (one scoring ring = 0.1 canonical radial units). Reports precision, recall, F1, FP per verified empty face, median and P95 radial localization error in ring units, exact scoring accuracy excluding uncertain `line_call` GT, and a correction-rate proxy. Scoring uses deterministic Stage 1 scoring fixtures when target diameter/metadata is available; lacking scoring metadata **does not imply** score accuracy passed.
+Evaluation computes one-to-one, maximum-cardinality, minimum-total-distance point matching within **0.5 ring** (one scoring ring = 0.1 canonical radial units). Reports precision, recall, F1, FP per verified empty face, median and P95 radial localization error in ring units, exact scoring accuracy excluding uncertain `line_call` GT, and a correction-rate proxy. Scoring uses deterministic Stage 1 scoring fixtures when target diameter/metadata is available; lacking scoring metadata **does not imply** score accuracy passed.
 
 The `mobile_real_test` quality gate returns `BLOCKED` if there are fewer than **300 unique verified original image IDs**, zero impact GT, no verified empty faces, zero score-eligible non-line-call shots, or any missing metric. With sufficient data, it returns `PASS` only if precision/recall ≥ 97%, median ≤ 0.15 ring, P95 ≤ 0.35 ring, exact non-line-call score ≥ 98%, and no false accepts on verified empty faces; otherwise `FAIL`. The zero-empty-FP policy is conservative; adjust by documented product requirements rather than hiding failures.
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from heapq import heappop, heappush
 from dataclasses import asdict, dataclass
 from statistics import median
 from typing import Sequence
@@ -37,35 +38,70 @@ def _match(
     truths: Sequence[tuple[float, float]],
     radius: float,
 ) -> list[tuple[int, int, float]]:
-    """Maximum-cardinality bipartite matching; each prediction/GT used at most once."""
-    edges: list[list[tuple[int, float]]] = []
-    for prediction in predictions:
-        neighbors = []
-        for i, (x, y) in enumerate(truths):
-            distance = math.hypot(prediction.x_norm - x, prediction.y_norm - y)
-            if distance <= radius:
-                neighbors.append((i, distance))
-        edges.append(sorted(neighbors, key=lambda pair: (pair[1], pair[0])))
-    owners: dict[int, int] = {}
+    """Maximum-cardinality, minimum-total-distance one-to-one matching.
 
-    def augment(pred_index: int, seen: set[int]) -> bool:
-        for truth_index, _ in edges[pred_index]:
-            if truth_index in seen:
+    A greedy or augmenting-path-only matching can distort median/P95 error and
+    exact scoring, despite finding the correct number of matches. This small
+    min-cost-flow solver uses shortest augmenting paths with reduced costs.
+    """
+    n_pred, n_truth = len(predictions), len(truths)
+    if not n_pred or not n_truth:
+        return []
+    source, sink = n_pred + n_truth, n_pred + n_truth + 1
+    graph: list[list[list]] = [[] for _ in range(sink + 1)]
+
+    def add_edge(u: int, v: int, cost: float) -> None:
+        graph[u].append([v, len(graph[v]), 1, cost])
+        graph[v].append([u, len(graph[u]) - 1, 0, -cost])
+
+    for pred in range(n_pred):
+        add_edge(source, pred, 0.0)
+        for truth in range(n_truth):
+            x, y = truths[truth]
+            d = math.hypot(predictions[pred].x_norm - x, predictions[pred].y_norm - y)
+            if d <= radius:
+                add_edge(pred, n_pred + truth, d)
+    for truth in range(n_truth):
+        add_edge(n_pred + truth, sink, 0.0)
+
+    potential = [0.0] * len(graph)
+    while True:
+        distances = [math.inf] * len(graph)
+        predecessor: list[tuple[int, int] | None] = [None] * len(graph)
+        distances[source] = 0.0
+        queue: list[tuple[float, int]] = [(0.0, source)]
+        while queue:
+            current, u = heappop(queue)
+            if current > distances[u]:
                 continue
-            seen.add(truth_index)
-            if truth_index not in owners or augment(owners[truth_index], seen):
-                owners[truth_index] = pred_index
-                return True
-        return False
+            for edge_index, edge in enumerate(graph[u]):
+                v, _, capacity, cost = edge
+                if capacity == 0:
+                    continue
+                new_distance = current + cost + potential[u] - potential[v]
+                if new_distance < distances[v] - 1e-12:
+                    distances[v] = new_distance
+                    predecessor[v] = (u, edge_index)
+                    heappush(queue, (new_distance, v))
+        if predecessor[sink] is None:
+            break
+        for node, distance in enumerate(distances):
+            if math.isfinite(distance):
+                potential[node] += distance
+        node = sink
+        while node != source:
+            previous, edge_index = predecessor[node]
+            edge = graph[previous][edge_index]
+            edge[2] -= 1
+            graph[node][edge[1]][2] += 1
+            node = previous
 
-    for index in range(len(predictions)):
-        augment(index, set())
-    return sorted(
-        ((pred, truth, math.hypot(predictions[pred].x_norm - truths[truth][0],
-                                  predictions[pred].y_norm - truths[truth][1]))
-         for truth, pred in owners.items()),
-        key=lambda entry: entry[1],
-    )
+    matches = []
+    for pred in range(n_pred):
+        for target, _, capacity, cost in graph[pred]:
+            if n_pred <= target < n_pred + n_truth and capacity == 0:
+                matches.append((pred, target - n_pred, cost))
+    return sorted(matches, key=lambda entry: entry[1])
 
 
 def evaluate_faces(

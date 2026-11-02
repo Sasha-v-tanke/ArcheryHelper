@@ -1,0 +1,27 @@
+{
+  "seed": 42,
+  "model": {
+    "version": "impact-v1.0.0",
+    "input_size": 512,
+    "output_stride": 2,
+    "fpn_channels": 48,
+    "pretrained": false
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 8,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "gaussian_sigma": 1.5,
+    "horizontal_flip_prob": 0.5,
+    "brightness": 0.15
+  },
+  "postprocess": {
+    "confidence_threshold": 0.35,
+    "nms_radius": 4
+  },
+  "dataset": {
+    "manifest": "data/manifests/dataset_manifest.json",
+    "snapshot": "data/snapshots/dataset_snapshot.json"
+  }
+}

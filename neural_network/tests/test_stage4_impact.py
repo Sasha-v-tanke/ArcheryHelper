@@ -1,6 +1,8 @@
 """Stage 4 regression coverage; uses tiny synthetic data, never downloads weights."""
 
 import hashlib
+import io
+from contextlib import redirect_stdout
 import json
 import tempfile
 import unittest
@@ -98,6 +100,16 @@ class MetricsTest(unittest.TestCase):
         self.assertAlmostEqual(1 / 3, metrics.precision)
         self.assertAlmostEqual(0.5, metrics.recall)
         self.assertEqual(1.0, metrics.false_positives_per_empty_face)
+
+    def test_scoring_is_excluded_only_for_real_boundary_uncertainty(self):
+        meta = TargetMetadata(format="SINGLE", minimum_scoring_zone=1,
+                              ten_ring_mode="RECURVE", face_diameter_mm=400)
+        clear = evaluate_faces([([ImpactPrediction(0.0, 0.0, 0.99)], [(0.0, 0.0)], meta)])
+        self.assertEqual(1, clear.score_eligible_count)
+        self.assertEqual(1.0, clear.exact_score_accuracy_non_line_call)
+        ambiguous = evaluate_faces([([ImpactPrediction(0.1, 0.0, 0.99)], [(0.1, 0.0)], meta)])
+        self.assertEqual(0, ambiguous.score_eligible_count)
+        self.assertIsNone(ambiguous.exact_score_accuracy_non_line_call)
 
     def test_matching_is_minimum_cost_for_maximum_cardinality(self):
         truths = [(0.08118804397, 0), (0.02866554588, 0)]
@@ -332,6 +344,31 @@ class QualityGateTest(unittest.TestCase):
         metrics["recall"] = 0.98
         metrics["false_positives_per_empty_face"] = 0.1
         self.assertEqual("FAIL", mobile_quality_gate(metrics, unique_images=300)["status"])
+
+
+class EvaluationCLIStatusTest(unittest.TestCase):
+    def test_holdout_nonpassing_status_exits_nonzero(self):
+        from neural_network.archery_ml.train import main
+        from unittest.mock import patch as mock_patch
+        args = ["archery_ml.train", "--config", "config.json", "--evaluate", "model.pt",
+                "--metadata", "model_metadata.json", "--split", "mobile_real_test"]
+        for status, expected_exit in (("PASS", 0), ("FAIL", 1), ("BLOCKED", 2)):
+            with self.subTest(status=status):
+                evaluation = {"split": "mobile_real_test", "quality_gate": {"status": status}}
+                with mock_patch("sys.argv", args), mock_patch(
+                    "neural_network.archery_ml.train.evaluate_checkpoint", return_value=evaluation
+                ), redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(expected_exit, main())
+                self.assertIn(f'"status": "{status}"', output.getvalue())
+
+    def test_validation_not_treated_as_mobile_gate(self):
+        from neural_network.archery_ml.train import main
+        args = ["archery_ml.train", "--config", "config.json", "--evaluate", "model.pt",
+                "--metadata", "model_metadata.json", "--split", "val"]
+        with patch("sys.argv", args), patch(
+            "neural_network.archery_ml.train.evaluate_checkpoint", return_value={"split": "val"}
+        ), redirect_stdout(io.StringIO()):
+            self.assertEqual(0, main())
 
 
 if __name__ == "__main__":

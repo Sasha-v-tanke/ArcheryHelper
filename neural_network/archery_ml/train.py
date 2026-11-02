@@ -332,8 +332,16 @@ def main() -> int:
     if args.evaluate:
         if args.metadata is None:
             parser.error("--metadata is required with --evaluate")
-        print(json.dumps(evaluate_checkpoint(args.config, args.evaluate, args.metadata,
-                                             split=args.split, device=args.device), indent=2))
+        result = evaluate_checkpoint(args.config, args.evaluate, args.metadata,
+                                     split=args.split, device=args.device)
+        print(json.dumps(result, indent=2))
+        if args.split == "mobile_real_test":
+            # A completed evaluation process is not a passed acceptance gate.
+            # Distinct exit codes prevent CI from silently accepting missing GT.
+            status = result["quality_gate"]["status"]
+            if status not in ("PASS", "FAIL", "BLOCKED"):
+                raise ValueError(f"invalid mobile quality gate status: {status}")
+            return {"PASS": 0, "FAIL": 1, "BLOCKED": 2}[status]
     else:
         if args.metadata is not None:
             parser.error("--metadata is only used with --evaluate")

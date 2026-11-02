@@ -210,15 +210,67 @@ def materialize(*, manifest: Path, snapshot: Path, review_map: Path,
             "canonical_impacts": sum(len(sample.annotations) for sample in prepared)}
 
 
+def write_review_draft(*, manifest: Path, output: Path, data_root: Path,
+                       include_unlabeled: bool = False) -> dict:
+    """Generate an unapproved review queue from imported raw annotations.
+
+    A draft is never fed into training as verified data, and no point is
+    automatically associated with an owned target face.
+    """
+    root = data_root.resolve()
+    destination = output.resolve()
+    if output.exists() or not destination.is_relative_to(root):
+        raise ValueError("draft review path must be new and under data workspace")
+    if not manifest.resolve().is_relative_to(root):
+        raise ValueError("manifest must be under data workspace")
+    mapping = {}
+    for sample in load_manifest(manifest):
+        if not sample.raw_annotations and not include_unlabeled:
+            continue
+        original = sample.image_path.resolve()
+        if not original.is_relative_to(root) or not original.is_file():
+            raise ValueError(f"unavailable original for review draft: {sample.id}")
+        if sample.id in mapping:
+            raise ValueError(f"duplicate sample id: {sample.id}")
+        mapping[sample.id] = {
+            "annotator": "", "reviewer": "", "face_ownership_reviewed": False,
+            "original_sha256": _sha256(original),
+            "raw_annotations_sha256": _raw_labels_digest(sample),
+            "geometry_path": "", "geometry_sha256": "",
+            "raw_impact_count": len(sample.raw_annotations),
+            "source_face_index_hints": [point.face_index for point in sample.raw_annotations],
+            "impact_face_indices": [None] * len(sample.raw_annotations),
+            "verified_empty_faces": [],
+        }
+    if not mapping:
+        raise ValueError("no candidate raw samples; use --include-unlabeled to review empty candidates")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(mapping, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {"draft_review_map": str(destination), "unapproved_samples": len(mapping)}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Stage 3 reviewed faces -> immutable Stage 4 manifest")
     parser.add_argument("--manifest", type=Path, default=Path("data/manifests/dataset_manifest.json"))
     parser.add_argument("--snapshot", type=Path, default=Path("data/snapshots/dataset_snapshot.json"))
-    parser.add_argument("--review-map", type=Path, required=True)
+    parser.add_argument("--review-map", type=Path)
+    parser.add_argument("--draft-review-map", type=Path,
+                        help="Create an unapproved raw-impact review queue, do not materialize")
+    parser.add_argument("--include-unlabeled", action="store_true",
+                        help="In review draft, include samples without any raw impact annotations")
     parser.add_argument("--output-manifest", type=Path, default=Path("data/manifests/stage4_manifest.json"))
     parser.add_argument("--output-snapshot", type=Path, default=Path("data/snapshots/stage4_snapshot.json"))
     parser.add_argument("--data-root", type=Path, default=Path("data"))
     args = parser.parse_args()
+    if args.draft_review_map is not None:
+        if args.review_map is not None:
+            parser.error("--draft-review-map and --review-map are mutually exclusive")
+        print(json.dumps(write_review_draft(manifest=args.manifest,
+                            output=args.draft_review_map, data_root=args.data_root,
+                            include_unlabeled=args.include_unlabeled), indent=2))
+        return 0
+    if args.review_map is None or args.include_unlabeled:
+        parser.error("--review-map is required for materialization; --include-unlabeled is draft-only")
     print(json.dumps(materialize(manifest=args.manifest, snapshot=args.snapshot,
                                  review_map=args.review_map, output_manifest=args.output_manifest,
                                  output_snapshot=args.output_snapshot, data_root=args.data_root), indent=2))

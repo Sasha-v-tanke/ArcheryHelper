@@ -13,7 +13,7 @@ from PIL import Image
 from neural_network.archery_ml.contracts import (
     DatasetSample, ImagePointAnnotation, TargetMetadata, load_manifest, save_manifest,
 )
-from neural_network.archery_ml.prepare import _raw_labels_digest, reviewed_sample, materialize
+from neural_network.archery_ml.prepare import _raw_labels_digest, reviewed_sample, materialize, write_review_draft
 
 
 class MaterializerTest(unittest.TestCase):
@@ -126,6 +126,25 @@ class MaterializerTest(unittest.TestCase):
         self.geometry.write_text(json.dumps(geom))
         with self.assertRaisesRegex(ValueError, "not READY"):
             self.prepare_one(sample)
+
+    def test_draft_never_approves_or_assigns_foreign_images(self):
+        sample = self.sample(raw=(ImagePointAnnotation(x_fraction=0.5, y_fraction=0.5),
+                                  ImagePointAnnotation(x_fraction=0.7, y_fraction=0.7)))
+        manifest = self.manifests / "raw.json"
+        save_manifest(manifest, [sample])
+        draft = self.root / "review_draft.json"
+        info = write_review_draft(manifest=manifest, output=draft, data_root=self.root)
+        self.assertEqual(1, info["unapproved_samples"])
+        record = json.loads(draft.read_text())[sample.id]
+        self.assertIs(record["face_ownership_reviewed"], False)
+        self.assertEqual([None, None], record["impact_face_indices"])
+        self.assertEqual("", record["reviewer"])
+        self.assertEqual(hashlib.sha256(self.original.read_bytes()).hexdigest(),
+                         record["original_sha256"])
+        with self.assertRaisesRegex(ValueError, "path must be new"):
+            write_review_draft(manifest=manifest, output=draft, data_root=self.root)
+        with self.assertRaisesRegex(ValueError, "independent annotation review"):
+            self.prepare_one(sample, record)
 
     def test_derived_manifest_snapshot_are_new_and_bound(self):
         sample = self.sample()

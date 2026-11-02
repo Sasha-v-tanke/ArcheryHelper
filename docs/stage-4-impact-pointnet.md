@@ -39,7 +39,15 @@ If Stage 3 only has raw images or geometry without independently verified impact
 
 The included bridge can transform *already reviewed* raw-image impact coordinates using Stage 3's selected-geometry `original_to_canonical` homographies and bind Stage 3's **existing raw (unmasked) canonical crop artifacts** by checksum. This is not a model-driven pseudo-labeling or ownership classifier. Its inputs must be independently reviewed.
 
-Create a JSON map under `data/` keyed by `DatasetSample.id`, for example:
+Generate a **draft** review queue from existing raw annotations to avoid manually calculating SHA-256 or re-entering arrow coordinates:
+
+```bash
+python -m archery_ml.prepare --draft-review-map data/stage4-review-draft.json
+```
+
+This produces an **unapproved** map: ownership is false, face IDs are unset, and reviewer identities are empty. Inspect the Stage 3 target selection and each raw arrow; assign the selected face ID or `null` for a foreign board, record the approved geometry JSON path and hash, then obtain independent annotation/ownership review. You may use `--include-unlabeled` to add candidate negatives, but only a reviewer can confirm that a face is actually empty. No model prediction is used to fabricate labels.
+
+The resulting JSON map is keyed by `DatasetSample.id`, for example:
 
 ```json
 {

@@ -22,7 +22,7 @@ def fingerprint(value: dict) -> str:
                                      allow_nan=False).encode("utf-8")).hexdigest()
 
 
-def verify_dataset(config: dict) -> dict:
+def verify_dataset(config: dict, *, snapshot=None) -> dict:
     """Validate all split boundaries, including the exact canonical model inputs.
 
     Returns sorted provenance suitable for embedding in an immutable checkpoint.
@@ -30,7 +30,8 @@ def verify_dataset(config: dict) -> dict:
     checked across the entire manifest. Every prepared crop is checked on disk.
     """
     manifest = Path(config["dataset"]["manifest"])
-    snapshot = load_snapshot(config["dataset"]["snapshot"])
+    if snapshot is None:
+        snapshot = load_snapshot(config["dataset"]["snapshot"])
     manifest_hash = sha256(manifest)
     if snapshot.manifest_sha256 != manifest_hash:
         raise ValueError("manifest SHA256 differs from immutable dataset snapshot")

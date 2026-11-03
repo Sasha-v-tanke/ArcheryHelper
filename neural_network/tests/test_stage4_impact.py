@@ -23,6 +23,9 @@ from neural_network.archery_ml.contracts import ModelInputSpec, ModelMetadata, M
 from neural_network.archery_ml.models import ImpactPointNet
 from neural_network.archery_ml.postprocess import ImpactPrediction, decode_impacts
 from neural_network.archery_ml.train import _verify_dataset, train, evaluate_checkpoint, mobile_quality_gate
+from neural_network.archery_ml.provenance import (
+    fingerprint, training_provenance, verify_checkpoint_holdout, verify_dataset,
+)
 
 
 class ImpactTargetsTest(unittest.TestCase):
@@ -361,6 +364,38 @@ class ReviewRegressions(CanonicalFixture, unittest.TestCase):
         with patch("neural_network.archery_ml.train.load_snapshot", return_value=snap):
             with self.assertRaisesRegex(ValueError, "duplicate manifest sample ID"):
                 _verify_dataset(cfg)
+
+
+class CheckpointProvenanceTest(CanonicalFixture, unittest.TestCase):
+    def test_separate_holdout_manifest_reusing_canonical_bytes_is_rejected(self):
+        manifest = self.root / "manifest.json"
+        snapshots = self.root / "snapshot.json"
+        training = [self.sample(split="train", group_id="training"),
+                    self.sample(split="val", group_id="validation")]
+        save_manifest(manifest, training)
+        cfg = {"dataset": {"manifest": str(manifest), "snapshot": str(snapshots)}}
+        snap = type("Snapshot", (), {
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()
+        })()
+        saved = training_provenance(verify_dataset(cfg, snapshot=snap))
+        checkpoint = {"training_provenance": saved}
+        metadata = {"training_provenance_sha256": fingerprint(saved)}
+        # The original photograph is different, while the canonical model
+        # input is byte-identical to one used to fit the checkpoint.
+        new_original = self.root / "raw-new.png"
+        Image.new("RGB", (64, 64), (7, 77, 107)).save(new_original)
+        holdout = replace(training[0], split="mobile_real_test", id="holdout",
+                          group_id="independent", image_path=new_original)
+        save_manifest(manifest, [holdout])
+        snap.manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        evaluation = verify_dataset(cfg, snapshot=snap)
+        with self.assertRaisesRegex(ValueError, "canonical_crop_sha256"):
+            verify_checkpoint_holdout(checkpoint, metadata, evaluation, split="mobile_real_test")
+        with self.assertRaisesRegex(ValueError, "lacks immutable"):
+            verify_checkpoint_holdout({}, metadata, evaluation, split="mobile_real_test")
+        with self.assertRaisesRegex(ValueError, "metadata training provenance differ"):
+            verify_checkpoint_holdout(checkpoint, {"training_provenance_sha256": "0" * 64},
+                                      evaluation, split="mobile_real_test")
 
 
 class QualityGateTest(unittest.TestCase):

@@ -233,7 +233,7 @@ def train(config_path: str | Path, *, output_root: str | Path = "runs", device: 
             torch.save(_checkpoint(model, config, epoch, used_provenance), root / "last_model.pt")
             if val_loss < best_loss:
                 best_loss = val_loss
-                torch.save(_checkpoint(model, config, epoch), root / "best_model.pt")
+                torch.save(_checkpoint(model, config, epoch, used_provenance), root / "best_model.pt")
             if visualization is not None:
                 _visualize(visualization, root / "visualizations" / f"epoch_{epoch:03d}.png", config)
             (root / "metrics.json").write_text(json.dumps(history, indent=2) + "\n", encoding="utf-8")

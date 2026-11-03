@@ -13,7 +13,9 @@ from PIL import Image
 from neural_network.archery_ml.contracts import (
     DatasetSample, ImagePointAnnotation, TargetMetadata, load_manifest, save_manifest,
 )
-from neural_network.archery_ml.prepare import _raw_labels_digest, reviewed_sample, materialize, write_review_draft
+from neural_network.archery_ml.prepare import (
+    _raw_labels_digest, reviewed_sample, materialize, write_review_draft, export_stage3_geometry,
+)
 
 
 class MaterializerTest(unittest.TestCase):
@@ -33,6 +35,9 @@ class MaterializerTest(unittest.TestCase):
         self.geometry = self.artifacts / "selected.json"
         self.geometry.write_text(json.dumps({
             "status": "READY", "quality_status": "READY", "artifact_revision": "rev-1",
+            "original_id": hashlib.sha256(self.original.read_bytes()).hexdigest(),
+            "selection_status": "USER_CONFIRMED", "ownership_confirmed": True,
+            "candidate_ids": ["c1"],
             "physical_face_order_verified": True,
             "faces": [{"face_index": 0, "crop_path": "face0.png",
                        "original_to_canonical": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}]
@@ -51,6 +56,7 @@ class MaterializerTest(unittest.TestCase):
                 "original_sha256": hashlib.sha256(self.original.read_bytes()).hexdigest(),
                 "geometry_path": "stage3/selected.json",
                 "geometry_sha256": hashlib.sha256(self.geometry.read_bytes()).hexdigest(),
+                "selected_candidate_ids": ["c1"],
                 "impact_face_indices": [p.face_index for p in sample.raw_annotations],
                 "verified_empty_faces": []}
 
@@ -82,6 +88,56 @@ class MaterializerTest(unittest.TestCase):
             review = {**self.review(sample), **edit}
             with self.subTest(edit=edit), self.assertRaisesRegex(ValueError, error):
                 self.prepare_one(sample, review)
+
+    def test_swapped_geometry_from_another_original_is_rejected(self):
+        foreign = self.root / "foreign.png"
+        Image.new("RGB", (512, 512), (10, 11, 12)).save(foreign)
+        geom = json.loads(self.geometry.read_text())
+        geom["original_id"] = hashlib.sha256(foreign.read_bytes()).hexdigest()
+        self.geometry.write_text(json.dumps(geom))
+        sample = self.sample()
+        # Geometry SHA is correct for the foreign record, so the original
+        # binding (not file integrity alone) must reject the substitution.
+        review = self.review(sample)
+        with self.assertRaisesRegex(ValueError, "original_id"):
+            self.prepare_one(sample, review)
+
+    def test_stage3_ownership_and_selected_candidate_ids_are_required(self):
+        sample = self.sample()
+        for edit, message in [({"selected_candidate_ids": ["foreign"]}, "candidate_ids"),
+                              ({"selected_candidate_ids": []}, "candidate_ids")]:
+            with self.subTest(edit=edit), self.assertRaisesRegex(ValueError, message):
+                self.prepare_one(sample, {**self.review(sample), **edit})
+        geom = json.loads(self.geometry.read_text())
+        geom["selection_status"] = "AUTO_CONFIDENT"
+        geom["ownership_confirmed"] = False
+        self.geometry.write_text(json.dumps(geom))
+        with self.assertRaisesRegex(ValueError, "USER_CONFIRMED"):
+            self.prepare_one(sample, self.review(sample))
+
+    def test_real_stage3_index_and_export_preserve_crop_binding(self):
+        sample = self.sample()
+        original_sha = hashlib.sha256(self.original.read_bytes()).hexdigest()
+        index = self.artifacts / "geometry-results.json"
+        index.write_text(json.dumps({original_sha: json.loads(self.geometry.read_text())}))
+        review = {**self.review(sample), "geometry_path": "stage3/geometry-results.json",
+                  "geometry_sha256": hashlib.sha256(index.read_bytes()).hexdigest()}
+        direct = self.prepare_one(sample, review)
+        self.assertEqual(1, len(direct.annotations))
+        destination = self.root / "exports" / "original.json"
+        result = export_stage3_geometry(geometry_results=index, original_sha256=original_sha,
+                                        output=destination, data_root=self.root)
+        self.assertEqual(original_sha, result["original_id"])
+        self.assertEqual(["c1"], result["candidate_ids"])
+        converted = {**review, "geometry_path": "exports/original.json",
+                     "geometry_sha256": result["geometry_sha256"]}
+        exported = self.prepare_one(sample, converted)
+        self.assertEqual(direct.annotations, exported.annotations)
+        self.assertEqual(direct.capture_metadata["canonical_faces"][0]["sha256"],
+                         exported.capture_metadata["canonical_faces"][0]["sha256"])
+        with self.assertRaisesRegex(ValueError, "output must be new"):
+            export_stage3_geometry(geometry_results=index, original_sha256=original_sha,
+                                   output=destination, data_root=self.root)
 
     def test_empty_negative_requires_explicit_attestation(self):
         sample = self.sample(raw=())

@@ -28,6 +28,9 @@ from neural_network.archery_ml.inference import load_detector
 from neural_network.archery_ml.heatmap import impact_loss
 from neural_network.archery_ml.models import ImpactPointNet
 from neural_network.archery_ml.postprocess import decode_impacts
+from neural_network.archery_ml.provenance import (
+    fingerprint, training_provenance, verify_checkpoint_holdout, verify_dataset,
+)
 
 
 def _sha256(path: Path) -> str:
@@ -70,43 +73,13 @@ def _prepare(config: dict, split: str) -> CanonicalImpactDataset:
                                   brightness=float(config["training"].get("brightness", 0.15)))
 
 
+def _dataset_provenance(config: dict) -> dict:
+    snapshot_path = Path(config["dataset"]["snapshot"])
+    return verify_dataset(config, snapshot=load_snapshot(snapshot_path))
+
+
 def _verify_dataset(config: dict) -> str:
-    manifest = Path(config["dataset"]["manifest"])
-    snapshot = load_snapshot(config["dataset"]["snapshot"])
-    digest = _sha256(manifest)
-    if snapshot.manifest_sha256 != digest:
-        raise ValueError("manifest SHA256 differs from immutable dataset snapshot")
-    view = DatasetView.load(manifest)
-    groups: dict[tuple[str | None, str], str] = {}
-    sample_ids: set[str] = set()
-    image_splits: dict[Path, str] = {}
-    image_hash_splits: dict[str, str] = {}
-    for sample in view:
-        if sample.id in sample_ids:
-            raise ValueError(f"duplicate manifest sample ID: {sample.id}")
-        sample_ids.add(sample.id)
-        if (sample.capture_metadata or {}).get("canonical_faces") is not None:
-            if not sample.group_id or not sample.source_id:
-                raise ValueError(f"canonical face requires source_id and group_id: {sample.id}")
-        if sample.split not in ("train", "val", "test", "mobile_dev", "mobile_real_test"):
-            raise ValueError("unknown split")
-        if sample.group_id is not None:
-            key = (sample.source_id, sample.group_id)
-            previous = groups.setdefault(key, sample.split)
-            if previous != sample.split:
-                raise ValueError(f"group leakage between {previous} and {sample.split}: {key}")
-        if (sample.capture_metadata or {}).get("canonical_faces") is not None:
-            image_path = sample.image_path.resolve()
-            previous_image_split = image_splits.setdefault(image_path, sample.split)
-            if previous_image_split != sample.split:
-                raise ValueError(f"raw image leakage between {previous_image_split} and {sample.split}")
-            if not image_path.is_file():
-                raise ValueError(f"missing original source image: {sample.id}")
-            original_sha = _sha256(image_path)
-            previous_hash_split = image_hash_splits.setdefault(original_sha, sample.split)
-            if previous_hash_split != sample.split:
-                raise ValueError(f"original image SHA256 leakage between {previous_hash_split} and {sample.split}")
-    return digest
+    return _dataset_provenance(config)["manifest_sha256"]
 
 
 def _seed(seed: int) -> None:
@@ -175,16 +148,19 @@ def _visualize(visualization: tuple, output: Path, config: dict) -> None:
     image.save(output)
 
 
-def _checkpoint(model: ImpactPointNet, config: dict, epoch: int) -> dict:
-    return {"model_state": model.state_dict(), "model_config": {
-        "fpn_channels": config["model"]["fpn_channels"]},
-        "model_version": config["model"]["version"], "epoch": epoch}
+def _checkpoint(model: ImpactPointNet, config: dict, epoch: int, provenance: dict) -> dict:
+    return {"model_state": model.state_dict(),
+            "model_config": {"fpn_channels": config["model"]["fpn_channels"]},
+            "model_version": config["model"]["version"], "epoch": epoch,
+            "training_provenance": provenance}
 
 
 def train(config_path: str | Path, *, output_root: str | Path = "runs", device: str = "cpu") -> Path:
     config_path = Path(config_path)
     config = _load_configuration(config_path)
-    dataset_hash = _verify_dataset(config)
+    dataset_provenance = _dataset_provenance(config)
+    dataset_hash = dataset_provenance["manifest_sha256"]
+    used_provenance = training_provenance(dataset_provenance)
     _seed(int(config["seed"]))
     train_set, val_set = _prepare(config, "train"), _prepare(config, "val")
     for name, dataset in (("train", train_set), ("val", val_set)):
@@ -207,6 +183,7 @@ def train(config_path: str | Path, *, output_root: str | Path = "runs", device: 
     except (OSError, subprocess.CalledProcessError):
         commit = None
     info = {"manifest_sha256": dataset_hash,
+            "training_provenance": used_provenance,
             "snapshot_sha256": _sha256(Path(config["dataset"]["snapshot"])),
             "model_version": config["model"]["version"], "git_commit": commit,
             "backbone_weights": "IMAGENET1K_V2" if config["model"].get("pretrained") else None,
@@ -229,7 +206,8 @@ def train(config_path: str | Path, *, output_root: str | Path = "runs", device: 
         postprocess=ModelPostprocessSpec(**config["postprocess"]),
     )
     (root / "model_metadata.json").write_text(json.dumps({**metadata.to_dict(),
-        "training_dataset_sha256": dataset_hash, "git_commit": commit}, indent=2) + "\n", encoding="utf-8")
+        "training_dataset_sha256": dataset_hash,
+        "training_provenance_sha256": fingerprint(used_provenance), "git_commit": commit}, indent=2) + "\n", encoding="utf-8")
     best_loss = float("inf")
     history = []
     with (root / "metrics.csv").open("w", newline="", encoding="utf-8") as stream:
@@ -252,7 +230,7 @@ def train(config_path: str | Path, *, output_root: str | Path = "runs", device: 
             history.append(record)
             writer.writerow({key: record[key] for key in writer.fieldnames})
             stream.flush()
-            torch.save(_checkpoint(model, config, epoch), root / "last_model.pt")
+            torch.save(_checkpoint(model, config, epoch, used_provenance), root / "last_model.pt")
             if val_loss < best_loss:
                 best_loss = val_loss
                 torch.save(_checkpoint(model, config, epoch), root / "best_model.pt")
@@ -267,15 +245,24 @@ def evaluate_checkpoint(config_path: str | Path, checkpoint: str | Path, metadat
     if split not in ("val", "test", "mobile_real_test"):
         raise ValueError("independent evaluation requires val, test or mobile_real_test")
     config = _load_configuration(Path(config_path))
-    _verify_dataset(config)
-    dataset = _prepare(config, split)
-    loader = _loader(dataset, int(config["training"]["batch_size"]), False)
+    dataset_provenance = _dataset_provenance(config)
+    checkpoint_data = torch.load(checkpoint, map_location="cpu", weights_only=True)
+    metadata_data = json.loads(Path(metadata).read_text(encoding="utf-8"))
+    verify_checkpoint_holdout(checkpoint_data, metadata_data, dataset_provenance, split=split)
     model, model_metadata = load_detector(Path(checkpoint), Path(metadata), device=device)
     if (model_metadata.input.width != config["model"]["input_size"]
             or tuple(model_metadata.input.mean) != tuple(config["model"].get("input_mean", (0, 0, 0)))
             or tuple(model_metadata.input.std) != tuple(config["model"].get("input_std", (1, 1, 1)))):
         raise ValueError("evaluation input config differs from metadata")
-    # Evaluation uses the checkpoint's published postprocessing, not a tuned CLI threshold.
+    try:
+        dataset = _prepare(config, split)
+    except ValueError as error:
+        if split != "mobile_real_test" or "no verified canonical faces" not in str(error):
+            raise
+        return {"split": split, "faces": 0, "metrics": None,
+                "quality_gate": {"status": "BLOCKED",
+                                 "reasons": ["no verified canonical faces in mobile_real_test"]}}
+    loader = _loader(dataset, int(config["training"]["batch_size"]), False)
     override = {**config, "postprocess": model_metadata.postprocess.to_dict()}
     _, metrics, _ = _validation(model, loader, torch.device(device), override)
     result = {"split": split, "faces": len(dataset), "metrics": metrics}

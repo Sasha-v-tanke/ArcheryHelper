@@ -45,6 +45,69 @@ def _raw_labels_digest(sample) -> str:
                                       allow_nan=False).encode()).hexdigest()
 
 
+def _stage3_record(artifact: dict, *, original_sha: str, review: dict) -> dict:
+    """Select the actual owner's geometry, never a neighbouring group preview."""
+    if not isinstance(artifact, dict):
+        raise ValueError("invalid Stage 3 geometry payload")
+    record = artifact if "faces" in artifact else artifact.get(original_sha)
+    if not isinstance(record, dict):
+        raise ValueError("Stage 3 geometry missing original image record")
+    if record.get("original_id") != original_sha:
+        raise ValueError("Stage 3 geometry original_id does not match original SHA256")
+    if (record.get("selection_status") != "USER_CONFIRMED"
+            or record.get("ownership_confirmed") is not True):
+        raise ValueError("Stage 3 target ownership must be USER_CONFIRMED")
+    candidates = record.get("candidate_ids")
+    if (not isinstance(candidates, list) or not candidates
+            or any(type(item) not in (str, int) or not str(item) for item in candidates)
+            or len({str(item) for item in candidates}) != len(candidates)):
+        raise ValueError("Stage 3 selected candidate_ids are invalid")
+    if review.get("selected_candidate_ids") != candidates:
+        raise ValueError("independently reviewed candidate_ids do not match Stage 3 selection")
+    return record
+
+
+def export_stage3_geometry(*, geometry_results: Path, original_sha256: str,
+                           output: Path, data_root: Path) -> dict:
+    """Export a single selected Stage 3 record with relocatable crop paths.
+
+    Never exports previews or infers ownership; original_id is the original
+    camera-file SHA256. The artifact remains unapproved until separately reviewed.
+    """
+    root = data_root.resolve()
+    source, destination = geometry_results.resolve(), output.resolve()
+    if not source.is_relative_to(root) or not source.is_file():
+        raise ValueError("Stage 3 geometry-results must be a file in data workspace")
+    if not destination.is_relative_to(root) or destination.exists() or destination == source:
+        raise ValueError("export output must be new and in data workspace")
+    records = json.loads(source.read_text(encoding="utf-8"))
+    if not isinstance(records, dict) or not isinstance(records.get(original_sha256), dict):
+        raise ValueError("original SHA256 absent from Stage 3 geometry-results")
+    selected = records[original_sha256]
+    if selected.get("original_id") != original_sha256:
+        raise ValueError("Stage 3 geometry original_id does not match index key")
+    if (selected.get("selection_status") != "USER_CONFIRMED"
+            or selected.get("ownership_confirmed") is not True
+            or selected.get("status") != "READY"
+            or selected.get("quality_status") != "READY"
+            or not selected.get("artifact_revision")
+            or not selected.get("candidate_ids")
+            or not selected.get("faces")):
+        raise ValueError("Stage 3 record is not confirmed READY selected geometry")
+    exported = dict(selected)
+    exported.pop("group_results", None)
+    exported["faces"] = []
+    for face in selected["faces"]:
+        crop = _verified_path(face["crop_path"], root=root, relative_to=source.parent)
+        converted = dict(face)
+        converted["crop_path"] = Path(os.path.relpath(crop, destination.parent)).as_posix()
+        exported["faces"].append(converted)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(exported, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {"geometry_path": str(destination), "geometry_sha256": _sha256(destination),
+            "original_id": original_sha256, "candidate_ids": selected["candidate_ids"]}
+
+
 def reviewed_sample(sample, review: dict, *, data_root: Path, review_dir: Path, manifest_dir: Path):
     """Return verified per-face coordinates and crop paths for one sample.
 
@@ -73,7 +136,8 @@ def reviewed_sample(sample, review: dict, *, data_root: Path, review_dir: Path, 
     geometry_path = _verified_path(review["geometry_path"], root=data_root, relative_to=review_dir)
     if _sha256(geometry_path) != review.get("geometry_sha256"):
         raise ValueError(f"Stage 3 geometry SHA256 mismatch: {sample.id}")
-    geometry = json.loads(geometry_path.read_text(encoding="utf-8"))
+    geometry = _stage3_record(json.loads(geometry_path.read_text(encoding="utf-8")),
+                              original_sha=original_sha, review=review)
     if geometry.get("status") != "READY" or geometry.get("quality_status") != "READY":
         raise ValueError(f"Stage 3 geometry is not READY: {sample.id}")
     if not geometry.get("artifact_revision"):
@@ -245,6 +309,7 @@ def write_review_draft(*, manifest: Path, output: Path, data_root: Path,
             "original_sha256": _sha256(original),
             "raw_annotations_sha256": _raw_labels_digest(sample),
             "geometry_path": "", "geometry_sha256": "",
+            "selected_candidate_ids": [],
             "raw_impact_count": len(sample.raw_annotations),
             "source_face_index_hints": [point.face_index for point in sample.raw_annotations],
             "impact_face_indices": [None] * len(sample.raw_annotations),
@@ -262,6 +327,12 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path, default=Path("data/manifests/dataset_manifest.json"))
     parser.add_argument("--snapshot", type=Path, default=Path("data/snapshots/dataset_snapshot.json"))
     parser.add_argument("--review-map", type=Path)
+    parser.add_argument("--export-geometry-results", type=Path,
+                        help="Stage 3 geometry-results.json; export one confirmed selected record")
+    parser.add_argument("--original-sha256", type=str,
+                        help="SHA256 original_id in Stage 3 geometry-results.json")
+    parser.add_argument("--output-geometry", type=Path,
+                        help="New single-record artifact path within --data-root")
     parser.add_argument("--draft-review-map", type=Path,
                         help="Create an unapproved raw-impact review queue, do not materialize")
     parser.add_argument("--include-unlabeled", action="store_true",
@@ -270,6 +341,17 @@ def main() -> int:
     parser.add_argument("--output-snapshot", type=Path, default=Path("data/snapshots/stage4_snapshot.json"))
     parser.add_argument("--data-root", type=Path, default=Path("data"))
     args = parser.parse_args()
+    if args.export_geometry_results is not None:
+        if (not args.original_sha256 or not args.output_geometry
+                or args.review_map is not None or args.draft_review_map is not None):
+            parser.error("geometry export requires --original-sha256 and --output-geometry, "
+                         "without materialization/review-map options")
+        print(json.dumps(export_stage3_geometry(geometry_results=args.export_geometry_results,
+                         original_sha256=args.original_sha256, output=args.output_geometry,
+                         data_root=args.data_root), indent=2))
+        return 0
+    if args.original_sha256 is not None or args.output_geometry is not None:
+        parser.error("--original-sha256 and --output-geometry are export-only")
     if args.draft_review_map is not None:
         if args.review_map is not None:
             parser.error("--draft-review-map and --review-map are mutually exclusive")

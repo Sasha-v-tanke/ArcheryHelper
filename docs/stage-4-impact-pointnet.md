@@ -29,7 +29,7 @@ For each sample with verified canonical impacts the Stage 3 materialization step
 
 - Paths are relative to the **manifest's directory** or absolute within its data workspace. Crop filenames must be stored under `data/`, not in Git. Absolute paths outside the `data/` workspace, symlinks escaping it, or missing/mismatched hashes are rejected.
 - Images **must already** be canonical 512×512 RGB faces, not resized by the trainer. `face_index` must identify the same local face in canonical `ImpactAnnotation`; triples require three distinct crop records with indices `0,1,2`. An empty face is a negative sample **only** if it is explicitly present and verified, not because an image lacks annotations.
-- `source_id` and `group_id` are mandatory for crop-bearing samples. The manifest/snapshot SHA256 must agree, sample IDs are unique, and source+group, original image paths **and original image SHA256 bytes** cannot cross splits. `mobile_real_test` is independent and is not used by training/validation/checkpoint selection.
+- `source_id` and `group_id` are mandatory for crop-bearing samples. The manifest/snapshot SHA256 must agree, sample IDs are unique, and source+group, original-image paths/SHA256 **and exact SHA256 of the 512×512 canonical crop bytes** cannot cross splits, including `mobile_real_test`. `mobile_real_test` is independent and is not used by training/validation/checkpoint selection.
 - One heatmap cell can encode at most one impact offset. Collisions are **rejected** at target creation rather than silently hiding a shot. Such dense impacts require a different supervision strategy or higher resolution.
 - Captured `annotation_status="verified"` is a **machine-readable assertion**, not proof that someone has independently checked the photograph and its GT. The external Stage 3 provenance/independent review gate remains necessary.
 
@@ -47,6 +47,19 @@ python -m archery_ml.prepare --draft-review-map data/stage4-review-draft.json
 
 This produces an **unapproved** map: ownership is false, face IDs are unset, and reviewer identities are empty. Inspect the Stage 3 target selection and each raw arrow; assign the selected face ID or `null` for a foreign board, record the approved geometry JSON path and hash, then obtain independent annotation/ownership review. You may use `--include-unlabeled` to add candidate negatives, but only a reviewer can confirm that a face is actually empty. No model prediction is used to fabricate labels.
 
+Stage 3's native `geometry-results.json` is a **dictionary keyed by original camera-file SHA256**, not a single result. The materializer can read that index directly: use it as `geometry_path`, provide its full-file SHA256, and supply the exactly matching `selected_candidate_ids` in the independently signed-off review map. The chosen entry must have `original_id == original_sha256`, `selection_status=USER_CONFIRMED`, `ownership_confirmed=true` and matching selected candidate IDs. Unselected group previews, AUTO_CONFIDENT proposals and foreign results are rejected even if their transforms are geometrically READY.
+
+To export one Stage 3 result to a self-contained, relocatable JSON record (with crop paths recalculated relative to the exported file), use:
+
+```bash
+python -m archery_ml.prepare \
+  --export-geometry-results data/stage3/geometry-results.json \
+  --original-sha256 <64-hex-camera-file-sha256> \
+  --output-geometry data/stage4-selected/<sha256>.json
+```
+
+This export does **not** approve the impact/ownership review. Record the output artifact path and returned hash in the separate review map; the subsequent materialization performs the same identity and candidate checks. The original image must not be silently renamed or converted before computing its SHA256.
+
 The resulting JSON map is keyed by `DatasetSample.id`, for example:
 
 ```json
@@ -59,6 +72,7 @@ The resulting JSON map is keyed by `DatasetSample.id`, for example:
     "raw_annotations_sha256": "<SHA256 of sorted-key compact JSON of raw_annotations array>",
     "geometry_path": "stage3/selected/result.json",
     "geometry_sha256": "<SHA256 of the selected Stage 3 result JSON>",
+    "selected_candidate_ids": ["candidate-1"],
     "impact_face_indices": [0, 0, null],
     "verified_empty_faces": []
   }
@@ -90,6 +104,8 @@ Deterministic training pins the PyTorch CPU thread pool to one thread, preventin
 
 All parameters are config-driven: seed, input size, FPN width, pretrained backbone flag, batch size, epochs, optimizer, Gaussian sigma, horizontal reflection, brightness and postprocess threshold/NMS. No geometric warps that would invalidate impact labels are applied. Per-channel `model.input_mean` and `model.input_std` are shared by the dataset, visualization, saved contract and inference. The production config enables **ImageNet V2 pretrained weights** with mean `[0.485, 0.456, 0.406]` and std `[0.229, 0.224, 0.225]` (validated as a pair); the first training run may download these public weights. Set `pretrained=false` only for an intentionally scratch-trained/offline experiment, not as an assumed production-quality baseline.
 
+Each checkpoint embeds the immutable original-image SHA256, canonical-crop SHA256 and source/group IDs from **both training and validation** as well as its training manifest digest. The model metadata binds this provenance with a SHA256 of the canonical JSON record. Evaluating a new `test` or `mobile_real_test` manifest rejects every overlapping train/val original, crop or group, even if the new manifest is internally consistent. Evaluating `val` requires the same validation provenance used to select that checkpoint. Older checkpoints with no provenance are rejected for independent evaluation, not grandfathered in.
+
 Each run writes `runs/impact-<UTC timestamp>/` with `config.json`, `dataset_info.json` (Git commit, manifest and snapshot hashes, face/sample counts), `model_metadata.json` (contract v2, normalization, model version, source manifest hash), `metrics.csv`, `metrics.json`, `last_model.pt`, `best_model.pt` and per-epoch validation overlays. Only `train` samples affect gradients, only `val` selects the best checkpoint.
 
 After training, **without retuning** the checkpoint's threshold and NMS:
@@ -112,7 +128,7 @@ python -m archery_ml.inference \
 
 Evaluation computes one-to-one, maximum-cardinality, minimum-total-distance point matching within **0.5 ring** (one scoring ring = 0.1 canonical radial units). Reports precision, recall, F1, FP per verified empty face, median and P95 radial localization error in ring units, exact scoring accuracy excluding uncertain `line_call` GT, and a correction-rate proxy. Scoring uses deterministic Stage 1 scoring fixtures when target diameter/metadata is available; lacking scoring metadata **does not imply** score accuracy passed.
 
-The `mobile_real_test` quality gate returns `BLOCKED` if there are fewer than **300 unique verified original-image SHA256 hashes**, zero impact GT, no verified empty faces, zero score-eligible non-line-call shots, or any missing metric. With sufficient data, it returns `PASS` only if precision/recall ≥ 97%, median ≤ 0.15 ring, P95 ≤ 0.35 ring, exact non-line-call score ≥ 98%, and no false accepts on verified empty faces; otherwise `FAIL`. The zero-empty-FP policy is conservative; adjust by documented product requirements rather than hiding failures. The CLI returns exit code 0 for `PASS`, 1 for `FAIL`, and 2 for `BLOCKED` on `mobile_real_test`, so an automated release job cannot mistake missing evidence for success. Normal `val`/`test` metrics remain informational. Derived Stage 4 snapshots recompute total impacts using the Stage 2 convention `sum(max(canonical_count, raw_count))`, so the same independently reviewed arrow is not counted twice.
+The `mobile_real_test` quality gate returns `BLOCKED` if there are fewer than **300 unique verified original-image SHA256 hashes**, zero impact GT, no verified empty faces, zero score-eligible non-line-call shots, or any missing metric. With sufficient data, it returns `PASS` only if precision/recall ≥ 97%, median ≤ 0.15 ring, P95 ≤ 0.35 ring, exact non-line-call score ≥ 98%, and no false accepts on verified empty faces; otherwise `FAIL`. The zero-empty-FP policy is conservative; adjust by documented product requirements rather than hiding failures. A missing prepared `mobile_real_test` split returns a structured `BLOCKED` report (with zero faces and a reason), instead of throwing the dataset-loader exception. The CLI returns exit code 0 for `PASS`, 1 for `FAIL`, and 2 for `BLOCKED` on `mobile_real_test`, so an automated release job cannot mistake missing evidence for success. Normal `val`/`test` metrics remain informational. Derived Stage 4 snapshots recompute total impacts using the Stage 2 convention `sum(max(canonical_count, raw_count))`, so the same independently reviewed arrow is not counted twice.
 
 The 58-image Stage 3 exploratory set is *not* a holdout and cannot establish this gate. Real stage acceptance also requires an independently reviewed mobile dataset, verified capture sessions, face ownership and reproducible provenance. Synthetic tests only establish engineering behavior, **not detection accuracy on real archery photographs**.
 

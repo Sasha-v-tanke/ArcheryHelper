@@ -136,14 +136,16 @@ class CanonicalFixture:
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         Image.new("RGB", (64, 64), color=(50, 100, 150)).save(self.root / "canonical.png")
+        Image.new("RGB", (64, 64), color=(95, 35, 140)).save(self.root / "canonical-val.png")
         Image.new("RGB", (64, 64), color=(10, 25, 35)).save(self.root / "raw-train.png")
         Image.new("RGB", (64, 64), color=(15, 55, 75)).save(self.root / "raw-val.png")
 
     def sample(self, *, split="train", annotations=(ImpactAnnotation(0.1, 0.2),),
                capture=None, group_id="g1"):
         if capture is None:
-            capture = {"canonical_faces": [{"face_index": 0, "image_path": "canonical.png",
-                                              "sha256": hashlib.sha256((self.root / "canonical.png").read_bytes()).hexdigest(),
+            crop_name = "canonical-val.png" if split == "val" else "canonical.png"
+            capture = {"canonical_faces": [{"face_index": 0, "image_path": crop_name,
+                                              "sha256": hashlib.sha256((self.root / crop_name).read_bytes()).hexdigest(),
                                               "annotation_status": "verified"}]}
         return DatasetSample(id=split + "-sample", image_path=self.root / f"raw-{split}.png",
                              annotation_path=None, split=split, source_id="fixture", group_id=group_id,
@@ -185,6 +187,21 @@ class CanonicalDataTest(CanonicalFixture, unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "SHA256"):
                 _verify_dataset(config)
 
+    def test_different_paths_with_identical_canonical_bytes_are_rejected(self):
+        # Both raw originals and group ids differ: only model-input bytes overlap.
+        (self.root / "canonical-val.png").write_bytes((self.root / "canonical.png").read_bytes())
+        samples = [self.sample(split="train", group_id="tr"),
+                   self.sample(split="val", group_id="va")]
+        manifest = self.root / "manifest.json"
+        save_manifest(manifest, samples)
+        snapshot = type("Snapshot", (), {
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()
+        })()
+        cfg = {"dataset": {"manifest": str(manifest), "snapshot": str(self.root / "snapshot.json")}}
+        with patch("neural_network.archery_ml.train.load_snapshot", return_value=snapshot):
+            with self.assertRaisesRegex(ValueError, "canonical crop SHA256 leakage"):
+                _verify_dataset(cfg)
+
     def test_training_one_epoch_and_checkpoint_inference(self):
         samples = [self.sample(split="train", group_id="tr"), self.sample(split="val", group_id="vl")]
         manifest = self.root / "manifest.json"
@@ -210,6 +227,30 @@ class CanonicalDataTest(CanonicalFixture, unittest.TestCase):
             result = evaluate_checkpoint(config_path, run / "best_model.pt",
                                          run / "model_metadata.json", split="val")
         self.assertEqual(1, result["faces"])
+        # A new, internally valid manifest is not an independent holdout if it
+        # reuses a photograph that influenced this checkpoint.
+        holdout = replace(samples[0], split="mobile_real_test", id="new-holdout")
+        save_manifest(manifest, [holdout])
+        new_snapshot = type("Snapshot", (), {
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()
+        })()
+        with patch("neural_network.archery_ml.train.load_snapshot", return_value=new_snapshot):
+            with self.assertRaisesRegex(ValueError, "checkpoint train overlaps mobile_real_test"):
+                evaluate_checkpoint(config_path, run / "best_model.pt",
+                                    run / "model_metadata.json", split="mobile_real_test")
+        save_manifest(manifest, samples)
+        # No prepared holdout must produce a structured BLOCKED and CLI code 2.
+        with patch("neural_network.archery_ml.train.load_snapshot", return_value=fake):
+            blocked = evaluate_checkpoint(config_path, run / "best_model.pt",
+                                          run / "model_metadata.json", split="mobile_real_test")
+            self.assertEqual("BLOCKED", blocked["quality_gate"]["status"])
+            from neural_network.archery_ml.train import main
+            from unittest.mock import patch as mock_patch
+            with mock_patch("sys.argv", ["stage4", "--config", str(config_path),
+                                         "--evaluate", str(run / "best_model.pt"),
+                                         "--metadata", str(run / "model_metadata.json"),
+                                         "--split", "mobile_real_test"]):
+                self.assertEqual(2, main())
         with patch("neural_network.archery_ml.train.load_snapshot", return_value=fake):
             second = train(config_path, output_root=self.root / "runs")
         first_weights = torch.load(run / "best_model.pt", map_location="cpu", weights_only=True)["model_state"]

@@ -18,7 +18,7 @@ from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.evaluate import evaluate_faces, _match
 from neural_network.archery_ml.heatmap import canonical_to_grid, encode_impacts, grid_to_canonical, impact_loss
 from neural_network.archery_ml.impact_dataset import CanonicalImpactDataset, collate_faces
-from neural_network.archery_ml.inference import predict_canonical_face
+from neural_network.archery_ml.inference import load_detector, predict_canonical_face
 from neural_network.archery_ml.contracts import ModelInputSpec, ModelMetadata, ModelOutputSpec, ModelPostprocessSpec
 from neural_network.archery_ml.models import ImpactPointNet
 from neural_network.archery_ml.postprocess import ImpactPrediction, decode_impacts
@@ -230,6 +230,45 @@ class CanonicalDataTest(CanonicalFixture, unittest.TestCase):
             result = evaluate_checkpoint(config_path, run / "best_model.pt",
                                          run / "model_metadata.json", split="val")
         self.assertEqual(1, result["faces"])
+        best = run / "best_model.pt"
+        metadata_path = run / "model_metadata.json"
+        state = torch.load(best, map_location="cpu", weights_only=True)
+        self.assertEqual(config["postprocess"], state["postprocess"])
+        last = torch.load(run / "last_model.pt", map_location="cpu", weights_only=True)
+        self.assertEqual(config["postprocess"], last["postprocess"])
+        original_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        for field, replacement in (("confidence_threshold", 0.25), ("nms_radius", 5)):
+            changed_metadata = json.loads(json.dumps(original_metadata))
+            changed_metadata["postprocess"][field] = replacement
+            altered = self.root / f"tampered-{field}.json"
+            altered.write_text(json.dumps(changed_metadata), encoding="utf-8")
+            with self.subTest(tamper=field):
+                with self.assertRaisesRegex(ValueError, "postprocess"):
+                    load_detector(best, altered)
+                with patch("neural_network.archery_ml.train.load_snapshot", return_value=fake):
+                    with self.assertRaisesRegex(ValueError, "postprocess"):
+                        evaluate_checkpoint(config_path, best, altered, split="val")
+        legacy = dict(state)
+        legacy.pop("postprocess")
+        legacy_path = self.root / "legacy-without-postprocess.pt"
+        torch.save(legacy, legacy_path)
+        with self.assertRaisesRegex(ValueError, "postprocess"):
+            load_detector(legacy_path, metadata_path)
+
+        # Changing the approved validation answer without changing the photo
+        # or crop must invalidate the original checkpoint's val metrics.
+        changed_val = replace(samples[1], annotations=(ImpactAnnotation(0.30, 0.20),))
+        save_manifest(manifest, [samples[0], changed_val])
+        changed_snapshot = type("Snapshot", (), {
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()
+        })()
+        with patch("neural_network.archery_ml.train.load_snapshot", return_value=changed_snapshot):
+            with self.assertRaisesRegex(ValueError, "val data/annotations differ"):
+                evaluate_checkpoint(config_path, best, metadata_path, split="val")
+            with self.assertRaisesRegex(ValueError, "val data/annotations differ"):
+                evaluate_checkpoint(config_path, best, metadata_path, split="mobile_real_test")
+        save_manifest(manifest, samples)
+
         # A new, internally valid manifest is not an independent holdout if it
         # reuses a photograph that influenced this checkpoint.
         holdout = replace(samples[0], split="mobile_real_test", id="new-holdout")
@@ -396,6 +435,42 @@ class CheckpointProvenanceTest(CanonicalFixture, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "metadata training provenance differ"):
             verify_checkpoint_holdout(checkpoint, {"training_provenance_sha256": "0" * 64},
                                       evaluation, split="mobile_real_test")
+
+
+class ValidationAnnotationProvenanceTest(CanonicalFixture, unittest.TestCase):
+    def test_one_validation_coordinate_changes_only_label_digest(self):
+        manifest = self.root / "manifest.json"
+        original = [self.sample(split="train", group_id="tr"),
+                    self.sample(split="val", group_id="va")]
+        save_manifest(manifest, original)
+        config = {"dataset": {"manifest": str(manifest),
+                              "snapshot": str(self.root / "snapshot.json")}}
+        snapshot = type("Snapshot", (), {
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()
+        })()
+        initial = verify_dataset(config, snapshot=snapshot)
+        saved = training_provenance(initial)
+        checkpoint = {"training_provenance": saved}
+        metadata = {"training_provenance_sha256": fingerprint(saved)}
+        verify_checkpoint_holdout(checkpoint, metadata, initial, split="val")
+        revised = replace(original[1], annotations=(ImpactAnnotation(0.30, 0.20),))
+        save_manifest(manifest, [original[0], revised])
+        snapshot.manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        modified = verify_dataset(config, snapshot=snapshot)
+        for key in ("original_sha256", "canonical_crop_sha256", "groups"):
+            self.assertEqual(initial["splits"]["val"][key],
+                             modified["splits"]["val"][key])
+        self.assertNotEqual(initial["splits"]["val"]["annotation_sha256"],
+                            modified["splits"]["val"]["annotation_sha256"])
+        with self.assertRaisesRegex(ValueError, "val data/annotations differ"):
+            verify_checkpoint_holdout(checkpoint, metadata, modified, split="val")
+        with self.assertRaisesRegex(ValueError, "val data/annotations differ"):
+            verify_checkpoint_holdout(checkpoint, metadata, modified, split="mobile_real_test")
+        previous = {**saved, "version": 1}
+        with self.assertRaisesRegex(ValueError, "versioned training/validation annotation provenance"):
+            verify_checkpoint_holdout({"training_provenance": previous},
+                                      {"training_provenance_sha256": fingerprint(previous)},
+                                      initial, split="val")
 
 
 class QualityGateTest(unittest.TestCase):

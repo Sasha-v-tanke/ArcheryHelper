@@ -152,6 +152,7 @@ def _checkpoint(model: ImpactPointNet, config: dict, epoch: int, provenance: dic
     return {"model_state": model.state_dict(),
             "model_config": {"fpn_channels": config["model"]["fpn_channels"]},
             "model_version": config["model"]["version"], "epoch": epoch,
+            "postprocess": ModelPostprocessSpec(**config["postprocess"]).to_dict(),
             "training_provenance": provenance}
 
 

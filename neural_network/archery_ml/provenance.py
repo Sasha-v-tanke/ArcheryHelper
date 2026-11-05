@@ -42,7 +42,7 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
     original_splits: dict[str, str] = {}
     crop_splits: dict[str, str] = {}
     per_split = {split: {"original_sha256": set(), "canonical_crop_sha256": set(),
-                         "groups": set()} for split in SPLITS}
+                         "groups": set(), "annotation_records": []} for split in SPLITS}
     for sample in DatasetView.load(manifest):
         if sample.id in sample_ids:
             raise ValueError(f"duplicate manifest sample ID: {sample.id}")
@@ -77,6 +77,7 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
         split["groups"].add((sample.source_id, sample.group_id))
         if not isinstance(entries, list) or not entries:
             raise ValueError(f"invalid canonical_faces for {sample.id}")
+        face_indices: list[int] = []
         for entry in entries:
             if not isinstance(entry, dict) or entry.get("annotation_status") != "verified":
                 raise ValueError(f"unverified canonical crop: {sample.id}")
@@ -94,14 +95,36 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
             if previous != sample.split:
                 raise ValueError(f"canonical crop SHA256 leakage between {previous} and {sample.split}")
             split["canonical_crop_sha256"].add(crop_hash)
+            face_index = entry.get("face_index")
+            if type(face_index) is not int or face_index < 0:
+                raise ValueError(f"invalid canonical face_index in {sample.id}")
+            face_indices.append(face_index)
+            labels = [annotation.to_dict() for annotation in sample.annotations
+                      if annotation.face_index == face_index]
+            labels.sort(key=lambda item: json.dumps(item, sort_keys=True, separators=(", ", ":"),
+                                                    allow_nan=False))
+            split["annotation_records"].append({
+                "sample_id": sample.id, "source_id": sample.source_id,
+                "group_id": sample.group_id, "original_sha256": original_hash,
+                "canonical_crop_sha256": crop_hash, "face_index": face_index,
+                "annotations": labels,
+            })
+        if (len(set(face_indices)) != len(face_indices)
+                or any(annotation.face_index not in face_indices
+                       for annotation in sample.annotations)):
+            raise ValueError(f"canonical impact/face assignment mismatch: {sample.id}")
     return {
-        "version": 1,
+        "version": 2,
         "manifest_sha256": manifest_hash,
         "splits": {
             name: {
                 "original_sha256": sorted(values["original_sha256"]),
                 "canonical_crop_sha256": sorted(values["canonical_crop_sha256"]),
                 "groups": [list(group) for group in sorted(values["groups"])],
+                "annotation_sha256": fingerprint(sorted(
+                    values["annotation_records"],
+                    key=lambda record: (record["sample_id"], record["face_index"],
+                                        record["canonical_crop_sha256"]))),
             }
             for name, values in per_split.items()
         },
@@ -111,7 +134,7 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
 def training_provenance(dataset: dict) -> dict:
     """Only train + best-checkpoint-selection (val) may influence checkpoint."""
     return {
-        "version": 1,
+        "version": 2,
         "manifest_sha256": dataset["manifest_sha256"],
         "splits": {split: dataset["splits"][split] for split in ("train", "val")},
     }
@@ -120,13 +143,23 @@ def training_provenance(dataset: dict) -> dict:
 def verify_checkpoint_holdout(checkpoint: dict, metadata: dict, dataset: dict,
                               *, split: str) -> None:
     saved = checkpoint.get("training_provenance")
-    if not isinstance(saved, dict) or saved.get("version") != 1:
-        raise ValueError("checkpoint lacks immutable training/validation provenance")
+    if not isinstance(saved, dict) or saved.get("version") != 2:
+        raise ValueError("checkpoint lacks versioned training/validation annotation provenance")
     saved_hash = fingerprint(saved)
     if metadata.get("training_provenance_sha256") != saved_hash:
         raise ValueError("checkpoint and metadata training provenance differ")
-    if set(saved.get("splits", {})) != {"train", "val"}:
+    if (not isinstance(saved.get("splits"), dict)
+            or set(saved["splits"]) != {"train", "val"}):
         raise ValueError("incomplete checkpoint training/validation provenance")
+    for source_split in ("train", "val"):
+        recorded = saved["splits"][source_split]
+        if not isinstance(recorded, dict) or not isinstance(recorded.get("annotation_sha256"), str):
+            raise ValueError(f"checkpoint lacks {source_split} annotation SHA256")
+        current = dataset["splits"][source_split]
+        # A holdout-only manifest is allowed; when train/val is supplied it
+        # must be exactly the data and GT used for fitting/checkpoint selection.
+        if current["original_sha256"] and current != recorded:
+            raise ValueError(f"{source_split} data/annotations differ from checkpoint provenance")
     selected = dataset["splits"][split]
     if split == "val":
         if selected != saved["splits"]["val"]:

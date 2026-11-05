@@ -430,7 +430,7 @@ class CheckpointProvenanceTest(CanonicalFixture, unittest.TestCase):
         evaluation = verify_dataset(cfg, snapshot=snap)
         with self.assertRaisesRegex(ValueError, "canonical_crop_sha256"):
             verify_checkpoint_holdout(checkpoint, metadata, evaluation, split="mobile_real_test")
-        with self.assertRaisesRegex(ValueError, "lacks immutable"):
+        with self.assertRaisesRegex(ValueError, "lacks versioned training/validation annotation provenance"):
             verify_checkpoint_holdout({}, metadata, evaluation, split="mobile_real_test")
         with self.assertRaisesRegex(ValueError, "metadata training provenance differ"):
             verify_checkpoint_holdout(checkpoint, {"training_provenance_sha256": "0" * 64},

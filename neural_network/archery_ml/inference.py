@@ -16,7 +16,8 @@ from neural_network.archery_ml.postprocess import ImpactPrediction, decode_impac
 
 
 def load_detector(checkpoint: Path, metadata_path: Path, *, device: str = "cpu") -> tuple[ImpactPointNet, ModelMetadata]:
-    metadata = ModelMetadata.from_dict(json.loads(metadata_path.read_text(encoding="utf-8")))
+    metadata_document = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata = ModelMetadata.from_dict(metadata_document)
     if metadata.output.type != "impact_heatmap_offset" or metadata.output.stride != 2:
         raise ValueError("unsupported model output contract")
     if metadata.input.width != metadata.input.height or metadata.input.width % 32:
@@ -24,6 +25,11 @@ def load_detector(checkpoint: Path, metadata_path: Path, *, device: str = "cpu")
     state = torch.load(checkpoint, map_location="cpu", weights_only=True)
     if state.get("model_version") != metadata.model_version:
         raise ValueError("checkpoint and metadata versions differ")
+    saved_postprocess = state.get("postprocess")
+    if (not isinstance(saved_postprocess, dict)
+            or saved_postprocess != metadata_document.get("postprocess")
+            or saved_postprocess != metadata.postprocess.to_dict()):
+        raise ValueError("checkpoint and metadata postprocess parameters differ or are missing")
     model = ImpactPointNet(fpn_channels=int(state["model_config"]["fpn_channels"]))
     model.load_state_dict(state["model_state"])
     return model.to(device).eval(), metadata

@@ -1,0 +1,68 @@
+name: Stage 5 ExecuTorch export
+
+on:
+  pull_request:
+    paths:
+      - 'neural_network/archery_ml/stage5_parity.py'
+      - 'neural_network/archery_ml/stage5_golden.py'
+      - 'archery_ml/stage5_golden.py'
+      - 'neural_network/archery_ml/export.py'
+      - 'archery_ml/export.py'
+      - 'neural_network/tests/test_stage5_*.py'
+      - '.github/workflows/stage5-export.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: stage5-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  stage5-xnnpack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned CPU export dependencies
+        run: |
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.13.0 torchvision==0.28.0
+          python -m pip install numpy==2.2.6 pillow==11.3.0 executorch==1.5.1
+      - name: Run Stage 5 regression and real XNNPACK runtime smoke
+        env:
+          OMP_NUM_THREADS: '2'
+        run: python -m unittest discover -s neural_network/tests -p 'test_stage5_*.py' -v
+
+  stage4-checkpoint-bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build a Stage 4 checkpoint with original PyTorch pins
+        env:
+          OMP_NUM_THREADS: '2'
+        run: |
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0 torchvision==0.23.0
+          python -m pip install numpy==2.2.6 pillow==11.3.0
+          python -m neural_network.tests.stage5_make_compat_fixture --output-directory "$RUNNER_TEMP/stage4-fixture"
+      - name: Upgrade to Stage 5 export runtime
+        run: |
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.13.0 torchvision==0.28.0
+          python -m pip install numpy==2.2.6 pillow==11.3.0 executorch==1.5.1
+      - name: Compile and replay production-sized Stage 4 state_dict
+        env:
+          OMP_NUM_THREADS: '2'
+        run: |
+          python -m archery_ml.export \
+            --checkpoint "$RUNNER_TEMP/stage4-fixture/best_model.pt" \
+            --metadata "$RUNNER_TEMP/stage4-fixture/model_metadata.json" \
+            --golden-manifest "$RUNNER_TEMP/stage4-fixture/golden.json" \
+            --output-directory "$RUNNER_TEMP/stage5-bridge-release"
+          python -m archery_ml.export --replay-release "$RUNNER_TEMP/stage5-bridge-release"

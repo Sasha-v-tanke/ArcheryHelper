@@ -77,7 +77,12 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
                     "face_index": 0, "split": "val",
                 })
             golden = root / "golden.json"
-            golden.write_text(json.dumps({"schema_version": 1, "samples": samples}))
+            golden.write_text(json.dumps({
+                "schema_version": 1, "samples": samples,
+                "source_checkpoint_sha256": sha256_file(checkpoint),
+                "source_manifest_sha256": fake_source_hash,
+                "source_snapshot_sha256": hashlib.sha256(b"synthetic-stage4-snapshot").hexdigest(),
+            }))
             target = root / "release"
             self.assertEqual(export_model(checkpoint, metadata_path, golden, target), target)
             report = verify_release(target)

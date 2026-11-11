@@ -35,7 +35,7 @@ def load_detector(checkpoint: Path, metadata_path: Path, *, device: str = "cpu")
             or state.get("output") != metadata.output.to_dict()):
         raise ValueError("checkpoint and metadata input/output contracts differ or are missing")
     provenance = state.get("training_provenance")
-    if not isinstance(provenance, dict) or provenance.get("version") != 2:
+    if not isinstance(provenance, dict) or provenance.get("version") != 3:
         raise ValueError("checkpoint lacks versioned training provenance")
     if (metadata_document.get("training_provenance_sha256") != fingerprint(provenance)
             or metadata_document.get("training_dataset_sha256") != provenance.get("manifest_sha256")):

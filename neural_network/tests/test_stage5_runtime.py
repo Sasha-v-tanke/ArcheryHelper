@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import numpy as np
 import torch
 from PIL import Image
 
@@ -35,7 +36,7 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
             with torch.no_grad():
                 model.heatmap_head.weight.zero_()
                 model.heatmap_head.bias.fill_(2.0)
-                model.offset_head.weight.zero_()
+                model.offset_head.weight.fill_(0.005)
                 model.offset_head.bias.fill_(0.25)
             metadata = ModelMetadata(
                 contract_version=2, model_version="stage5-synthetic-smoke",
@@ -90,6 +91,9 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
             self.assertEqual(report["golden_count"], 20)
             self.assertEqual(report["backend"], "XNNPACK")
             self.assertEqual(report["total_expected_points"], 20)
+            with np.load(target / "golden/expected/synthetic-00.npz",
+                         allow_pickle=False) as saved:
+                self.assertGreater(float(saved["offsets"].std()), 1e-6)
             replay = replay_release(target)
             self.assertEqual(replay["status"], "PASS")
             self.assertEqual(replay["golden_count"], 20)

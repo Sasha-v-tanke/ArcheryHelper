@@ -181,6 +181,7 @@ def export_model(
             "golden_source_snapshot_sha256": golden_document.get("source_snapshot_sha256"),
             "checkpoint_sha256": sha256_file(checkpoint),
             "pte_sha256": sha256_file(pte_path),
+            "pte_bytes": len(pte),
             "torch_version": torch.__version__,
             "executorch_version": importlib.metadata.version("executorch"),
         }
@@ -189,6 +190,12 @@ def export_model(
             "format": "pte",
             "backend": "XNNPACK",
             "artifact": "impact_model.pte",
+            "input_dtype": "float32",
+            "input_layout": "NCHW",
+            "output_order": ["heatmap_logits", "offsets"],
+            "output_dtypes": ["float32", "float32"],
+            "output_shapes": [[1, 1, 256, 256], [1, 2, 256, 256]],
+            "pte_bytes": len(pte),
             "sha256": parity["pte_sha256"],
             "checkpoint_sha256": parity["checkpoint_sha256"],
             "golden_index_sha256": parity["golden_index_sha256"],
@@ -245,7 +252,14 @@ def verify_release(directory: Path) -> dict:
             or artifact["golden_index_sha256"] != sha256_file(directory / "golden/index.json")
             or artifact["parity_report_sha256"] != sha256_file(directory / "parity.json")
             or artifact["sha256"] != parity["pte_sha256"]
-            or artifact["checkpoint_sha256"] != parity["checkpoint_sha256"]):
+            or artifact["checkpoint_sha256"] != parity["checkpoint_sha256"]
+            or artifact.get("pte_bytes") != (directory / "impact_model.pte").stat().st_size
+            or parity.get("pte_bytes") != artifact.get("pte_bytes")
+            or artifact.get("input_dtype") != "float32"
+            or artifact.get("input_layout") != "NCHW"
+            or artifact.get("output_order") != ["heatmap_logits", "offsets"]
+            or artifact.get("output_dtypes") != ["float32", "float32"]
+            or artifact.get("output_shapes") != [[1, 1, 256, 256], [1, 2, 256, 256]]):
         raise ValueError("inconsistent Stage 5 metadata or parity references")
     return parity
 

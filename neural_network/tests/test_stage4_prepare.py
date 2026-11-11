@@ -147,6 +147,7 @@ class MaterializerTest(unittest.TestCase):
         prepared = self.prepare_one(sample, valid)
         self.assertFalse(prepared.annotations)
         self.assertEqual(1, len(prepared.capture_metadata["canonical_faces"]))
+        self.assertEqual([0], prepared.capture_metadata["stage4_review"]["verified_empty_faces"])
 
     def test_outside_crop_and_missing_face_owner_rejected(self):
         sample = self.sample(raw=(ImagePointAnnotation(x_fraction=0.5, y_fraction=0.5),))

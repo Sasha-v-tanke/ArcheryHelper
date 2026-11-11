@@ -24,7 +24,7 @@ If installation, compilation, delegation, or Python ExecuTorch runtime is missin
 
 ## Real golden manifest
 
-Prefer generating the set directly from the Stage 4 **verified** manifest, snapshot and the exact checkpoint. The generator runs Stage 4's entire-dataset provenance and split checks, preserves canonical RGB bytes, and selects **20–50 original-photo-disjoint** faces, including at least one positively labeled face and one independently confirmed empty face. This avoids manually copying or re-hashing 20–50 files:
+Prefer generating the set directly from the Stage 4 **verified** manifest, snapshot and the exact checkpoint. The generator runs Stage 4's entire-dataset provenance and split checks, preserves canonical RGB bytes, and selects **20–50 distinct (original SHA256, face_index) canonical faces**, maximizing the number of different originals first. A triple-target photograph may contribute up to three independently verified faces, including at least one positively labeled face and one independently confirmed empty face. This avoids manually copying or re-hashing 20–50 files:
 
 ```bash
 python -m archery_ml.stage5_golden \
@@ -36,7 +36,7 @@ python -m archery_ml.stage5_golden \
   --count 32
 ```
 
-The resulting `data/stage5-golden/golden.json` binds the training dataset manifest, immutable snapshot, exact checkpoint SHA256, image bytes, original-photo SHA256 and per-face identity. Golden preparation recomputes **all Stage 4 dataset/split provenance**, checks the resulting `train` and `val` annotation fingerprint against the training metadata that `load_detector` has already verified against the checkpoint, and confirms distinct annotator/reviewer identities and the reviewed raw-annotation digest for every canonical candidate. A missing verified empty face or fewer than 20 independent originals **blocks generation**; never relabel an unverified zero-annotation face as negative.
+The resulting `data/stage5-golden/golden.json` binds the training dataset manifest, immutable snapshot, exact checkpoint SHA256, image bytes, original-photo SHA256 and per-face identity. Golden preparation recomputes **all Stage 4 dataset/split provenance**, checks the resulting `train` and `val` annotation fingerprint against the training metadata that `load_detector` has already verified against the checkpoint, and confirms distinct annotator/reviewer identities and the reviewed raw-annotation digest for every canonical candidate. A missing verified empty face or fewer than 20 distinct reviewed face identities **blocks generation**; never relabel an unverified zero-annotation face as negative. Camera-original diversity is prioritized, not forced to equal the face count. Stage 4 still prohibits train/evaluation leakage at the original-photo and session level.
 
 Alternatively, prepare 20–50 **already verified** Stage 3 canonical face RGB PNGs manually from `val`/`test`, independent of training samples and **not from `mobile_real_test`. For each, preserve original camera-photo SHA256, canonical crop file SHA256, face ownership/index, and the reviewed selection. Never use synthetic crops as substitute for the final real parity gate. The manifest is a JSON object with `schema_version: 1` and `samples`:
 

@@ -10,12 +10,12 @@ This stage does not implement Android inference, alter Room, or remove PyTorch M
 
 ## Isolated export environment
 
-The Stage 4 training environment currently pins PyTorch 2.8 / TorchVision 0.23. The Stage 5 export toolchain is isolated and pinned to PyTorch 2.10, TorchVision 0.25 and ExecuTorch 1.5.1; the Stage 4 checkpoint is loaded strictly in the export environment. The project can continue training with its own pinned packages. Actual runtime compatibility must be established by CI and by the final golden parity run, not presumed from package versions.
+The Stage 4 training environment currently pins PyTorch 2.8 / TorchVision 0.23. The Stage 5 export toolchain is isolated and pinned to PyTorch 2.13, TorchVision 0.28 and ExecuTorch 1.5.1; the Stage 4 checkpoint is loaded strictly in the export environment. The project can continue training with its own pinned packages. Actual runtime compatibility must be established by CI and by the final golden parity run, not presumed from package versions.
 
 ```bash
 python3.11 -m venv .venv-export
 . .venv-export/bin/activate
-python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.10.0 torchvision==0.25.0
+python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.13.0 torchvision==0.28.0
 python -m pip install numpy==2.2.6 pillow==11.3.0 executorch==1.5.1
 python -m unittest discover -s neural_network/tests -p 'test_stage5_*.py' -v
 ```

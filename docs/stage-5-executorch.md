@@ -43,6 +43,9 @@ Alternatively, prepare 20–50 **already verified** Stage 3 canonical face RGB P
 ```json
 {
   "schema_version": 1,
+  "source_checkpoint_sha256": "<SHA256 of the exact trained checkpoint>",
+  "source_manifest_sha256": "<SHA256 of the Stage 4 source manifest>",
+  "source_snapshot_sha256": "<SHA256 of the immutable Stage 4 source snapshot>",
   "samples": [{
     "sample_id": "reviewed-face-001",
     "image_path": "images/reviewed-face-001.png",
@@ -54,7 +57,7 @@ Alternatively, prepare 20–50 **already verified** Stage 3 canonical face RGB P
 }
 ```
 
-`image_path` resolves **inside** the golden manifest directory; symlink traversal, hash mismatch, invalid PNG/RGB, wrong 512×512 dimensions, duplicate identifiers/crop hashes/original-face identities, and unexpected splits are rejected. The example shows one record for readability; an actual export requires 20–50. Review and provenance remain obligations outside this manifest: its field names cannot themselves certify independent annotation/ownership review.
+`image_path` resolves **inside** the golden manifest directory; symlink traversal, hash mismatch, invalid PNG/RGB, wrong 512×512 dimensions, duplicate identifiers/crop hashes/original-face identities, and unexpected splits are rejected. The example shows one record for readability; an actual export requires 20–50 and all three top-level source SHA256 bindings. **Export refuses missing or changed checkpoint/manifest/snapshot declarations**, and checks the manifest SHA against Stage 4 training metadata. The generator provides these fields automatically and checks the actual Stage 4 snapshot. A manually authored snapshot digest is only a claim; review and provenance remain obligations outside this manifest: field names alone cannot certify independent annotation/ownership review.
 
 ## Export and verify
 

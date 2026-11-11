@@ -13,6 +13,7 @@ from PIL import Image
 from neural_network.archery_ml.contracts import ModelMetadata
 from neural_network.archery_ml.models import ImpactPointNet
 from neural_network.archery_ml.postprocess import ImpactPrediction, decode_impacts
+from neural_network.archery_ml.provenance import fingerprint
 
 
 def load_detector(checkpoint: Path, metadata_path: Path, *, device: str = "cpu") -> tuple[ImpactPointNet, ModelMetadata]:
@@ -30,6 +31,15 @@ def load_detector(checkpoint: Path, metadata_path: Path, *, device: str = "cpu")
             or saved_postprocess != metadata_document.get("postprocess")
             or saved_postprocess != metadata.postprocess.to_dict()):
         raise ValueError("checkpoint and metadata postprocess parameters differ or are missing")
+    if (state.get("input") != metadata.input.to_dict()
+            or state.get("output") != metadata.output.to_dict()):
+        raise ValueError("checkpoint and metadata input/output contracts differ or are missing")
+    provenance = state.get("training_provenance")
+    if not isinstance(provenance, dict) or provenance.get("version") != 2:
+        raise ValueError("checkpoint lacks versioned training provenance")
+    if (metadata_document.get("training_provenance_sha256") != fingerprint(provenance)
+            or metadata_document.get("training_dataset_sha256") != provenance.get("manifest_sha256")):
+        raise ValueError("checkpoint and metadata training provenance differ")
     model = ImpactPointNet(fpn_channels=int(state["model_config"]["fpn_channels"]))
     model.load_state_dict(state["model_state"])
     return model.to(device).eval(), metadata

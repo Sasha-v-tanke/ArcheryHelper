@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'neural_network/archery_ml/stage5_parity.py'
+      - 'neural_network/archery_ml/stage5_golden.py'
+      - 'archery_ml/stage5_golden.py'
       - 'neural_network/archery_ml/export.py'
       - 'archery_ml/export.py'
       - 'neural_network/tests/test_stage5_*.py'

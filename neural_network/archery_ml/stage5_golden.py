@@ -16,7 +16,9 @@ from pathlib import Path
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.impact_dataset import CanonicalImpactDataset
 from neural_network.archery_ml.inference import load_detector
-from neural_network.archery_ml.provenance import verify_dataset
+from neural_network.archery_ml.provenance import (
+    fingerprint, training_provenance, verify_dataset,
+)
 from neural_network.archery_ml.stage5_parity import (
     MAX_GOLDEN, MIN_GOLDEN, read_golden_manifest, sha256_file,
 )
@@ -94,7 +96,13 @@ def prepare_golden(
     if metadata_document.get("training_dataset_sha256") != expected_manifest_hash:
         raise ValueError("Stage 4 manifest is not the one bound to the trained checkpoint")
     # Verify snapshot and split integrity for the ENTIRE dataset, not only the chosen crops.
-    verify_dataset({"dataset": {"manifest": str(manifest), "snapshot": str(snapshot)}})
+    dataset_provenance = verify_dataset({
+        "dataset": {"manifest": str(manifest), "snapshot": str(snapshot)}
+    })
+    actual_training_provenance = training_provenance(dataset_provenance)
+    if (metadata_document.get("training_provenance_sha256")
+            != fingerprint(actual_training_provenance)):
+        raise ValueError("Stage 4 train/val annotation provenance differs from checkpoint")
     view = DatasetView.load(manifest).select(splits=("val", "test"))
     for sample in view:
         if not (sample.capture_metadata or {}).get("canonical_faces"):

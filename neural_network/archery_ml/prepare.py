@@ -210,6 +210,7 @@ def reviewed_sample(sample, review: dict, *, data_root: Path, review_dir: Path, 
     metadata["stage4_review"] = {"source_image_sha256": original_sha,
                                  "source_annotations_sha256": _raw_labels_digest(sample),
                                  "geometry_sha256": review["geometry_sha256"],
+                                 "verified_empty_faces": sorted(empty_indices),
                                  "impact_face_indices": assigned_indices,
                                  "annotator": review["annotator"], "reviewer": review["reviewer"]}
     return replace(sample, annotations=tuple(transformed), capture_metadata=metadata)

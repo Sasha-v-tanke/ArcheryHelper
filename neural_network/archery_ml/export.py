@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -94,6 +93,14 @@ def export_model(
     if "executorch" in original_metadata:
         raise ValueError("source metadata must be the unmodified Stage 4 training metadata")
     samples = read_golden_manifest(golden_manifest, metadata)
+    golden_document = json.loads(golden_manifest.read_text(encoding="utf-8"))
+    declared_checkpoint = golden_document.get("source_checkpoint_sha256")
+    declared_manifest = golden_document.get("source_manifest_sha256")
+    if declared_checkpoint is not None and declared_checkpoint != sha256_file(checkpoint):
+        raise ValueError("golden set was prepared for a different checkpoint")
+    if (declared_manifest is not None
+            and declared_manifest != original_metadata.get("training_dataset_sha256")):
+        raise ValueError("golden dataset does not match the Stage 4 checkpoint")
     if any(sample.image == output_directory or output_directory in sample.image.parents for sample in samples):
         raise ValueError("golden inputs must not be inside release output")
 
@@ -164,6 +171,8 @@ def export_model(
                 "points_confidence_max_abs": POINT_CONFIDENCE_ABS,
             },
             "golden_index_sha256": sha256_file(staging / "golden/index.json"),
+            "golden_source_manifest_sha256": declared_manifest,
+            "golden_source_snapshot_sha256": golden_document.get("source_snapshot_sha256"),
             "checkpoint_sha256": sha256_file(checkpoint),
             "pte_sha256": sha256_file(pte_path),
             "torch_version": torch.__version__,

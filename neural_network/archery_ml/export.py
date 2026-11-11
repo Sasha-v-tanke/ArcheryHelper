@@ -85,6 +85,9 @@ def export_model(
     if not checkpoint.is_file() or not metadata_path.is_file():
         raise FileNotFoundError("trained checkpoint and Stage 4 metadata are required")
 
+    checkpoint_hash = sha256_file(checkpoint)
+    source_metadata_hash = sha256_file(metadata_path)
+    source_golden_hash = sha256_file(golden_manifest)
     model, metadata = load_detector(checkpoint, metadata_path, device="cpu")
     if (metadata.contract_version != 2 or metadata.input.color_space != "RGB"
             or metadata.input.width != 512 or metadata.input.height != 512
@@ -156,6 +159,11 @@ def export_model(
                     "expected_points": outcome["expected_points"],
                 })
 
+        if (sha256_file(checkpoint) != checkpoint_hash
+                or sha256_file(metadata_path) != source_metadata_hash
+                or sha256_file(golden_manifest) != source_golden_hash):
+            raise ValueError("checkpoint, metadata or golden manifest changed during export")
+
         maxima = {
             metric: max(result[metric] for result in measured)
             for metric in ("logits_max_abs", "offsets_max_abs",
@@ -179,7 +187,9 @@ def export_model(
             "golden_index_sha256": sha256_file(staging / "golden/index.json"),
             "golden_source_manifest_sha256": declared_manifest,
             "golden_source_snapshot_sha256": golden_document.get("source_snapshot_sha256"),
-            "checkpoint_sha256": sha256_file(checkpoint),
+            "checkpoint_sha256": checkpoint_hash,
+            "source_metadata_sha256": source_metadata_hash,
+            "source_golden_manifest_sha256": source_golden_hash,
             "pte_sha256": sha256_file(pte_path),
             "pte_bytes": len(pte),
             "torch_version": torch.__version__,
@@ -198,6 +208,8 @@ def export_model(
             "pte_bytes": len(pte),
             "sha256": parity["pte_sha256"],
             "checkpoint_sha256": parity["checkpoint_sha256"],
+            "source_metadata_sha256": parity["source_metadata_sha256"],
+            "source_golden_manifest_sha256": parity["source_golden_manifest_sha256"],
             "golden_index_sha256": parity["golden_index_sha256"],
             "parity_report_sha256": sha256_file(staging / "parity.json"),
             "parity_status": "PASS",
@@ -253,6 +265,8 @@ def verify_release(directory: Path) -> dict:
             or artifact["parity_report_sha256"] != sha256_file(directory / "parity.json")
             or artifact["sha256"] != parity["pte_sha256"]
             or artifact["checkpoint_sha256"] != parity["checkpoint_sha256"]
+            or artifact.get("source_metadata_sha256") != parity.get("source_metadata_sha256")
+            or artifact.get("source_golden_manifest_sha256") != parity.get("source_golden_manifest_sha256")
             or artifact.get("pte_bytes") != (directory / "impact_model.pte").stat().st_size
             or parity.get("pte_bytes") != artifact.get("pte_bytes")
             or artifact.get("input_dtype") != "float32"

@@ -52,8 +52,16 @@ def select_goldens(records: list, count: int) -> list:
     negatives = [record for record in ordered if not record.points]
     if not positives or not negatives:
         raise ValueError("golden set requires reviewed positive and verified-empty faces")
-    if not add(positives[0]) or not any(add(item) for item in negatives):
+    pair = next((
+        (positive, negative)
+        for positive in positives for negative in negatives
+        if (positive.source_image_sha256 != negative.source_image_sha256
+            and positive.sha256 != negative.sha256)
+    ), None)
+    if pair is None:
         raise ValueError("golden positive and negative faces must have distinct originals")
+    add(pair[0])
+    add(pair[1])
     for record in ordered:
         if len(selected) == count:
             break

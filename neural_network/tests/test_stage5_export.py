@@ -15,7 +15,7 @@ from PIL import Image
 from neural_network.archery_ml.contracts import (
     ModelInputSpec, ModelMetadata, ModelOutputSpec, ModelPostprocessSpec,
 )
-from neural_network.archery_ml.export import export_model, verify_release
+from neural_network.archery_ml.export import export_model, replay_release, verify_release
 from neural_network.archery_ml.stage5_parity import (
     _match_points, compare_outputs, read_golden_manifest, sha256_file,
 )
@@ -183,6 +183,11 @@ class TestAtomicExport(unittest.TestCase):
             index = json.loads((destination / "golden/index.json").read_text())
             self.assertEqual(len(index["samples"]), 20)
             self.assertEqual(len(list((destination / "golden/images").iterdir())), 20)
+            with mock.patch("neural_network.archery_ml.export._runtime_forward",
+                            return_value=lambda tensor: model(tensor)):
+                replay = replay_release(destination)
+            self.assertEqual(replay["status"], "PASS")
+            self.assertEqual(replay["golden_count"], 20)
 
             image = destination / "golden/images/face-00.png"
             image.write_bytes(b"tampered")
@@ -206,6 +211,31 @@ class TestAtomicExport(unittest.TestCase):
                     export_model(checkpoint, metadata, golden, destination)
             self.assertFalse(destination.exists())
             self.assertEqual(list(root.glob(".stage5-*")), [])
+
+    def test_export_rejects_golden_provenance_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            document = json.loads(golden.read_text())
+            document["source_checkpoint_sha256"] = "a" * 64
+            golden.write_text(json.dumps(document))
+            with mock.patch("neural_network.archery_ml.export.load_detector",
+                            return_value=(_TestModel(), _metadata())):
+                with self.assertRaisesRegex(ValueError, "different checkpoint"):
+                    export_model(checkpoint, metadata, golden, root / "release")
+            self.assertFalse((root / "release").exists())
+
+    def test_export_rejects_mismatched_stage4_dataset_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            document = json.loads(golden.read_text())
+            document["source_manifest_sha256"] = "a" * 64
+            golden.write_text(json.dumps(document))
+            with mock.patch("neural_network.archery_ml.export.load_detector",
+                            return_value=(_TestModel(), _metadata())):
+                with self.assertRaisesRegex(ValueError, "does not match"):
+                    export_model(checkpoint, metadata, golden, root / "release")
 
     def test_missing_real_compiler_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:

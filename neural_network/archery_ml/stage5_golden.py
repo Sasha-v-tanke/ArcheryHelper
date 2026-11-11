@@ -38,18 +38,22 @@ def select_goldens(records: list, count: int) -> list:
         ),
     )
     selected = []
-    origins: set[str] = set()
+    originals: set[str] = set()
+    face_keys: set[tuple[str, int]] = set()
     hashes: set[str] = set()
 
     def add(record) -> bool:
-        if record.source_image_sha256 in origins or record.sha256 in hashes:
+        identity = (record.source_image_sha256, record.face_index)
+        if identity in face_keys or record.sha256 in hashes:
             return False
-        origins.add(record.source_image_sha256)
+        originals.add(record.source_image_sha256)
+        face_keys.add(identity)
         hashes.add(record.sha256)
         selected.append(record)
         return True
 
-    # Both negative and positive examples are required for a useful golden set.
+    # Both positive and independently verified empty faces test meaningful
+    # decoder paths, but a triple target may contribute two separate faces.
     positives = [record for record in ordered if record.points]
     negatives = [record for record in ordered if not record.points]
     if not positives or not negatives:
@@ -57,19 +61,35 @@ def select_goldens(records: list, count: int) -> list:
     pair = next((
         (positive, negative)
         for positive in positives for negative in negatives
-        if (positive.source_image_sha256 != negative.source_image_sha256
-            and positive.sha256 != negative.sha256)
+        if positive.source_image_sha256 != negative.source_image_sha256
+        and positive.sha256 != negative.sha256
     ), None)
     if pair is None:
-        raise ValueError("golden positive and negative faces must have distinct originals")
+        pair = next((
+            (positive, negative)
+            for positive in positives for negative in negatives
+            if positive.sha256 != negative.sha256
+            and (positive.source_image_sha256, positive.face_index)
+                != (negative.source_image_sha256, negative.face_index)
+        ), None)
+    if pair is None:
+        raise ValueError("golden positive and empty faces need distinct verified face identities")
     add(pair[0])
     add(pair[1])
+
+    # First maximize distinct camera originals; then fill remaining slots
+    # with additional reviewed faces on the same triple-target photograph.
+    for record in ordered:
+        if len(selected) == count:
+            break
+        if record.source_image_sha256 not in originals:
+            add(record)
     for record in ordered:
         if len(selected) == count:
             break
         add(record)
     if len(selected) != count:
-        raise ValueError(f"need {count} distinct golden originals, found {len(selected)}")
+        raise ValueError(f"need {count} distinct golden face identities, found {len(selected)}")
     return sorted(selected, key=lambda item: (item.sample_id, item.face_index))
 
 

@@ -17,7 +17,7 @@ from neural_network.archery_ml.contracts import ModelMetadata
 from neural_network.archery_ml.inference import load_detector
 from neural_network.archery_ml.stage5_parity import (
     LOGIT_MAX_ABS, OFFSET_MAX_ABS, POINT_CONFIDENCE_ABS, POINT_NORM_DISTANCE,
-    canonical_tensor, compare_outputs, read_golden_manifest, sha256_file,
+    SHA256_PATTERN, canonical_tensor, compare_outputs, read_golden_manifest, sha256_file,
 )
 
 PTE_LIMIT_BYTES = 30_000_000
@@ -97,10 +97,15 @@ def export_model(
     golden_document = json.loads(golden_manifest.read_text(encoding="utf-8"))
     declared_checkpoint = golden_document.get("source_checkpoint_sha256")
     declared_manifest = golden_document.get("source_manifest_sha256")
-    if declared_checkpoint is not None and declared_checkpoint != sha256_file(checkpoint):
+    declared_snapshot = golden_document.get("source_snapshot_sha256")
+    if not all(
+        isinstance(value, str) and SHA256_PATTERN.fullmatch(value)
+        for value in (declared_checkpoint, declared_manifest, declared_snapshot)
+    ):
+        raise ValueError("golden set lacks immutable Stage 4 checkpoint/manifest/snapshot SHA256")
+    if declared_checkpoint != sha256_file(checkpoint):
         raise ValueError("golden set was prepared for a different checkpoint")
-    if (declared_manifest is not None
-            and declared_manifest != original_metadata.get("training_dataset_sha256")):
+    if declared_manifest != original_metadata.get("training_dataset_sha256"):
         raise ValueError("golden dataset does not match the Stage 4 checkpoint")
     if any(sample.image == output_directory or output_directory in sample.image.parents for sample in samples):
         raise ValueError("golden inputs must not be inside release output")

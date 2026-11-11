@@ -30,6 +30,13 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             model = ImpactPointNet(fpn_channels=8, pretrained=False).eval()
+            # Deliberately produce one finite, high-confidence point per face:
+            # a zero-detection-only smoke would never exercise decoder parity.
+            with torch.no_grad():
+                model.heatmap_head.weight.zero_()
+                model.heatmap_head.bias.fill_(2.0)
+                model.offset_head.weight.zero_()
+                model.offset_head.bias.fill_(0.25)
             metadata = ModelMetadata(
                 contract_version=2, model_version="stage5-synthetic-smoke",
                 input=ModelInputSpec(
@@ -77,9 +84,11 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
             self.assertEqual(report["status"], "PASS")
             self.assertEqual(report["golden_count"], 20)
             self.assertEqual(report["backend"], "XNNPACK")
+            self.assertEqual(report["total_expected_points"], 20)
             replay = replay_release(target)
             self.assertEqual(replay["status"], "PASS")
             self.assertEqual(replay["golden_count"], 20)
+            self.assertEqual(replay["total_expected_points"], 20)
 
 
 if __name__ == "__main__":

@@ -150,6 +150,8 @@ class CanonicalFixture:
             capture = {"canonical_faces": [{"face_index": 0, "image_path": crop_name,
                                               "sha256": hashlib.sha256((self.root / crop_name).read_bytes()).hexdigest(),
                                               "annotation_status": "verified"}]}
+            if not annotations:
+                capture["stage4_review"] = {"verified_empty_faces": [0]}
         return DatasetSample(id=split + "-sample", image_path=self.root / f"raw-{split}.png",
                              annotation_path=None, split=split, source_id="fixture", group_id=group_id,
                              annotations=annotations, capture_metadata=capture)
@@ -175,6 +177,30 @@ class CanonicalDataTest(CanonicalFixture, unittest.TestCase):
         self.assertEqual(0, int(data[0]["positive"].sum()))
         batch = collate_faces([data[0]])
         self.assertEqual((1, 3, 64, 64), tuple(batch["image"].shape))
+
+    def test_negative_faces_require_an_independent_empty_attestation(self):
+        approved = self.sample(annotations=(), group_id="empty")
+        unreviewed = replace(approved, capture_metadata={
+            "canonical_faces": approved.capture_metadata["canonical_faces"],
+        })
+        inconsistent = replace(approved, capture_metadata={
+            **approved.capture_metadata,
+            "stage4_review": {"verified_empty_faces": []},
+        })
+        for sample in (unreviewed, inconsistent):
+            with self.subTest(sample=sample.capture_metadata):
+                with self.assertRaisesRegex(ValueError, "verified_empty_faces"):
+                    CanonicalImpactDataset(DatasetView.from_samples([sample]),
+                                           manifest_dir=self.root, input_size=64)
+                manifest = self.root / "manifest.json"
+                save_manifest(manifest, [sample])
+                config = {"dataset": {"manifest": str(manifest),
+                                      "snapshot": str(self.root / "snapshot.json")}}
+                snapshot = type("Snapshot", (), {
+                    "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()
+                })()
+                with self.assertRaisesRegex(ValueError, "verified_empty_faces"):
+                    verify_dataset(config, snapshot=snapshot)
 
     def test_split_leakage_and_snapshot_integrity(self):
         samples = [self.sample(split="train"), self.sample(split="val")]
@@ -471,6 +497,43 @@ class ValidationAnnotationProvenanceTest(CanonicalFixture, unittest.TestCase):
             verify_checkpoint_holdout({"training_provenance": previous},
                                       {"training_provenance_sha256": fingerprint(previous)},
                                       initial, split="val")
+
+
+class ScoringMetadataProvenanceTest(CanonicalFixture, unittest.TestCase):
+    def test_changed_scoring_contract_invalidates_validation_metrics(self):
+        original_val = replace(self.sample(split="val", group_id="va"),
+                               target_metadata=TargetMetadata(
+                                   format="SINGLE", minimum_scoring_zone=1,
+                                   ten_ring_mode="RECURVE", face_diameter_mm=400))
+        originals = [self.sample(split="train", group_id="tr"), original_val]
+        manifest = self.root / "manifest.json"
+        save_manifest(manifest, originals)
+        config = {"dataset": {"manifest": str(manifest),
+                              "snapshot": str(self.root / "snapshot.json")}}
+        snapshot = type("Snapshot", (), {
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()
+        })()
+        baseline = verify_dataset(config, snapshot=snapshot)
+        saved = training_provenance(baseline)
+        checkpoint = {"training_provenance": saved}
+        metadata = {"training_provenance_sha256": fingerprint(saved)}
+        verify_checkpoint_holdout(checkpoint, metadata, baseline, split="val")
+
+        # Both the canonical target image and GT coordinates stay unchanged,
+        # but scoring mode changes the validation metric and its provenance.
+        adjusted_val = replace(original_val, target_metadata=TargetMetadata(
+            format="SINGLE", minimum_scoring_zone=1,
+            ten_ring_mode="COMPOUND", face_diameter_mm=400))
+        save_manifest(manifest, [originals[0], adjusted_val])
+        snapshot.manifest_sha256 = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        current = verify_dataset(config, snapshot=snapshot)
+        for field in ("original_sha256", "canonical_crop_sha256", "groups"):
+            self.assertEqual(baseline["splits"]["val"][field],
+                             current["splits"]["val"][field])
+        self.assertNotEqual(baseline["splits"]["val"]["annotation_sha256"],
+                            current["splits"]["val"]["annotation_sha256"])
+        with self.assertRaisesRegex(ValueError, "val data/annotations differ"):
+            verify_checkpoint_holdout(checkpoint, metadata, current, split="val")
 
 
 class QualityGateTest(unittest.TestCase):

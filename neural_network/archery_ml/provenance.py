@@ -59,6 +59,7 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
     image_splits: dict[Path, str] = {}
     original_splits: dict[str, str] = {}
     crop_splits: dict[str, str] = {}
+    evaluation_crop_origins: dict[tuple[str, str], str] = {}
     per_split = {split: {"original_sha256": set(), "canonical_crop_sha256": set(),
                          "groups": set(), "annotation_records": []} for split in SPLITS}
     for sample in DatasetView.load(manifest):
@@ -112,6 +113,13 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
             previous = crop_splits.setdefault(crop_hash, sample.split)
             if previous != sample.split:
                 raise ValueError(f"canonical crop SHA256 leakage between {previous} and {sample.split}")
+            if sample.split in ("val", "test", "mobile_real_test"):
+                origin_key = (sample.split, crop_hash)
+                prior_original = evaluation_crop_origins.setdefault(origin_key, original_hash)
+                if prior_original != original_hash:
+                    raise ValueError(
+                        f"identical canonical crop reused across distinct {sample.split} originals"
+                    )
             split["canonical_crop_sha256"].add(crop_hash)
             face_index = entry.get("face_index")
             if type(face_index) is not int or face_index < 0:

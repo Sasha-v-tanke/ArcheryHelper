@@ -21,6 +21,9 @@ from neural_network.archery_ml.contracts import (
     ModelInputSpec, ModelMetadata, ModelOutputSpec, ModelPostprocessSpec,
     save_manifest,
 )
+from neural_network.archery_ml.provenance import (
+    fingerprint, training_provenance, verify_dataset,
+)
 from neural_network.archery_ml.stage5_golden import prepare_golden
 from neural_network.archery_ml.stage5_parity import read_golden_manifest, sha256_file
 
@@ -93,9 +96,13 @@ def _stage4_dataset(root: Path):
         postprocess=ModelPostprocessSpec(confidence_threshold=.5, nms_radius=4),
     )
     metadata_file = root / "metadata.json"
+    computed = verify_dataset({
+        "dataset": {"manifest": str(manifest), "snapshot": str(snapshot)}
+    })
     metadata_file.write_text(json.dumps({
         **metadata.to_dict(),
         "training_dataset_sha256": sha256_file(manifest),
+        "training_provenance_sha256": fingerprint(training_provenance(computed)),
     }), encoding="utf-8")
     return samples, manifest, snapshot, checkpoint, metadata, metadata_file
 
@@ -147,12 +154,43 @@ class TestRealStage4GoldenSelection(unittest.TestCase):
             snapshot.write_text(json.dumps(snapshot_doc))
             metadata_doc = json.loads(metadata_file.read_text())
             metadata_doc["training_dataset_sha256"] = sha256_file(manifest)
+            computed = verify_dataset({
+                "dataset": {"manifest": str(manifest), "snapshot": str(snapshot)}
+            })
+            metadata_doc["training_provenance_sha256"] = fingerprint(
+                training_provenance(computed)
+            )
             metadata_file.write_text(json.dumps(metadata_doc))
             with mock.patch("neural_network.archery_ml.stage5_golden.load_detector",
                             return_value=(None, metadata)):
                 with self.assertRaisesRegex(ValueError, "independent Stage 4"):
                     prepare_golden(checkpoint, metadata_file, manifest, snapshot,
                                    root / "golden-release")
+
+    def test_changed_validation_annotations_fail_checkpoint_provenance(self):
+        """Re-sealing only the manifest/snapshot cannot bypass train/val GT."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            samples, manifest, snapshot, checkpoint, metadata, metadata_file = _stage4_dataset(root)
+            document = json.loads(manifest.read_text())
+            chosen = next(item for item in document["samples"] if item["split"] == "val"
+                          and item["annotations"])
+            chosen["annotations"][0]["x_norm"] = 0.4
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            snapshot_doc = json.loads(snapshot.read_text())
+            snapshot_doc["manifest_sha256"] = sha256_file(manifest)
+            snapshot.write_text(json.dumps(snapshot_doc))
+            metadata_doc = json.loads(metadata_file.read_text())
+            metadata_doc["training_dataset_sha256"] = sha256_file(manifest)
+            metadata_file.write_text(json.dumps(metadata_doc))
+            with mock.patch("neural_network.archery_ml.stage5_golden.load_detector",
+                            return_value=(None, metadata)):
+                with self.assertRaisesRegex(
+                    ValueError, "train/val annotation provenance differs"
+                ):
+                    prepare_golden(checkpoint, metadata_file, manifest, snapshot,
+                                   root / "golden-release")
+            self.assertFalse((root / "golden-release").exists())
 
     def test_reject_cross_split_group_leakage(self):
         with tempfile.TemporaryDirectory() as folder:

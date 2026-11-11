@@ -188,6 +188,12 @@ class TestAtomicExport(unittest.TestCase):
             parity = verify_release(destination)
             self.assertEqual(parity["golden_count"], 20)
             self.assertEqual(parity["status"], "PASS")
+            released_metadata = json.loads((destination / "model_metadata.json").read_text())
+            self.assertEqual(released_metadata["executorch"]["input_layout"], "NCHW")
+            self.assertEqual(released_metadata["executorch"]["output_order"],
+                             ["heatmap_logits", "offsets"])
+            self.assertEqual(released_metadata["executorch"]["pte_bytes"],
+                             (destination / "impact_model.pte").stat().st_size)
             index = json.loads((destination / "golden/index.json").read_text())
             self.assertEqual(len(index["samples"]), 20)
             self.assertEqual(len(list((destination / "golden/images").iterdir())), 20)
@@ -201,6 +207,33 @@ class TestAtomicExport(unittest.TestCase):
             image.write_bytes(b"tampered")
             with self.assertRaisesRegex(ValueError, "SHA256"):
                 verify_release(destination)
+
+    def test_semantically_swapped_outputs_fail_even_with_rehashed_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            target = root / "bundle"
+            model = _TestModel()
+            with (mock.patch("neural_network.archery_ml.export.load_detector",
+                             return_value=(model, _metadata())),
+                  mock.patch("neural_network.archery_ml.export._compile_xnnpack",
+                             return_value=b"XnnpackBackend fake fixture"),
+                  mock.patch("neural_network.archery_ml.export._runtime_forward",
+                             return_value=lambda tensor: model(tensor)),
+                  mock.patch("neural_network.archery_ml.export.importlib.metadata.version",
+                             return_value="1.5.1")):
+                export_model(checkpoint, metadata, golden, target)
+            meta = target / "model_metadata.json"
+            document = json.loads(meta.read_text())
+            document["executorch"]["output_order"] = ["offsets", "heatmap_logits"]
+            meta.write_text(json.dumps(document))
+            lines = []
+            for path in sorted(p for p in target.rglob("*") if p.is_file()
+                               and p.name != "sha256.txt"):
+                lines.append(f"{sha256_file(path)}  {path.relative_to(target).as_posix()}")
+            (target / "sha256.txt").write_text("\n".join(lines) + "\n")
+            with self.assertRaisesRegex(ValueError, "inconsistent Stage 5"):
+                verify_release(target)
 
     def test_runtime_mismatch_cleans_incomplete_release(self):
         with tempfile.TemporaryDirectory() as directory:

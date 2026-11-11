@@ -18,7 +18,7 @@ from PIL import Image
 from neural_network.archery_ml.contracts import (
     ModelInputSpec, ModelMetadata, ModelOutputSpec, ModelPostprocessSpec,
 )
-from neural_network.archery_ml.export import export_model, verify_release
+from neural_network.archery_ml.export import export_model, replay_release, verify_release
 from neural_network.archery_ml.models import ImpactPointNet
 from neural_network.archery_ml.provenance import fingerprint
 from neural_network.archery_ml.stage5_parity import sha256_file
@@ -77,6 +77,9 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
             self.assertEqual(report["status"], "PASS")
             self.assertEqual(report["golden_count"], 20)
             self.assertEqual(report["backend"], "XNNPACK")
+            replay = replay_release(target)
+            self.assertEqual(replay["status"], "PASS")
+            self.assertEqual(replay["golden_count"], 20)
 
 
 if __name__ == "__main__":

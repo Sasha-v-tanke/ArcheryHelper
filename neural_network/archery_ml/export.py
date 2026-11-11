@@ -13,6 +13,7 @@ import numpy as np
 import torch
 from PIL import Image
 
+from neural_network.archery_ml.contracts import ModelMetadata
 from neural_network.archery_ml.inference import load_detector
 from neural_network.archery_ml.stage5_parity import (
     LOGIT_MAX_ABS, OFFSET_MAX_ABS, POINT_CONFIDENCE_ABS, POINT_NORM_DISTANCE,
@@ -244,18 +245,71 @@ def verify_release(directory: Path) -> dict:
     return parity
 
 
+def replay_release(directory: Path) -> dict:
+    """Re-run the *shipped* PTE on the shipped golden images and reference tensors.
+
+    This is independent of the training checkpoint and prevents a package from
+    being called parity-verified only because its metadata says 'PASS'.
+    """
+    directory = Path(directory).resolve(strict=True)
+    original = verify_release(directory)
+    metadata = ModelMetadata.from_dict(
+        json.loads((directory / "model_metadata.json").read_text(encoding="utf-8"))
+    )
+    golden = json.loads((directory / "golden/index.json").read_text(encoding="utf-8"))
+    entries = golden.get("samples")
+    if (golden.get("schema_version") != 1 or not isinstance(entries, list)
+            or len(entries) != original["golden_count"]):
+        raise ValueError("golden index sample count differs from parity report")
+    forward = _runtime_forward(directory / "impact_model.pte")
+    maxima = {"logits_max_abs": 0., "offsets_max_abs": 0.,
+              "points_xy_max_norm": 0., "points_confidence_max_abs": 0.}
+    total_points = 0
+    with torch.inference_mode():
+        for entry in entries:
+            image = (directory / entry["image_path"]).resolve(strict=True)
+            expected_file = (directory / entry["expected_tensors_path"]).resolve(strict=True)
+            if not image.is_relative_to(directory) or not expected_file.is_relative_to(directory):
+                raise ValueError("golden replay path escapes release directory")
+            if (sha256_file(image) != entry["image_sha256"]
+                    or sha256_file(expected_file) != entry["expected_tensors_sha256"]):
+                raise ValueError("golden replay file SHA256 mismatch")
+            with Image.open(image) as pixels:
+                input_tensor = canonical_tensor(pixels, metadata)
+            with np.load(expected_file, allow_pickle=False) as array:
+                expected = (
+                    torch.from_numpy(array["heatmap_logits"].copy()),
+                    torch.from_numpy(array["offsets"].copy()),
+                )
+            compared = compare_outputs(expected, forward(input_tensor), metadata, entry["face_index"])
+            if compared["expected_points"] != entry["expected_points"]:
+                raise ValueError("golden expected points do not match saved reference tensors")
+            total_points += compared["point_count"]
+            for key in maxima:
+                maxima[key] = max(maxima[key], compared[key])
+    if total_points != original["total_expected_points"]:
+        raise ValueError("golden reference point counts differ from recorded parity")
+    return {"status": "PASS", "golden_count": len(entries),
+            "total_expected_points": total_points, "max_errors": maxima,
+            "pte_sha256": sha256_file(directory / "impact_model.pte")}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Stage 5 XNNPACK export and independent Python runtime parity")
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--metadata", type=Path)
     parser.add_argument("--golden-manifest", type=Path)
     parser.add_argument("--output-directory", type=Path)
-    parser.add_argument("--verify-release", type=Path, help="Only verify an already exported release")
+    checks = parser.add_mutually_exclusive_group()
+    checks.add_argument("--verify-release", type=Path, help="Verify release byte integrity only")
+    checks.add_argument("--replay-release", type=Path, help="Run shipped PTE vs shipped golden tensors")
     arguments = parser.parse_args()
-    if arguments.verify_release:
+    if arguments.verify_release or arguments.replay_release:
         if any((arguments.checkpoint, arguments.metadata, arguments.golden_manifest, arguments.output_directory)):
-            parser.error("--verify-release cannot be combined with export inputs")
-        print(json.dumps(verify_release(arguments.verify_release), indent=2))
+            parser.error("verification/replay cannot be combined with export inputs")
+        result = (verify_release(arguments.verify_release) if arguments.verify_release
+                  else replay_release(arguments.replay_release))
+        print(json.dumps(result, indent=2))
     else:
         if not all((arguments.checkpoint, arguments.metadata,
                     arguments.golden_manifest, arguments.output_directory)):

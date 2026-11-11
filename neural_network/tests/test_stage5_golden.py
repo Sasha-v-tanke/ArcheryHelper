@@ -56,6 +56,34 @@ class TestGoldenSelection(unittest.TestCase):
             self.assertTrue(any(r.points for r in ordered))
             self.assertTrue(any(not r.points for r in ordered))
 
+    def test_triple_faces_can_satisfy_20_crop_gate_with_eight_originals(self):
+        with tempfile.TemporaryDirectory() as folder:
+            records = _records(Path(folder), count=24)
+            for index, record in enumerate(records):
+                record.source_image_sha256 = hashlib.sha256(
+                    f"camera-{index // 3}".encode()
+                ).hexdigest()
+                record.face_index = index % 3
+                record.sample_id = f"camera-{index // 3:02d}"
+            selected = select_goldens(records, 20)
+            self.assertEqual(len(selected), 20)
+            self.assertEqual(len({r.source_image_sha256 for r in selected}), 8)
+            self.assertEqual(len({
+                (r.source_image_sha256, r.face_index) for r in selected
+            }), 20)
+            self.assertEqual(selected, select_goldens(list(reversed(records)), 20))
+            self.assertTrue(any(r.points for r in selected))
+            self.assertTrue(any(not r.points for r in selected))
+
+    def test_cannot_count_same_face_index_twice(self):
+        with tempfile.TemporaryDirectory() as folder:
+            records = _records(Path(folder), count=21)
+            for record in records:
+                record.source_image_sha256 = "a" * 64
+                record.face_index = 0
+            with self.assertRaisesRegex(ValueError, "face identities|identities"):
+                select_goldens(records, 20)
+
     def test_rejects_lack_of_verified_negatives(self):
         with tempfile.TemporaryDirectory() as folder:
             records = _records(Path(folder))
@@ -69,7 +97,7 @@ class TestGoldenSelection(unittest.TestCase):
             records = _records(Path(folder))
             for record in records:
                 record.source_image_sha256 = "a" * 64
-            with self.assertRaisesRegex(ValueError, "distinct|different"):
+            with self.assertRaisesRegex(ValueError, "face identities|identities"):
                 select_goldens(records, 20)
 
     def test_preparation_binds_source_and_is_atomic(self):

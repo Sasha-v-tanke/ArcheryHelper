@@ -462,6 +462,22 @@ class ReviewRegressions(CanonicalFixture, unittest.TestCase):
 
 
 class CheckpointProvenanceTest(CanonicalFixture, unittest.TestCase):
+    def test_mobile_holdout_cannot_count_reused_crop_as_independent_original(self):
+        sample_a = replace(self.sample(split="train", group_id="holdout-a"),
+                           id="holdout-a", split="mobile_real_test")
+        sample_b = replace(self.sample(split="train", group_id="holdout-b"),
+                           id="holdout-b", split="mobile_real_test",
+                           image_path=self.root / "raw-val.png")
+        manifest = self.root / "holdout-manifest.json"
+        save_manifest(manifest, [sample_a, sample_b])
+        cfg = {"dataset": {"manifest": str(manifest),
+                           "snapshot": str(self.root / "holdout-snapshot.json")}}
+        snapshot = type("Snapshot", (), {
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()
+        })()
+        with self.assertRaisesRegex(ValueError, "identical canonical crop reused"):
+            verify_dataset(cfg, snapshot=snapshot)
+
     def test_separate_holdout_manifest_reusing_canonical_bytes_is_rejected(self):
         manifest = self.root / "manifest.json"
         snapshots = self.root / "snapshot.json"

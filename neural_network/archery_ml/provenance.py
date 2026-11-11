@@ -22,6 +22,24 @@ def fingerprint(value: dict) -> str:
                                      allow_nan=False).encode("utf-8")).hexdigest()
 
 
+def verify_negative_faces(sample, face_indices: list[int]) -> None:
+    """Negative labels require explicit independent empty-face review.
+
+    A missing canonical impact does not prove that a face has no arrow. Stage 4
+    materialization records the reviewer-confirmed empty face IDs separately.
+    """
+    annotated = {point.face_index for point in sample.annotations}
+    expected_empty = set(face_indices) - annotated
+    review = (sample.capture_metadata or {}).get("stage4_review") or {}
+    declared = review.get("verified_empty_faces")
+    if expected_empty or declared is not None:
+        if (not isinstance(declared, list)
+                or any(type(index) is not int for index in declared)
+                or len(declared) != len(set(declared))
+                or set(declared) != expected_empty):
+            raise ValueError(f"missing or inconsistent verified_empty_faces: {sample.id}")
+
+
 def verify_dataset(config: dict, *, snapshot=None) -> dict:
     """Validate all split boundaries, including the exact canonical model inputs.
 
@@ -108,11 +126,14 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
                 "group_id": sample.group_id, "original_sha256": original_hash,
                 "canonical_crop_sha256": crop_hash, "face_index": face_index,
                 "annotations": labels,
+                "target_metadata": (None if sample.target_metadata is None
+                                    else sample.target_metadata.to_dict()),
             })
         if (len(set(face_indices)) != len(face_indices)
                 or any(annotation.face_index not in face_indices
                        for annotation in sample.annotations)):
             raise ValueError(f"canonical impact/face assignment mismatch: {sample.id}")
+        verify_negative_faces(sample, face_indices)
     return {
         "version": 2,
         "manifest_sha256": manifest_hash,

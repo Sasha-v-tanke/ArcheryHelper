@@ -253,6 +253,43 @@ class TestAtomicExport(unittest.TestCase):
             self.assertFalse(destination.exists())
             self.assertEqual(list(root.glob(".stage5-*")), [])
 
+    def test_mid_export_source_mutation_rejects_atomic_release(self):
+        """Every captured input source is compared again before publication."""
+        for source_name in ("checkpoint", "metadata", "golden"):
+            with self.subTest(source_name=source_name):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    checkpoint, metadata, golden = self._setup(root)
+                    target = root / "bundle"
+                    model = _TestModel()
+                    sources = {
+                        "checkpoint": checkpoint,
+                        "metadata": metadata,
+                        "golden": golden,
+                    }
+                    mutated = False
+
+                    def deployed(tensor):
+                        nonlocal mutated
+                        if not mutated:
+                            source = sources[source_name]
+                            # Distinct bytes but otherwise parseable, so only
+                            # the final provenance check can notice the change.
+                            source.write_bytes(source.read_bytes() + b" ")
+                            mutated = True
+                        return model(tensor)
+
+                    with (mock.patch("neural_network.archery_ml.export.load_detector",
+                                     return_value=(model, _metadata())),
+                          mock.patch("neural_network.archery_ml.export._compile_xnnpack",
+                                     return_value=b"XnnpackBackend fake fixture"),
+                          mock.patch("neural_network.archery_ml.export._runtime_forward",
+                                     return_value=deployed)):
+                        with self.assertRaisesRegex(ValueError, "changed during export"):
+                            export_model(checkpoint, metadata, golden, target)
+                    self.assertFalse(target.exists())
+                    self.assertEqual(list(root.glob(".stage5-*")), [])
+
     def test_export_rejects_missing_golden_provenance(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

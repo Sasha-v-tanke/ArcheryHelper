@@ -69,11 +69,13 @@ def _validate_evaluated_input(image_id, previous, current):
         config = record["target_config"]
         if not isinstance(config, dict) or set(config) != _TARGET_CONFIG_KEYS:
             raise ValueError(f"image {image_id}: incomplete target_config in {label}")
-        if not isinstance(record["preprocessing_version"], str) or not record[
-            "preprocessing_version"
-        ]:
-            raise ValueError(f"image {image_id}: invalid preprocessing_version in {label}")
-
+        if (
+            not isinstance(record["preprocessing_version"], str)
+            or not record["preprocessing_version"]
+        ):
+            raise ValueError(
+                f"image {image_id}: invalid preprocessing_version in {label}"
+            )
 
 
 def synthetic_metrics(records):
@@ -151,7 +153,9 @@ def compare(baseline, candidate, output):
         input_rejected = previous["status"] == row["status"] == "INPUT_REJECTED"
         if not input_rejected:
             if "INPUT_REJECTED" in (previous["status"], row["status"]):
-                raise ValueError(f"image {key}: INPUT_REJECTED cannot verify input identity")
+                raise ValueError(
+                    f"image {key}: INPUT_REJECTED cannot verify input identity"
+                )
             _validate_evaluated_input(key, previous, row)
         old_points = {p["id"]: p for p in previous.get("pairs", [])}
         new_points = {p["id"]: p for p in row.get("pairs", [])}

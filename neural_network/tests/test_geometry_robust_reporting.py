@@ -223,13 +223,16 @@ class RobustReportingTest(unittest.TestCase):
                 return_value=[],
             ):
                 changed = run(root / "changed", "robust", pilot=pilot)
-            with self.assertRaisesRegex(ValueError, "image photo: input_sha256 changed"):
+            with self.assertRaisesRegex(
+                ValueError, "image photo: input_sha256 changed"
+            ):
                 compare(root / "old", root / "changed", root / "bad")
             del changed["records"][0]["input_sha256"]
             (root / "changed/report.json").write_text(json.dumps(changed))
-            with self.assertRaisesRegex(ValueError, "image photo: missing input_sha256"):
+            with self.assertRaisesRegex(
+                ValueError, "image photo: missing input_sha256"
+            ):
                 compare(root / "old", root / "changed", root / "missing-hash")
-
 
     def test_comparison_rejects_changes_to_real_preprocessing_contract(self):
         from neural_network.archery_ml.targets import (
@@ -256,7 +259,10 @@ class RobustReportingTest(unittest.TestCase):
         }
         changes = {
             "minimum_scoring_zone": ("target_config", {"minimum_scoring_zone": 6}),
-            "format": ("target_config", {"format": "TRIPLE", "triple_layout": "VERTICAL"}),
+            "format": (
+                "target_config",
+                {"format": "TRIPLE", "triple_layout": "VERTICAL"},
+            ),
             "layout": ("target_config", {"triple_layout": "VERTICAL"}),
             "candidate_ids": ("candidate_ids", ["face-1", "face-0"]),
             "preprocessing_version": ("preprocessing_version", "new-mask-algorithm"),
@@ -307,10 +313,17 @@ class RobustReportingTest(unittest.TestCase):
             ([False, False], ["READY", "READY"], 0, None),
             ([True], ["READY"], 1, 1.0),
             ([True, True, True], ["REJECTED"] * 3, 3, 0.0),
-            ([False, True, False, True], ["READY", "READY", "READY", "REJECTED"], 2, 0.5),
+            (
+                [False, True, False, True],
+                ["READY", "READY", "READY", "REJECTED"],
+                2,
+                0.5,
+            ),
         ):
             scenes = [
-                SimpleNamespace(scenario=f"case-{i}", expected_reject=flag, norm_to_image=[])
+                SimpleNamespace(
+                    scenario=f"case-{i}", expected_reject=flag, norm_to_image=[]
+                )
                 for i, flag in enumerate(expected)
             ]
             records = [
@@ -328,10 +341,14 @@ class RobustReportingTest(unittest.TestCase):
             ):
                 result = synthetic_metrics(records)
             self.assertEqual(negative_count, result["negative_scenes"])
-            self.assertEqual(fraction, result["false_accept_fraction_on_negative_scenes"])
+            self.assertEqual(
+                fraction, result["false_accept_fraction_on_negative_scenes"]
+            )
             self.assertEqual(
                 fraction,
-                json.loads(json.dumps(result))["false_accept_fraction_on_negative_scenes"],
+                json.loads(json.dumps(result))[
+                    "false_accept_fraction_on_negative_scenes"
+                ],
             )
 
     def test_pixel_hash_includes_array_shape_and_canonical_c_order(self):

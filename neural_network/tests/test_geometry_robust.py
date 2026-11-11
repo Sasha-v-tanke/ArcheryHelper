@@ -290,3 +290,58 @@ class RobustGeometryTest(unittest.TestCase):
                 [result.faces[0].center], np.linalg.inv(scene.norm_to_image[0])
             )[0]
             self.assertLess(np.linalg.norm(center), 0.015)
+
+    def test_selected_geometry_restores_full_frame_evidence_coordinates(self):
+        from neural_network.archery_ml.geometry.selected_geometry import (
+            SelectedTargetGeometryPipeline,
+        )
+
+        scene = render_scene("arrows")
+        image = np.full((900, 1000, 3), 118, np.uint8)
+        image[50:850, 100:900] = scene.image
+        candidate = {
+            "id": "f0",
+            "center": [500, 450],
+            "diameter": 350,
+            "bbox": [300, 250, 700, 650],
+        }
+        group = {
+            "candidate_ids": ["f0"],
+            "format": "SINGLE",
+            "layout": None,
+            "minimum_scoring_zone": 5,
+        }
+        adapter = SelectedTargetGeometryPipeline()
+        detect = adapter.detector.detect
+        captured = []
+
+        def observe(*args, **kwargs):
+            geometry = detect(*args, **kwargs)
+            captured.append(geometry)
+            return geometry
+
+        with patch.object(adapter.detector, "detect", side_effect=observe):
+            result, full = adapter._run(
+                image, [candidate], group, target_config=scene.config
+            )
+        self.assertTrue(result["faces"])
+        x0, y0 = result["roi"][:2]
+        self.assertGreater(x0, 0)
+        self.assertGreater(y0, 0)
+        for local, restored in zip(captured[0].faces, result["faces"]):
+            self.assertTrue(local.observed_arcs)
+            for arc, full_arc in zip(local.observed_arcs, restored["observed_arcs"]):
+                np.testing.assert_allclose(
+                    full_arc["points"], np.asarray(arc["points"]) + [x0, y0]
+                )
+            if local.excluded_points:
+                np.testing.assert_allclose(
+                    restored["excluded_points"],
+                    np.asarray(local.excluded_points) + [x0, y0],
+                )
+        for local, restored in zip(
+            captured[0].candidate_proposals, full.candidate_proposals
+        ):
+            np.testing.assert_allclose(
+                restored["center"], np.asarray(local["center"]) + [x0, y0]
+            )

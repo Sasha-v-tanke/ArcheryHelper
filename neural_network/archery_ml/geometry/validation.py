@@ -25,7 +25,8 @@ def aggregate_reports(reports: list[dict], policy: dict) -> dict:
     for report in reports:
         provenance = report.get("provenance", {})
         for key in ("algorithm_sha", "working_tree_dirty", "manifest_sha256", "policy_sha256",
-                    "gt_revision", "gt_sources", "dependencies", "quality_thresholds"):
+                    "gt_revision", "gt_sources", "dependencies", "quality_thresholds", "calibration_revision",
+                    "evaluation_pipeline", "selections_sha256"):
             if provenance.get(key) != first.get(key):
                 reasons.append(f"incompatible provenance: {key}")
         if report.get("metrics_version") != METRICS_VERSION:
@@ -39,8 +40,11 @@ def aggregate_reports(reports: list[dict], policy: dict) -> dict:
                 reasons.append("duplicate original across reports")
                 continue
             seen.update(identities)
-            samples.append({**sample, "target_config": report.get("target_config", sample.get("target_config", {}))})
+            samples.append({**sample, "target_config": report.get("target_config", sample.get("target_config", {})),
+                            "calibration_template_sha256": provenance.get("board_template_sha256")})
     result = {"sample_results": samples, "provenance": first, "metrics_version": METRICS_VERSION}
+    from collections import Counter
+    result["selection_coverage"] = dict(Counter(s.get("selection",{}).get("status","FULL_FRAME") for s in samples))
     result["validation"] = validate_holdout(result, policy)
     result["validation"]["reasons"].extend(reasons)
     if reasons:
@@ -75,6 +79,9 @@ def validate_holdout(report: dict, policy: dict) -> dict:
     if not samples or any(s["split"] != "mobile_real_test" for s in samples):
         reasons.append("independent mobile_real_test required")
     provenance = report.get("provenance", {})
+    if policy.get("require_selected_target_pipeline") and (
+            provenance.get("evaluation_pipeline") != "selected-target-v1" or not provenance.get("selections_sha256")):
+        reasons.append("selected-target pipeline and frozen selections required")
     if provenance.get("working_tree_dirty", True):
         reasons.append("algorithm working tree is not frozen")
     for key in ("algorithm_sha", "manifest_sha256", "policy_sha256", "gt_revision", "dependencies"):
@@ -96,6 +103,8 @@ def validate_holdout(report: dict, policy: dict) -> dict:
         reasons.append("READY faces lack independent landmarks")
     for sample in samples:
         meta = sample.get("capture_metadata", {})
+        if meta.get("synthetic_fixture"):
+            reasons.append("synthetic fixture is not independent real holdout")
         gt = sample.get("gt_provenance", {})
         if (not gt.get("annotation_manifest_sha256") or not gt.get("annotations_sha256")
                 or gt.get("revision") != meta.get("gt_revision")
@@ -107,12 +116,30 @@ def validate_holdout(report: dict, policy: dict) -> dict:
             reasons.append("unknown suitability")
         if sample["status"] != "READY":
             continue
+        if policy.get("require_selected_target_pipeline"):
+            selection = sample.get("selection",{})
+            if (selection.get("status") != "USER_CONFIRMED" or selection.get("source") != "USER"
+                    or not selection.get("ownership_confirmed") or not selection.get("detection_fingerprint")):
+                reasons.append("READY sample lacks verified user target selection")
         config = sample.get("target_config", report.get("target_config", {}))
         count = 1 if config.get("format") == "SINGLE" else 3
         faces = sample.get("face_error", {})
+        if policy.get("require_physical_orientation", False):
+            calibration = sample.get("calibration", {})
+            expected_template = sample.get("calibration_template_sha256", provenance.get("board_template_sha256"))
+            if (calibration.get("orientation_status") != "ANCHORED" or not expected_template
+                    or calibration.get("board_template_sha256") != expected_template
+                    or calibration.get("calibration_revision") != provenance.get("calibration_revision")
+                    or not calibration.get("image_rgb_sha256")
+                    or len(calibration.get("marker_correspondences", [])) < 3):
+                reasons.append("missing verified calibration provenance")
         if sample.get("detected_face_count") != count or set(faces) != {str(i) for i in range(count)}:
             reasons.append("READY face_index/count mismatch")
         for face in faces.values():
+            if "maximum_gt_uncertainty_norm" in policy:
+                uncertainty = face.get("gt_uncertainty_max")
+                if uncertainty is None or not np.isfinite(uncertainty) or uncertainty > policy["maximum_gt_uncertainty_norm"]:
+                    reasons.append("GT uncertainty missing or exceeds policy")
             if face.get("independent_landmarks", 0) < 4 or face.get("point_error_2d", {}).get("count", 0) < 4:
                 reasons.append("READY face lacks independent landmarks")
             _check_errors(face.get("point_error_2d", {}), policy, reasons, "READY face")
@@ -149,9 +176,14 @@ def validate_holdout(report: dict, policy: dict) -> dict:
         false_accept = sum(s["status"] == "READY" for s in unusable) / len(unusable) if unusable else None
         metrics = _sample_metrics(accepted)
         groups[key] = {"originals": len(originals), "sessions": len(sessions), "ready": len(accepted),
+                       "rejected": len(group) - len(accepted),
+                       "devices": len({s.get("capture_metadata", {}).get("device_model") for s in group} - {None}),
                        "acceptance_rate": rate, "usable_acceptance_rate": rate,
                        "usable_samples": len(usable), "unusable_samples": len(unusable),
-                       "false_accept_rate": false_accept, "point_error_2d": metrics,
+                       "false_accept_rate": false_accept, "false_reject_rate": None if rate is None else 1 - rate,
+                       "ready_usable": sum(s["status"] == "READY" for s in usable),
+                       "ready_unusable": sum(s["status"] == "READY" for s in unusable),
+                       "point_error_2d": metrics,
                        "landmark_weighted_point_error_2d": _landmark_metrics(accepted)}
         if (len(originals) < requirement["minimum_originals"] or len(sessions) < requirement["minimum_sessions"]
                 or len(accepted) < requirement["minimum_ready"] or rate is None

@@ -15,6 +15,7 @@ from PIL import Image
 from neural_network.archery_ml.contracts import (
     ModelInputSpec, ModelMetadata, ModelOutputSpec, ModelPostprocessSpec,
 )
+from neural_network.archery_ml.provenance import fingerprint, training_provenance
 from neural_network.archery_ml.stage5_golden import prepare_golden, select_goldens
 from neural_network.archery_ml.stage5_parity import read_golden_manifest, sha256_file
 
@@ -82,9 +83,17 @@ class TestGoldenSelection(unittest.TestCase):
             checkpoint = root / "best.pt"
             checkpoint.write_bytes(b"checked checkpoint fixture")
             metadata_path = root / "metadata.json"
+            dataset_provenance = {
+                "version": 3, "manifest_sha256": sha256_file(manifest),
+                "splits": {"train": {"original_sha256": []},
+                           "val": {"original_sha256": []}},
+            }
             metadata_path.write_text(json.dumps({
                 **_metadata().to_dict(),
                 "training_dataset_sha256": sha256_file(manifest),
+                "training_provenance_sha256": fingerprint(
+                    training_provenance(dataset_provenance)
+                ),
             }))
             view = SimpleNamespace(
                 __len__=lambda: 28,
@@ -119,7 +128,8 @@ class TestGoldenSelection(unittest.TestCase):
             with (
                 mock.patch("neural_network.archery_ml.stage5_golden.load_detector",
                            return_value=(None, _metadata())),
-                mock.patch("neural_network.archery_ml.stage5_golden.verify_dataset"),
+                mock.patch("neural_network.archery_ml.stage5_golden.verify_dataset",
+                           return_value=dataset_provenance),
                 mock.patch("neural_network.archery_ml.stage5_golden.DatasetView.load",
                            return_value=View()),
                 mock.patch("neural_network.archery_ml.stage5_golden.CanonicalImpactDataset",

@@ -250,8 +250,8 @@ def materialize(*, manifest: Path, snapshot: Path, review_map: Path,
     # only after the source snapshot and review artifacts have been verified.
     output_manifest.parent.mkdir(parents=True, exist_ok=True)
     output_snapshot.parent.mkdir(parents=True, exist_ok=True)
-    save_manifest(output_manifest, prepared)
     try:
+        save_manifest(output_manifest, prepared)
         derived = dict(source_snapshot)
         derived["manifest_sha256"] = _sha256(output_manifest)
         if isinstance(derived.get("report"), dict):
@@ -277,6 +277,7 @@ def materialize(*, manifest: Path, snapshot: Path, review_map: Path,
         output_snapshot.write_text(json.dumps(derived, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     except Exception:
         output_manifest.unlink(missing_ok=True)
+        output_snapshot.unlink(missing_ok=True)
         raise
     return {"manifest": str(output_manifest), "snapshot": str(output_snapshot),
             "reviewed_samples": len(mappings),

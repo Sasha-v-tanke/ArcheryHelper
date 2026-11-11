@@ -127,6 +127,66 @@ class TestRealStage4GoldenSelection(unittest.TestCase):
             self.assertTrue(any(item["reviewed_gt_impact_count"] == 1 for item in doc["samples"]))
             self.assertTrue(all(item["split"] in ("val", "test") for item in doc["samples"]))
 
+    def test_real_stage4_triples_allow_twenty_faces_from_eight_photos(self):
+        """A val/test set with eight originals can still contain 24 valid crops."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            samples, manifest, snapshot, checkpoint, metadata, metadata_file = _stage4_dataset(root)
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            original_samples = document["samples"]
+            merged = []
+            for original_index in range(0, 24, 3):
+                trio = original_samples[original_index:original_index + 3]
+                main_sample = trio[0]
+                faces, raw, canonical, empty = [], [], [], []
+                for face_index, sample in enumerate(trio):
+                    face = dict(sample["capture_metadata"]["canonical_faces"][0])
+                    face["face_index"] = face_index
+                    faces.append(face)
+                    for annotation in sample["raw_annotations"]:
+                        raw.append({**annotation, "face_index": face_index})
+                    for annotation in sample["annotations"]:
+                        canonical.append({**annotation, "face_index": face_index})
+                    if not sample["annotations"]:
+                        empty.append(face_index)
+                main_sample["raw_annotations"] = raw
+                main_sample["annotations"] = canonical
+                main_sample["capture_metadata"]["canonical_faces"] = faces
+                review = main_sample["capture_metadata"]["stage4_review"]
+                review["verified_empty_faces"] = empty
+                review["impact_face_indices"] = [
+                    item["face_index"] for item in raw
+                ]
+                review["source_annotations_sha256"] = hashlib.sha256(
+                    json.dumps(raw, sort_keys=True, separators=(",", ":"),
+                               allow_nan=False).encode()
+                ).hexdigest()
+                merged.append(main_sample)
+            document["samples"] = merged
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            snapshot_doc = json.loads(snapshot.read_text())
+            snapshot_doc["manifest_sha256"] = sha256_file(manifest)
+            snapshot.write_text(json.dumps(snapshot_doc), encoding="utf-8")
+            provenance = verify_dataset({
+                "dataset": {"manifest": str(manifest), "snapshot": str(snapshot)}
+            })
+            md = json.loads(metadata_file.read_text())
+            md["training_dataset_sha256"] = sha256_file(manifest)
+            md["training_provenance_sha256"] = fingerprint(
+                training_provenance(provenance)
+            )
+            metadata_file.write_text(json.dumps(md), encoding="utf-8")
+            with mock.patch("neural_network.archery_ml.stage5_golden.load_detector",
+                            return_value=(None, metadata)):
+                path = prepare_golden(checkpoint, metadata_file, manifest, snapshot,
+                                      root / "golden-triples", count=20)
+            faces = read_golden_manifest(path, metadata)
+            self.assertEqual(len(faces), 20)
+            self.assertEqual(len({face.original_sha256 for face in faces}), 8)
+            self.assertEqual(len({
+                (face.original_sha256, face.face_index) for face in faces
+            }), 20)
+
     def test_reject_tampered_crop_in_real_stage4_manifest(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

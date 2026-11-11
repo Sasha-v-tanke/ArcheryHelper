@@ -24,7 +24,21 @@ If installation, compilation, delegation, or Python ExecuTorch runtime is missin
 
 ## Real golden manifest
 
-Create 20–50 **already verified** Stage 3 canonical face RGB PNGs from `val`/`test`, independent of training samples and **not from `mobile_real_test`**. For each, preserve original camera-photo SHA256, canonical crop file SHA256, face ownership/index, and the reviewed selection. Never use synthetic crops as substitute for the final real parity gate. The manifest is a JSON object with `schema_version: 1` and `samples`:
+Prefer generating the set directly from the Stage 4 **verified** manifest, snapshot and the exact checkpoint. The generator runs Stage 4's entire-dataset provenance and split checks, preserves canonical RGB bytes, and selects **20–50 original-photo-disjoint** faces, including at least one positively labeled face and one independently confirmed empty face. This avoids manually copying or re-hashing 20–50 files:
+
+```bash
+python -m archery_ml.stage5_golden \
+  --checkpoint runs/<run>/best_model.pt \
+  --metadata runs/<run>/model_metadata.json \
+  --stage4-manifest data/manifests/stage4_manifest.json \
+  --stage4-snapshot data/snapshots/stage4_snapshot.json \
+  --output-directory data/stage5-golden \
+  --count 32
+```
+
+The resulting `data/stage5-golden/golden.json` binds the training dataset manifest, immutable snapshot, exact checkpoint SHA256, image bytes, original-photo SHA256 and per-face identity. A missing verified empty face or fewer than 20 independent originals **blocks generation**; never relabel an unverified zero-annotation face as negative.
+
+Alternatively, prepare 20–50 **already verified** Stage 3 canonical face RGB PNGs manually from `val`/`test`, independent of training samples and **not from `mobile_real_test`. For each, preserve original camera-photo SHA256, canonical crop file SHA256, face ownership/index, and the reviewed selection. Never use synthetic crops as substitute for the final real parity gate. The manifest is a JSON object with `schema_version: 1` and `samples`:
 
 ```json
 {
@@ -52,6 +66,7 @@ python -m archery_ml.export \
   --output-directory runs/<run>/stage5-release
 
 python -m archery_ml.export --verify-release runs/<run>/stage5-release
+python -m archery_ml.export --replay-release runs/<run>/stage5-release
 ```
 
 The output directory **must not already exist**. A failed check leaves no release directory. The successful release contains:
@@ -69,6 +84,8 @@ stage5-release/
 ```
 
 Release maxima are bounded by the fixed code-reviewable tolerances: logits max absolute `0.01`, offsets max absolute `0.01`, decoded XY distance `0.005` in normalized target units, decoded confidence absolute `0.01`. Matched point count must agree exactly for each face. Non-finite tensors and shape/type changes fail the gate. Release size limit for the `.pte` alone is **30,000,000 bytes**; any separate Android package-size policy must be checked later.
+
+The `--replay-release` check first verifies every package checksum, then executes the **shipped** PTE on the **shipped** golden PNGs and compares its outputs against the saved eager heatmap/offset tensors and decoded expected points. It does not require the original checkpoint. A package that merely claims `parity_status=PASS` is not adequate evidence.
 
 The `sha256.txt` manifest protects files **from accidental or unsigned changes**, but SHA256 alone is not a digital signature or an authenticity mechanism. A trusted build source/distribution is still required. Raw camera photos and private training datasets must not be committed; the bundle should be treated as a release artifact, not a source-code change.
 

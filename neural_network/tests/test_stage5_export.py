@@ -215,6 +215,10 @@ class TestAtomicExport(unittest.TestCase):
                              ["heatmap_logits", "offsets"])
             self.assertEqual(released_metadata["executorch"]["pte_bytes"],
                              (destination / "impact_model.pte").stat().st_size)
+            self.assertEqual(released_metadata["executorch"]["torch_version"],
+                             str(parity["torch_version"]))
+            self.assertEqual(released_metadata["executorch"]["executorch_version"],
+                             parity["executorch_version"])
             index = json.loads((destination / "golden/index.json").read_text())
             self.assertEqual(len(index["samples"]), 20)
             self.assertEqual(len(list((destination / "golden/images").iterdir())), 20)
@@ -223,6 +227,10 @@ class TestAtomicExport(unittest.TestCase):
                 replay = replay_release(destination)
             self.assertEqual(replay["status"], "PASS")
             self.assertEqual(replay["golden_count"], 20)
+            with mock.patch("neural_network.archery_ml.export.importlib.metadata.version",
+                            return_value="9.9.9"):
+                with self.assertRaisesRegex(ValueError, "runtime versions differ"):
+                    replay_release(destination)
 
             image = destination / "golden/images/face-00.png"
             image.write_bytes(b"tampered")

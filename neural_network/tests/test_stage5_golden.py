@@ -91,9 +91,25 @@ class TestGoldenSelection(unittest.TestCase):
                 select=lambda **_: None,
             )
             dataset = SimpleNamespace(records=records)
-            sample_dict = [
-                SimpleNamespace(id=f"sample-{index:03}", split="val") for index in range(28)
-            ]
+            sample_dict = []
+            for index in range(28):
+                raw_labels = ([{"x_fraction": .5, "y_fraction": .5, "face_index": 0}]
+                              if index % 2 else [])
+                raw = tuple(SimpleNamespace(to_dict=lambda value=value: value)
+                            for value in raw_labels)
+                raw_digest = hashlib.sha256(json.dumps(
+                    raw_labels, sort_keys=True, separators=(",", ":"),
+                ).encode()).hexdigest()
+                sample_dict.append(SimpleNamespace(
+                    id=f"sample-{index:03}", split="val", raw_annotations=raw,
+                    capture_metadata={
+                        "canonical_faces": [{"annotation_status": "verified"}],
+                        "stage4_review": {
+                            "annotator": "annotator-1", "reviewer": "reviewer-2",
+                            "source_annotations_sha256": raw_digest,
+                        },
+                    },
+                ))
 
             class View:
                 def __iter__(self): return iter(sample_dict)

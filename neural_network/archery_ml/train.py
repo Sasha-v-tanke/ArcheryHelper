@@ -153,6 +153,12 @@ def _checkpoint(model: ImpactPointNet, config: dict, epoch: int, provenance: dic
             "model_config": {"fpn_channels": config["model"]["fpn_channels"]},
             "model_version": config["model"]["version"], "epoch": epoch,
             "postprocess": ModelPostprocessSpec(**config["postprocess"]).to_dict(),
+            "input": ModelInputSpec(
+                width=config["model"]["input_size"], height=config["model"]["input_size"],
+                mean=tuple(config["model"].get("input_mean", (0, 0, 0))),
+                std=tuple(config["model"].get("input_std", (1, 1, 1))),
+            ).to_dict(),
+            "output": ModelOutputSpec(type="impact_heatmap_offset", stride=2).to_dict(),
             "training_provenance": provenance}
 
 

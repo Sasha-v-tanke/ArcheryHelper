@@ -17,7 +17,7 @@ from neural_network.archery_ml.contracts import (
 )
 from neural_network.archery_ml.export import export_model, replay_release, verify_release
 from neural_network.archery_ml.stage5_parity import (
-    _match_points, compare_outputs, read_golden_manifest, sha256_file,
+    _match_points, canonical_tensor, compare_outputs, read_golden_manifest, sha256_file,
 )
 from neural_network.archery_ml.postprocess import ImpactPrediction
 
@@ -95,6 +95,27 @@ class TestGoldenManifest(unittest.TestCase):
             path.write_text(json.dumps(document))
             with self.assertRaisesRegex(ValueError, "reviewed"):
                 read_golden_manifest(path, _metadata())
+
+    def test_canonical_rgb_normalization_and_no_resize(self):
+        metadata = ModelMetadata(
+            contract_version=2, model_version="test",
+            input=ModelInputSpec(width=8, height=8, mean=(.1, .2, .3),
+                                 std=(.5, 1., 2.)),
+            output=ModelOutputSpec(type="impact_heatmap_offset", stride=2),
+            postprocess=ModelPostprocessSpec(confidence_threshold=.5, nms_radius=4),
+        )
+        image = Image.new("RGB", (8, 8), (255, 0, 128))
+        result = canonical_tensor(image, metadata)
+        self.assertEqual(result.shape, (1, 3, 8, 8))
+        self.assertEqual(result.dtype, torch.float32)
+        self.assertAlmostEqual(result[0, 0, 3, 2].item(), 1.8, places=6)
+        self.assertAlmostEqual(result[0, 1, 3, 2].item(), -.2, places=6)
+        self.assertAlmostEqual(result[0, 2, 3, 2].item(),
+                               (128 / 255. - .3) / 2., places=6)
+        with self.assertRaisesRegex(ValueError, "exact RGB"):
+            canonical_tensor(image.resize((10, 10)), metadata)
+        with self.assertRaisesRegex(ValueError, "exact RGB"):
+            canonical_tensor(image.convert("L"), metadata)
 
     def test_reject_wrong_mode(self):
         with tempfile.TemporaryDirectory() as directory:

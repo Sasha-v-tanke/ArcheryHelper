@@ -143,7 +143,7 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
             raise ValueError(f"canonical impact/face assignment mismatch: {sample.id}")
         verify_negative_faces(sample, face_indices)
     return {
-        "version": 2,
+        "version": 3,
         "manifest_sha256": manifest_hash,
         "splits": {
             name: {
@@ -163,7 +163,7 @@ def verify_dataset(config: dict, *, snapshot=None) -> dict:
 def training_provenance(dataset: dict) -> dict:
     """Only train + best-checkpoint-selection (val) may influence checkpoint."""
     return {
-        "version": 2,
+        "version": 3,
         "manifest_sha256": dataset["manifest_sha256"],
         "splits": {split: dataset["splits"][split] for split in ("train", "val")},
     }
@@ -172,7 +172,7 @@ def training_provenance(dataset: dict) -> dict:
 def verify_checkpoint_holdout(checkpoint: dict, metadata: dict, dataset: dict,
                               *, split: str) -> None:
     saved = checkpoint.get("training_provenance")
-    if not isinstance(saved, dict) or saved.get("version") != 2:
+    if not isinstance(saved, dict) or saved.get("version") != 3:
         raise ValueError("checkpoint lacks versioned training/validation annotation provenance")
     saved_hash = fingerprint(saved)
     if metadata.get("training_provenance_sha256") != saved_hash:

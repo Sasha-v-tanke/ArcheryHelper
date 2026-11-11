@@ -31,7 +31,7 @@ def create_fixture(root: Path) -> None:
     with torch.no_grad():
         model.heatmap_head.weight.zero_()
         model.heatmap_head.bias.fill_(2.0)
-        model.offset_head.weight.zero_()
+        model.offset_head.weight.fill_(0.005)
         model.offset_head.bias.fill_(0.25)
 
     metadata = ModelMetadata(

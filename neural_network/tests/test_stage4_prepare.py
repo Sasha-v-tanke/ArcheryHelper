@@ -6,10 +6,14 @@ import hashlib
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 
+from neural_network.archery_ml.data.view import DatasetView
+from neural_network.archery_ml.impact_dataset import CanonicalImpactDataset
 from neural_network.archery_ml.contracts import (
     DatasetSample, ImagePointAnnotation, TargetMetadata, load_manifest, save_manifest,
 )
@@ -221,6 +225,76 @@ class MaterializerTest(unittest.TestCase):
                         data_root=self.root)
         self.assertFalse(out_manifest.exists())
         self.assertFalse(out_snapshot.exists())
+
+    def test_materialized_empty_face_reaches_canonical_loader(self):
+        positive = self.sample()
+        alternate = self.root / "empty-original.png"
+        Image.new("RGB", (512, 512), (9, 18, 27)).save(alternate)
+        negative = replace(self.sample(raw=()), id="confirmed-empty",
+                           image_path=alternate, group_id="different-session")
+        original_sha = hashlib.sha256(alternate.read_bytes()).hexdigest()
+        geometry = json.loads(self.geometry.read_text(encoding="utf-8"))
+        geometry["original_id"] = original_sha
+        other_geometry = self.artifacts / "empty-selected.json"
+        other_geometry.write_text(json.dumps(geometry), encoding="utf-8")
+        negative_review = {**self.review(negative),
+                           "original_sha256": original_sha,
+                           "geometry_path": "stage3/empty-selected.json",
+                           "geometry_sha256": hashlib.sha256(other_geometry.read_bytes()).hexdigest(),
+                           "verified_empty_faces": [0]}
+        manifest = self.manifests / "source.json"
+        save_manifest(manifest, [positive, negative])
+        snapshot = self.root / "source-snapshot.json"
+        snapshot.write_text(json.dumps({
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+            "report": {"impacts": 1, "raw_impacts": 1, "canonical_impacts": 0}
+        }), encoding="utf-8")
+        review_map = self.root / "review-map.json"
+        review_map.write_text(json.dumps({
+            positive.id: self.review(positive), negative.id: negative_review
+        }), encoding="utf-8")
+        output_manifest = self.manifests / "prepared.json"
+        output_snapshot = self.root / "prepared-snapshot.json"
+        materialize(manifest=manifest, snapshot=snapshot, review_map=review_map,
+                    output_manifest=output_manifest, output_snapshot=output_snapshot,
+                    data_root=self.root)
+        data = CanonicalImpactDataset(DatasetView.load(output_manifest),
+                                      manifest_dir=output_manifest.parent, input_size=512)
+        self.assertEqual(2, len(data))
+        self.assertEqual([0, 1], sorted(len(record.points) for record in data.records))
+        prepared = load_manifest(output_manifest)
+        empty = next(sample for sample in prepared if sample.id == negative.id)
+        self.assertEqual([0], empty.capture_metadata["stage4_review"]["verified_empty_faces"])
+
+    def test_partial_snapshot_failure_cleans_both_outputs(self):
+        sample = self.sample()
+        manifest = self.manifests / "source.json"
+        save_manifest(manifest, [sample])
+        snapshot = self.root / "source-snapshot.json"
+        snapshot.write_text(json.dumps({
+            "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+            "report": {"impacts": 1, "raw_impacts": 1, "canonical_impacts": 0}
+        }), encoding="utf-8")
+        reviews = self.root / "review-map.json"
+        reviews.write_text(json.dumps({sample.id: self.review(sample)}), encoding="utf-8")
+        output_manifest = self.manifests / "prepared.json"
+        output_snapshot = self.root / "broken-snapshot.json"
+        original_write = Path.write_text
+
+        def fail_snapshot_write(path, content, *args, **kwargs):
+            if path == output_snapshot:
+                original_write(path, "{\"partial\": ", encoding="utf-8")
+                raise OSError("simulated snapshot write failure")
+            return original_write(path, content, *args, **kwargs)
+
+        with patch.object(Path, "write_text", autospec=True,
+                          side_effect=fail_snapshot_write):
+            with self.assertRaisesRegex(OSError, "simulated snapshot write failure"):
+                materialize(manifest=manifest, snapshot=snapshot, review_map=reviews,
+                            output_manifest=output_manifest, output_snapshot=output_snapshot,
+                            data_root=self.root)
+        self.assertFalse(output_manifest.exists())
+        self.assertFalse(output_snapshot.exists())
 
     def test_derived_manifest_snapshot_are_new_and_bound(self):
         sample = self.sample()

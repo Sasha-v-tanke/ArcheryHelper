@@ -1,0 +1,37 @@
+{
+  "seed": 42,
+  "model": {
+    "version": "impact-v1.0.0",
+    "input_size": 512,
+    "output_stride": 2,
+    "fpn_channels": 48,
+    "pretrained": true,
+    "input_mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "input_std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 8,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "gaussian_sigma": 1.5,
+    "horizontal_flip_prob": 0.5,
+    "brightness": 0.15
+  },
+  "postprocess": {
+    "confidence_threshold": 0.35,
+    "nms_radius": 4
+  },
+  "dataset": {
+    "manifest": "data/manifests/stage4_manifest.json",
+    "snapshot": "data/snapshots/stage4_snapshot.json"
+  }
+}

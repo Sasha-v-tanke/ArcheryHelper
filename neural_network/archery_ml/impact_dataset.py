@@ -16,6 +16,7 @@ from torch.utils.data import Dataset
 
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.heatmap import encode_impacts
+from neural_network.archery_ml.provenance import verify_negative_faces
 
 
 @dataclass(frozen=True)
@@ -94,6 +95,7 @@ class CanonicalImpactDataset(Dataset):
                 expected_count = 3 if sample.target_metadata.format == "TRIPLE" else 1
                 if set(indices) != set(range(expected_count)):
                     raise ValueError(f"incomplete canonical face layout in {sample.id}")
+            verify_negative_faces(sample, indices)
             for entry in entries:
                 if entry.get("annotation_status") != "verified":
                     raise ValueError(f"unverified canonical labels in {sample.id}")

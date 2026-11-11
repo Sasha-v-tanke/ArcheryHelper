@@ -6,11 +6,11 @@ Export a **trained Stage 4** `best_model.pt` without altering weights, network t
 
 The exported program consumes a **pre-normalized** `float32[1,3,512,512]` tensor. It returns `heatmap_logits[1,1,256,256]` and `offsets[1,2,256,256]`, **not** final scores or a fixed number of shots. Android is responsible for the exact RGB/255→(value−mean)/std transformation specified in the metadata and for applying the same deterministic `decode_impacts` semantics. The runtime must not silently resize, change channel order, or adjust the postprocessing threshold/NMS radius.
 
-This stage does not implement Android inference, alter Room, or remove PyTorch Mobile (`model.ptl`).
+This stage does not implement Android inference, alter Room, or remove PyTorch Mobile (`model.ptl`). The existing `app/app/src/main/java/com/direwolf/archeryhelper/ml/ModelMetadata.kt` and `TorchShotDetector.kt` explicitly implement the **legacy v1 polar-shot** contract. Do **not** overwrite their Android assets with v2 metadata or `.pte` until Stage 6 installs and validates a new ExecuTorch reader and canonical-face preprocessing.
 
 ## Isolated export environment
 
-The Stage 4 training environment currently pins PyTorch 2.8 / TorchVision 0.23. The Stage 5 export toolchain is isolated and pinned to PyTorch 2.13, TorchVision 0.28 and ExecuTorch 1.5.1; the Stage 4 checkpoint is loaded strictly in the export environment. The project can continue training with its own pinned packages. Actual runtime compatibility must be established by CI and by the final golden parity run, not presumed from package versions.
+The Stage 4 training environment currently pins PyTorch 2.8 / TorchVision 0.23. The Stage 5 export toolchain is isolated and pinned to PyTorch 2.13, TorchVision 0.28 and ExecuTorch 1.5.1; the Stage 4 checkpoint is loaded strictly in the export environment. The project can continue training with its own pinned packages. CI additionally creates a full-width FPN-48 checkpoint in the original PyTorch 2.8 environment, then strictly loads and exports it with PyTorch 2.13/ExecuTorch 1.5.1; this tests the version bridge without pretending the checkpoint is trained. Actual compatibility of **your trained weights** still requires the final golden parity run.
 
 ```bash
 python3.11 -m venv .venv-export
@@ -94,7 +94,7 @@ The `sha256.txt` manifest protects files **from accidental or unsigned changes**
 
 ## Acceptance boundaries
 
-- **Engineering smoke**: CI must compile and run the real XNNPACK delegate on 20 deterministic synthetic 512×512 images (this does not prove useful detection quality).
+- **Engineering smoke**: CI must compile and run the real XNNPACK delegate on 20 deterministic synthetic 512×512 images through the production FPN-48 topology, including nonempty postprocessed points, and independently replay the saved PTE. The second CI job checks a Stage 4 torch-2.8 checkpoint against the Stage 5 torch-2.13 runtime. Neither test establishes useful detection quality.
 - **Stage 5 golden parity**: actual trained, immutable Stage 4 checkpoint + independently reviewed 20–50 canonical crops must pass real eager/ExecuTorch tensor and point checks. Record exact checkpoint SHA256, PTE SHA256, environment and per-output maxima.
 - **Stage 4 detection quality gate**: independent original-photo holdout and production localization metrics must pass separately. A green Stage 5 smoke is **not** approval to deploy the model.
 - **Android parity and removal of PyTorch Mobile**: belongs to Stage 6, not this PR.

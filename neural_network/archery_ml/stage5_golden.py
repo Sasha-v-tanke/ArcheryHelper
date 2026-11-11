@@ -86,13 +86,31 @@ def prepare_golden(
     if output_directory.exists():
         raise FileExistsError("golden destination already exists")
     # Stage 4 loader refuses stale metadata and tampered checkpoint provenance.
+    expected_checkpoint_hash = sha256_file(checkpoint)
     _, metadata = load_detector(checkpoint, metadata_path, device="cpu")
     metadata_document = json.loads(metadata_path.read_text(encoding="utf-8"))
-    if metadata_document.get("training_dataset_sha256") != sha256_file(manifest):
+    expected_manifest_hash = sha256_file(manifest)
+    expected_snapshot_hash = sha256_file(snapshot)
+    if metadata_document.get("training_dataset_sha256") != expected_manifest_hash:
         raise ValueError("Stage 4 manifest is not the one bound to the trained checkpoint")
     # Verify snapshot and split integrity for the ENTIRE dataset, not only the chosen crops.
     verify_dataset({"dataset": {"manifest": str(manifest), "snapshot": str(snapshot)}})
     view = DatasetView.load(manifest).select(splits=("val", "test"))
+    for sample in view:
+        if not (sample.capture_metadata or {}).get("canonical_faces"):
+            continue
+        review = (sample.capture_metadata or {}).get("stage4_review") or {}
+        annotator, reviewer = review.get("annotator"), review.get("reviewer")
+        if (not isinstance(annotator, str) or not annotator.strip()
+                or not isinstance(reviewer, str) or not reviewer.strip()
+                or annotator == reviewer):
+            raise ValueError(f"missing independent Stage 4 annotation review: {sample.id}")
+        labels = [annotation.to_dict() for annotation in sample.raw_annotations]
+        raw_digest = hashlib.sha256(json.dumps(
+            labels, sort_keys=True, separators=(",", ":"), allow_nan=False,
+        ).encode()).hexdigest()
+        if review.get("source_annotations_sha256") != raw_digest:
+            raise ValueError(f"Stage 4 reviewed raw annotation digest mismatch: {sample.id}")
     sample_splits = {sample.id: sample.split for sample in view}
     if len(sample_splits) != len(view):
         raise ValueError("ambiguous sample IDs")
@@ -127,12 +145,16 @@ def prepare_golden(
                 "stage4_sample_id": record.sample_id,
                 "reviewed_gt_impact_count": len(record.points),
             })
+        if (sha256_file(manifest) != expected_manifest_hash
+                or sha256_file(snapshot) != expected_snapshot_hash
+                or sha256_file(checkpoint) != expected_checkpoint_hash):
+            raise ValueError("Stage 4 provenance changed during golden set preparation")
         golden = staging / "golden.json"
         golden.write_text(json.dumps({
             "schema_version": 1,
-            "source_manifest_sha256": sha256_file(manifest),
-            "source_snapshot_sha256": sha256_file(snapshot),
-            "source_checkpoint_sha256": sha256_file(checkpoint),
+            "source_manifest_sha256": expected_manifest_hash,
+            "source_snapshot_sha256": expected_snapshot_hash,
+            "source_checkpoint_sha256": expected_checkpoint_hash,
             "samples": samples,
         }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         read_golden_manifest(golden, metadata)

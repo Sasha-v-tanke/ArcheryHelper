@@ -267,6 +267,9 @@ def verify_release(directory: Path) -> dict:
             or artifact["checkpoint_sha256"] != parity["checkpoint_sha256"]
             or artifact.get("source_metadata_sha256") != parity.get("source_metadata_sha256")
             or artifact.get("source_golden_manifest_sha256") != parity.get("source_golden_manifest_sha256")
+            or parity.get("golden_source_manifest_sha256") != meta.get("training_dataset_sha256")
+            or artifact.get("torch_version") != str(parity.get("torch_version"))
+            or artifact.get("executorch_version") != parity.get("executorch_version")
             or artifact.get("pte_bytes") != (directory / "impact_model.pte").stat().st_size
             or parity.get("pte_bytes") != artifact.get("pte_bytes")
             or artifact.get("input_dtype") != "float32"
@@ -286,6 +289,9 @@ def replay_release(directory: Path) -> dict:
     """
     directory = Path(directory).resolve(strict=True)
     original = verify_release(directory)
+    if (original["torch_version"] != str(torch.__version__)
+            or original["executorch_version"] != importlib.metadata.version("executorch")):
+        raise ValueError("replay runtime versions differ from sealed Stage 5 export environment")
     metadata = ModelMetadata.from_dict(
         json.loads((directory / "model_metadata.json").read_text(encoding="utf-8"))
     )

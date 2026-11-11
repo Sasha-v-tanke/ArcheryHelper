@@ -538,7 +538,7 @@ class ValidationAnnotationProvenanceTest(CanonicalFixture, unittest.TestCase):
             verify_checkpoint_holdout(checkpoint, metadata, modified, split="val")
         with self.assertRaisesRegex(ValueError, "val data/annotations differ"):
             verify_checkpoint_holdout(checkpoint, metadata, modified, split="mobile_real_test")
-        previous = {**saved, "version": 1}
+        previous = {**saved, "version": 2}
         with self.assertRaisesRegex(ValueError, "versioned training/validation annotation provenance"):
             verify_checkpoint_holdout({"training_provenance": previous},
                                       {"training_provenance_sha256": fingerprint(previous)},

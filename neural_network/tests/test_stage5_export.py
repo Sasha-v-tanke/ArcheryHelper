@@ -159,7 +159,15 @@ class TestAtomicExport(unittest.TestCase):
         checkpoint = root / "best_model.pt"
         checkpoint.write_bytes(b"fake checkpoint for isolated packaging tests")
         metadata = root / "source-metadata.json"
-        metadata.write_text(json.dumps(_metadata().to_dict()), encoding="utf-8")
+        dataset_hash = hashlib.sha256(b"stage4-synthetic-fixture").hexdigest()
+        metadata.write_text(json.dumps({
+            **_metadata().to_dict(), "training_dataset_sha256": dataset_hash,
+        }), encoding="utf-8")
+        golden_document = json.loads(golden.read_text())
+        golden_document["source_manifest_sha256"] = dataset_hash
+        golden_document["source_snapshot_sha256"] = hashlib.sha256(b"snapshot-fixture").hexdigest()
+        golden_document["source_checkpoint_sha256"] = sha256_file(checkpoint)
+        golden.write_text(json.dumps(golden_document), encoding="utf-8")
         return checkpoint, metadata, golden
 
     def test_successful_mocked_export_has_consistent_manifest(self):
@@ -211,6 +219,19 @@ class TestAtomicExport(unittest.TestCase):
                     export_model(checkpoint, metadata, golden, destination)
             self.assertFalse(destination.exists())
             self.assertEqual(list(root.glob(".stage5-*")), [])
+
+    def test_export_rejects_missing_golden_provenance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            document = json.loads(golden.read_text())
+            del document["source_snapshot_sha256"]
+            golden.write_text(json.dumps(document))
+            with mock.patch("neural_network.archery_ml.export.load_detector",
+                            return_value=(_TestModel(), _metadata())):
+                with self.assertRaisesRegex(ValueError, "lacks immutable"):
+                    export_model(checkpoint, metadata, golden, root / "release")
+            self.assertFalse((root / "release").exists())
 
     def test_export_rejects_golden_provenance_mismatch(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -29,7 +29,7 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
         # The names and provenance below are explicitly synthetic fixture labels.
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            model = ImpactPointNet(fpn_channels=8, pretrained=False).eval()
+            model = ImpactPointNet(fpn_channels=48, pretrained=False).eval()
             # Deliberately produce one finite, high-confidence point per face:
             # a zero-detection-only smoke would never exercise decoder parity.
             with torch.no_grad():
@@ -51,7 +51,7 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
             checkpoint = root / "synthetic-checkpoint.pt"
             torch.save({
                 "model_state": model.state_dict(),
-                "model_config": {"fpn_channels": 8},
+                "model_config": {"fpn_channels": 48},
                 "model_version": metadata.model_version,
                 "postprocess": metadata.postprocess.to_dict(),
                 "input": metadata.input.to_dict(),

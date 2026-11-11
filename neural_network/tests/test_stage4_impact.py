@@ -274,6 +274,36 @@ class CanonicalDataTest(CanonicalFixture, unittest.TestCase):
                 with patch("neural_network.archery_ml.train.load_snapshot", return_value=fake):
                     with self.assertRaisesRegex(ValueError, "postprocess"):
                         evaluate_checkpoint(config_path, best, altered, split="val")
+        # Input normalization and output geometry must be immutable as well:
+        # jointly editing config and metadata previously bypassed the gate.
+        for field in ("mean", "std"):
+            changed_metadata = json.loads(json.dumps(original_metadata))
+            changed_metadata["input"][field] = [0.3, 0.4, 0.5]
+            altered = self.root / f"tampered-input-{field}.json"
+            altered.write_text(json.dumps(changed_metadata), encoding="utf-8")
+            with self.subTest(input_field=field):
+                with self.assertRaisesRegex(ValueError, "input/output"):
+                    load_detector(best, altered)
+                changed_config = json.loads(json.dumps(config))
+                changed_config["model"][f"input_{field}"] = [0.3, 0.4, 0.5]
+                changed_config_path = self.root / f"tampered-config-{field}.json"
+                changed_config_path.write_text(json.dumps(changed_config), encoding="utf-8")
+                with patch("neural_network.archery_ml.train.load_snapshot", return_value=fake):
+                    with self.assertRaisesRegex(ValueError, "input/output"):
+                        evaluate_checkpoint(changed_config_path, best, altered, split="val")
+        inconsistent = json.loads(json.dumps(original_metadata))
+        inconsistent["training_dataset_sha256"] = "0" * 64
+        bad_provenance_path = self.root / "tampered-training-dataset.json"
+        bad_provenance_path.write_text(json.dumps(inconsistent), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "training provenance"):
+            load_detector(best, bad_provenance_path)
+        legacy_input = dict(state)
+        legacy_input.pop("input")
+        legacy_input_path = self.root / "legacy-without-input-contract.pt"
+        torch.save(legacy_input, legacy_input_path)
+        with self.assertRaisesRegex(ValueError, "input/output"):
+            load_detector(legacy_input_path, metadata_path)
+
         legacy = dict(state)
         legacy.pop("postprocess")
         legacy_path = self.root / "legacy-without-postprocess.pt"

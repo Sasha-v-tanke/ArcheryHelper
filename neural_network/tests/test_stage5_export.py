@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import numpy as np
 import torch
 from PIL import Image
 
@@ -50,7 +51,36 @@ def _build_golden(root: Path, *, count: int = 20, size: int = 512) -> Path:
     return manifest
 
 
+def _reseal_release(root: Path) -> None:
+    metadata_path = root / "model_metadata.json"
+    metadata = json.loads(metadata_path.read_text())
+    metadata["executorch"]["golden_index_sha256"] = sha256_file(root / "golden/index.json")
+    metadata["executorch"]["parity_report_sha256"] = sha256_file(root / "parity.json")
+    metadata_path.write_text(json.dumps(metadata))
+    files = sorted(path for path in root.rglob("*") if path.is_file() and path.name != "sha256.txt")
+    (root / "sha256.txt").write_text("\n".join(
+        f"{sha256_file(path)}  {path.relative_to(root).as_posix()}" for path in files) + "\n")
+
+
 class TestGoldenManifest(unittest.TestCase):
+    def test_metadata_v2_rejects_missing_and_coerced_fields(self):
+        valid = _metadata().to_dict()
+        for section, key, value in (
+            ("input", "mean", None), ("input", "std", None),
+            ("input", "color_space", None), ("input", "width", 512.5),
+            ("input", "height", "512"), ("output", "stride", 2.5),
+            ("postprocess", "nms_radius", "1"),
+            ("postprocess", "confidence_threshold", "0.5"),
+        ):
+            with self.subTest(section=section, key=key):
+                document = json.loads(json.dumps(valid))
+                if value is None:
+                    del document[section][key]
+                else:
+                    document[section][key] = value
+                with self.assertRaises(ValueError):
+                    ModelMetadata.from_dict(document)
+
     def test_strict_golden_set_and_stable_sort(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -190,6 +220,19 @@ class _TestModel(torch.nn.Module):
                 torch.zeros((1, 2, 256, 256), dtype=torch.float32))
 
 
+class _PixelModel(torch.nn.Module):
+    def __init__(self, restore: Path, original: bytes):
+        super().__init__()
+        self.restore = restore
+        self.original = original
+
+    def forward(self, image: torch.Tensor):
+        # Simulates a source swap ending after eager input was decoded.
+        self.restore.write_bytes(self.original)
+        logits = torch.ones((1, 1, 256, 256), dtype=torch.float32) * (image[0, 0, 0, 0] - 9)
+        return logits, torch.zeros((1, 2, 256, 256), dtype=torch.float32)
+
+
 class TestAtomicExport(unittest.TestCase):
     def _setup(self, root):
         golden = _build_golden(root)
@@ -324,6 +367,113 @@ class TestAtomicExport(unittest.TestCase):
             reseal()
             with self.assertRaisesRegex(ValueError, "golden record"):
                 verify_release(target)
+
+    def test_rehashed_release_rejects_missing_normalization_and_broken_links(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            target = root / "bundle"
+            model = _TestModel()
+            with (mock.patch("neural_network.archery_ml.export.load_detector",
+                             return_value=(model, _metadata())),
+                  mock.patch("neural_network.archery_ml.export._compile_xnnpack",
+                             return_value=b"XnnpackBackend fake fixture"),
+                  mock.patch("neural_network.archery_ml.export._runtime_forward",
+                             return_value=lambda tensor: model(tensor)),
+                  mock.patch("neural_network.archery_ml.export.importlib.metadata.version",
+                             return_value="1.5.1")):
+                export_model(checkpoint, metadata, golden, target)
+            metadata_path = target / "model_metadata.json"
+            original_meta = json.loads(metadata_path.read_text())
+            parity_path = target / "parity.json"
+            original_parity = json.loads(parity_path.read_text())
+            for section, key, value, error in (
+                ("input", "mean", None, "input metadata"),
+                ("input", "width", 512.5, "input metadata"),
+                ("parity", "golden_index_sha256", "a" * 64, "inconsistent Stage 5"),
+                ("parity", "golden_source_snapshot_sha256", "a" * 64, "inconsistent Stage 5"),
+            ):
+                with self.subTest(section=section, key=key):
+                    metadata_path.write_text(json.dumps(original_meta))
+                    parity_path.write_text(json.dumps(original_parity))
+                    path = parity_path if section == "parity" else metadata_path
+                    document = json.loads(path.read_text())
+                    if value is None:
+                        del document[section][key]
+                    else:
+                        document[section][key] = value
+                    path.write_text(json.dumps(document))
+                    _reseal_release(target)
+                    with self.assertRaisesRegex(ValueError, error):
+                        verify_release(target)
+
+    def test_replay_failure_prevents_release_publication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            model = _TestModel()
+            calls = 0
+
+            def forward(_pte):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    return lambda tensor: model(tensor)
+                return lambda tensor: (torch.ones((1, 1, 256, 256)),
+                                       torch.zeros((1, 2, 256, 256)))
+
+            with (mock.patch("neural_network.archery_ml.export.load_detector",
+                             return_value=(model, _metadata())),
+                  mock.patch("neural_network.archery_ml.export._compile_xnnpack",
+                             return_value=b"XnnpackBackend fake fixture"),
+                  mock.patch("neural_network.archery_ml.export._runtime_forward",
+                             side_effect=forward),
+                  mock.patch("neural_network.archery_ml.export.importlib.metadata.version",
+                             return_value="1.5.1")):
+                with self.assertRaisesRegex(ValueError, "parity"):
+                    export_model(checkpoint, metadata, golden, root / "release")
+            self.assertEqual(calls, 2)
+            self.assertFalse((root / "release").exists())
+            self.assertEqual(list(root.glob(".stage5-*")), [])
+
+    def test_temporary_source_swap_cannot_desynchronize_saved_tensors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            first = root / "face-00.png"
+            original = first.read_bytes()
+            replacement = root / "replacement.png"
+            Image.new("RGB", (512, 512), color=(240, 20, 20)).save(replacement)
+            alternate = replacement.read_bytes()
+            model = _PixelModel(first, original)
+            real_open = Image.open
+            opens = 0
+
+            def swapping_open(source, *args, **kwargs):
+                nonlocal opens
+                if isinstance(source, Path) and source == first:
+                    opens += 1
+                    if opens == 3:
+                        first.write_bytes(alternate)
+                return real_open(source, *args, **kwargs)
+
+            with (mock.patch("neural_network.archery_ml.export.load_detector",
+                             return_value=(model, _metadata())),
+                  mock.patch("neural_network.archery_ml.export._compile_xnnpack",
+                             return_value=b"XnnpackBackend fake fixture"),
+                  mock.patch("neural_network.archery_ml.export._runtime_forward",
+                             return_value=lambda tensor: model(tensor)),
+                  mock.patch("neural_network.archery_ml.export.importlib.metadata.version",
+                             return_value="1.5.1"),
+                  mock.patch("neural_network.archery_ml.export.Image.open",
+                             side_effect=swapping_open)):
+                export_model(checkpoint, metadata, golden, root / "release")
+            self.assertEqual((root / "release/golden/images/face-00.png").read_bytes(), original)
+            with np.load(root / "release/golden/expected/face-00.npz",
+                         allow_pickle=False) as saved:
+                expected_pixel = (1 / 255.0 - 9)
+                self.assertAlmostEqual(float(saved["heatmap_logits"][0, 0, 0, 0]),
+                                       expected_pixel, places=5)
 
     def test_runtime_mismatch_cleans_incomplete_release(self):
         with tempfile.TemporaryDirectory() as directory:

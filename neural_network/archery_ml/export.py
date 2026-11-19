@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.metadata
 import json
 import math
 import shutil
 import tempfile
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
@@ -107,6 +109,8 @@ def export_model(
     model, metadata = load_detector(checkpoint, metadata_path, device="cpu")
     _validate_contract(metadata)
     original_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if ModelMetadata.from_dict(original_metadata) != metadata:
+        raise ValueError("source Stage 4 metadata differs from loaded model contract")
     if "executorch" in original_metadata:
         raise ValueError("source metadata must be the unmodified Stage 4 training metadata")
     samples = read_golden_manifest(golden_manifest, metadata)
@@ -129,7 +133,7 @@ def export_model(
     output_directory.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".stage5-", dir=output_directory.parent))
     try:
-        with Image.open(samples[0].image) as image:
+        with Image.open(BytesIO(samples[0].image.read_bytes())) as image:
             example = canonical_tensor(image, metadata)
         pte = _compile_xnnpack(model, example)
         pte_path = staging / "impact_model.pte"
@@ -140,10 +144,11 @@ def export_model(
         measured = []
         with torch.inference_mode():
             for sample in samples:
-                # Recheck source integrity during export, not only at manifest parsing.
-                if sha256_file(sample.image) != sample.crop_sha256:
+                # The same checked bytes feed eager inference and the release PNG.
+                image_bytes = sample.image.read_bytes()
+                if hashlib.sha256(image_bytes).hexdigest() != sample.crop_sha256:
                     raise ValueError(f"golden image changed during export: {sample.sample_id}")
-                with Image.open(sample.image) as image:
+                with Image.open(BytesIO(image_bytes)) as image:
                     tensor = canonical_tensor(image, metadata)
                 eager_outputs = tuple(value.detach().cpu().contiguous() for value in model(tensor))
                 runtime_outputs = run(tensor.clone())
@@ -154,7 +159,7 @@ def export_model(
                 expected_rel = Path("golden/expected") / (sample.sample_id + ".npz")
                 (staging / image_rel).parent.mkdir(parents=True, exist_ok=True)
                 (staging / expected_rel).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(sample.image, staging / image_rel)
+                (staging / image_rel).write_bytes(image_bytes)
                 np.savez_compressed(staging / expected_rel,
                                     heatmap_logits=eager_outputs[0].numpy(),
                                     offsets=eager_outputs[1].numpy())
@@ -173,10 +178,11 @@ def export_model(
                     "expected_points": outcome["expected_points"],
                 })
 
-        if (sha256_file(checkpoint) != checkpoint_hash
+        if (any(sha256_file(sample.image) != sample.crop_sha256 for sample in samples)
+                or sha256_file(checkpoint) != checkpoint_hash
                 or sha256_file(metadata_path) != source_metadata_hash
                 or sha256_file(golden_manifest) != source_golden_hash):
-            raise ValueError("checkpoint, metadata or golden manifest changed during export")
+            raise ValueError("checkpoint, metadata or golden inputs changed during export")
 
         maxima = {
             metric: max(result[metric] for result in measured)
@@ -224,6 +230,7 @@ def export_model(
             "checkpoint_sha256": parity["checkpoint_sha256"],
             "source_metadata_sha256": parity["source_metadata_sha256"],
             "source_golden_manifest_sha256": parity["source_golden_manifest_sha256"],
+            "source_snapshot_sha256": parity["golden_source_snapshot_sha256"],
             "golden_index_sha256": parity["golden_index_sha256"],
             "parity_report_sha256": sha256_file(staging / "parity.json"),
             "parity_status": "PASS",
@@ -237,6 +244,9 @@ def export_model(
             for file in listed
         ]
         (staging / "sha256.txt").write_text("\n".join(hashes) + "\n", encoding="utf-8")
+
+        # Reject any package that cannot replay before exposing the final path.
+        replay_release(staging)
 
         # Same-filesystem rename exposes no partial release; never overwrite.
         if output_directory.exists():
@@ -333,15 +343,28 @@ def verify_release(directory: Path) -> dict:
     if not positive or not negative:
         raise ValueError("Stage 5 golden index lacks reviewed positive or verified-empty faces")
     artifact = meta["executorch"]
+    for document, fields in (
+        (parity, ("golden_index_sha256", "golden_source_manifest_sha256",
+                  "golden_source_snapshot_sha256", "checkpoint_sha256",
+                  "source_metadata_sha256", "source_golden_manifest_sha256", "pte_sha256")),
+        (artifact, ("sha256", "checkpoint_sha256", "source_metadata_sha256",
+                    "source_golden_manifest_sha256", "source_snapshot_sha256",
+                    "golden_index_sha256", "parity_report_sha256")),
+    ):
+        if any(not isinstance(document.get(field), str)
+               or not SHA256_PATTERN.fullmatch(document[field]) for field in fields):
+            raise ValueError("invalid Stage 5 release SHA256 reference")
     if (artifact["parity_status"] != "PASS" or parity["status"] != "PASS"
             or artifact["backend"] != "XNNPACK" or artifact["artifact"] != "impact_model.pte"
             or artifact["sha256"] != sha256_file(directory / "impact_model.pte")
             or artifact["golden_index_sha256"] != sha256_file(directory / "golden/index.json")
             or artifact["parity_report_sha256"] != sha256_file(directory / "parity.json")
             or artifact["sha256"] != parity["pte_sha256"]
+            or parity.get("golden_index_sha256") != sha256_file(directory / "golden/index.json")
             or artifact["checkpoint_sha256"] != parity["checkpoint_sha256"]
             or artifact.get("source_metadata_sha256") != parity.get("source_metadata_sha256")
             or artifact.get("source_golden_manifest_sha256") != parity.get("source_golden_manifest_sha256")
+            or artifact.get("source_snapshot_sha256") != parity.get("golden_source_snapshot_sha256")
             or parity.get("golden_source_manifest_sha256") != meta.get("training_dataset_sha256")
             or artifact.get("torch_version") != str(parity.get("torch_version"))
             or artifact.get("executorch_version") != parity.get("executorch_version")

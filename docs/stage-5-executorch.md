@@ -95,6 +95,8 @@ The `--replay-release` check first verifies every package checksum and the recor
 
 `--verify-release` also validates the fixed parity limits, finite measured errors, 20–50 unique reviewed face identities, positive/empty coverage, per-record hashes and the metadata input/output/postprocess contract. It cannot authenticate a package whose files and SHA256 manifest were deliberately replaced together; trusted artifact distribution and independent source review remain required.
 
+Metadata v2 parsing requires explicit JSON input dimensions, RGB color space, three normalization means and standard deviations, output stride, and postprocessing parameters with their expected numeric types. Export uses each hash-checked PNG byte sequence for both eager inference and the packaged image, then replays the sealed package **before** publishing the release directory. The parity report and release metadata must agree on the golden index and Stage 4 snapshot SHA256 references.
+
 ## Current production evidence (19 November 2026)
 
 The available repository checkout, GitHub Releases and latest Stage 5/Stage 4/Baseline workflow artifacts contain no trained `best_model.pt`, matching Stage 4 manifest/snapshot or reviewed canonical crop set. The connected ArcheryHelper Drive folder also contains no checkpoint or Stage 4 manifest. Consequently no production `impact_model.pte`, real-crop parity numbers or release replay can be reported. The PR remains a draft pending those source artifacts and Stage 4 quality evidence. The green CI runs exercise synthetic fixtures only.

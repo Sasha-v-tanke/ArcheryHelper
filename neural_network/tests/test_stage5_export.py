@@ -398,10 +398,11 @@ class TestAtomicExport(unittest.TestCase):
                     parity_path.write_text(json.dumps(original_parity))
                     path = parity_path if section == "parity" else metadata_path
                     document = json.loads(path.read_text())
+                    fields = document if section == "parity" else document[section]
                     if value is None:
-                        del document[section][key]
+                        del fields[key]
                     else:
-                        document[section][key] = value
+                        fields[key] = value
                     path.write_text(json.dumps(document))
                     _reseal_release(target)
                     with self.assertRaisesRegex(ValueError, error):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import math
 import shutil
 import tempfile
 from pathlib import Path
@@ -16,11 +17,26 @@ from PIL import Image
 from neural_network.archery_ml.contracts import ModelMetadata
 from neural_network.archery_ml.inference import load_detector
 from neural_network.archery_ml.stage5_parity import (
-    LOGIT_MAX_ABS, OFFSET_MAX_ABS, POINT_CONFIDENCE_ABS, POINT_NORM_DISTANCE,
-    SHA256_PATTERN, canonical_tensor, compare_outputs, read_golden_manifest, sha256_file,
+    LOGIT_MAX_ABS, MAX_GOLDEN, MIN_GOLDEN, OFFSET_MAX_ABS,
+    POINT_CONFIDENCE_ABS, POINT_NORM_DISTANCE, SHA256_PATTERN,
+    canonical_tensor, compare_outputs, read_golden_manifest, sha256_file,
 )
 
 PTE_LIMIT_BYTES = 30_000_000
+
+
+def _validate_contract(metadata: ModelMetadata) -> None:
+    if (metadata.contract_version != 2 or metadata.input.color_space != "RGB"
+            or metadata.input.width != 512 or metadata.input.height != 512
+            or metadata.output.type != "impact_heatmap_offset" or metadata.output.stride != 2
+            or len(metadata.input.mean) != 3 or len(metadata.input.std) != 3
+            or any(not math.isfinite(value) for value in (*metadata.input.mean, *metadata.input.std))
+            or any(value <= 0 for value in metadata.input.std)
+            or not math.isfinite(metadata.postprocess.confidence_threshold)
+            or not 0 < metadata.postprocess.confidence_threshold <= 1
+            or type(metadata.postprocess.nms_radius) is not int
+            or metadata.postprocess.nms_radius < 0):
+        raise ValueError("unsupported or invalid Stage 5 input/output/postprocess contract")
 
 
 def _compile_xnnpack(model: torch.nn.Module, example: torch.Tensor) -> bytes:
@@ -89,10 +105,7 @@ def export_model(
     source_metadata_hash = sha256_file(metadata_path)
     source_golden_hash = sha256_file(golden_manifest)
     model, metadata = load_detector(checkpoint, metadata_path, device="cpu")
-    if (metadata.contract_version != 2 or metadata.input.color_space != "RGB"
-            or metadata.input.width != 512 or metadata.input.height != 512
-            or metadata.output.type != "impact_heatmap_offset" or metadata.output.stride != 2):
-        raise ValueError("unsupported Stage 4 export input/output contract")
+    _validate_contract(metadata)
     original_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     if "executorch" in original_metadata:
         raise ValueError("source metadata must be the unmodified Stage 4 training metadata")
@@ -152,6 +165,7 @@ def export_model(
                     "split": sample.split,
                     "original_sha256": sample.original_sha256,
                     "face_index": sample.face_index,
+                    "reviewed_gt_impact_count": sample.reviewed_gt_impact_count,
                     "image_path": image_rel.as_posix(),
                     "image_sha256": sample.crop_sha256,
                     "expected_tensors_path": expected_rel.as_posix(),
@@ -257,6 +271,67 @@ def verify_release(directory: Path) -> dict:
         raise ValueError("release files missing from or added to sha256.txt")
     meta = json.loads((directory / "model_metadata.json").read_text(encoding="utf-8"))
     parity = json.loads((directory / "parity.json").read_text(encoding="utf-8"))
+    model_metadata = ModelMetadata.from_dict(meta)
+    _validate_contract(model_metadata)
+    expected_limits = {
+        "logits_max_abs": LOGIT_MAX_ABS,
+        "offsets_max_abs": OFFSET_MAX_ABS,
+        "points_xy_max_norm": POINT_NORM_DISTANCE,
+        "points_confidence_max_abs": POINT_CONFIDENCE_ABS,
+    }
+    maxima = parity.get("max_errors")
+    if (parity.get("limits") != expected_limits or not isinstance(maxima, dict)
+            or maxima.keys() != expected_limits.keys()
+            or any(type(maxima[key]) not in (int, float)
+                   or not math.isfinite(maxima[key])
+                   or not 0 <= maxima[key] <= limit
+                   for key, limit in expected_limits.items())):
+        raise ValueError("invalid Stage 5 parity limits or measurements")
+    index = json.loads((directory / "golden/index.json").read_text(encoding="utf-8"))
+    records = index.get("samples")
+    if (index.get("schema_version") != 1 or not isinstance(records, list)
+            or not MIN_GOLDEN <= len(records) <= MAX_GOLDEN
+            or parity.get("golden_count") != len(records)
+            or type(parity.get("total_expected_points")) is not int
+            or parity["total_expected_points"] < 0):
+        raise ValueError("invalid Stage 5 golden index or sample count")
+    ids, faces, crops = set(), set(), set()
+    positive = negative = False
+    for record in records:
+        if not isinstance(record, dict):
+            raise ValueError("invalid Stage 5 golden record")
+        count = record.get("reviewed_gt_impact_count")
+        face = (record.get("original_sha256"), record.get("face_index"))
+        if (type(count) is not int or count < 0
+                or type(record.get("face_index")) is not int
+                or not 0 <= record["face_index"] <= 2
+                or record.get("split") not in ("val", "test")
+                or not isinstance(record.get("sample_id"), str)
+                or not isinstance(record.get("expected_points"), list)
+                or record["sample_id"] in ids or face in faces
+                or record.get("image_sha256") in crops
+                or any(not isinstance(record.get(key), str)
+                       or not SHA256_PATTERN.fullmatch(record[key])
+                       for key in ("original_sha256", "image_sha256", "expected_tensors_sha256"))):
+            raise ValueError("invalid or duplicate Stage 5 golden record")
+        ids.add(record["sample_id"])
+        faces.add(face)
+        crops.add(record["image_sha256"])
+        for path_key, hash_key, prefix in (
+            ("image_path", "image_sha256", "golden/images/"),
+            ("expected_tensors_path", "expected_tensors_sha256", "golden/expected/"),
+        ):
+            relative = record.get(path_key)
+            if (not isinstance(relative, str) or not relative.startswith(prefix)
+                    or Path(relative).is_absolute() or ".." in Path(relative).parts):
+                raise ValueError("invalid Stage 5 golden record path")
+            path = (directory / relative).resolve(strict=True)
+            if not path.is_relative_to(directory) or sha256_file(path) != record[hash_key]:
+                raise ValueError("Stage 5 golden record SHA256 mismatch")
+        positive |= count > 0
+        negative |= count == 0
+    if not positive or not negative:
+        raise ValueError("Stage 5 golden index lacks reviewed positive or verified-empty faces")
     artifact = meta["executorch"]
     if (artifact["parity_status"] != "PASS" or parity["status"] != "PASS"
             or artifact["backend"] != "XNNPACK" or artifact["artifact"] != "impact_model.pte"
@@ -271,6 +346,7 @@ def verify_release(directory: Path) -> dict:
             or artifact.get("torch_version") != str(parity.get("torch_version"))
             or artifact.get("executorch_version") != parity.get("executorch_version")
             or artifact.get("pte_bytes") != (directory / "impact_model.pte").stat().st_size
+            or not 0 < artifact.get("pte_bytes", 0) <= PTE_LIMIT_BYTES
             or parity.get("pte_bytes") != artifact.get("pte_bytes")
             or artifact.get("input_dtype") != "float32"
             or artifact.get("input_layout") != "NCHW"

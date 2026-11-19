@@ -52,12 +52,15 @@ Alternatively, prepare 20–50 **already verified** Stage 3 canonical face RGB P
     "crop_sha256": "<64 hexadecimal lowercase characters>",
     "original_sha256": "<64 hexadecimal lowercase characters>",
     "face_index": 0,
-    "split": "val"
+    "split": "val",
+    "reviewed_gt_impact_count": 1
   }]
 }
 ```
 
 `image_path` resolves **inside** the golden manifest directory; symlink traversal, hash mismatch, invalid PNG/RGB, wrong 512×512 dimensions, duplicate identifiers/crop hashes/original-face identities, and unexpected splits are rejected. The example shows one record for readability; an actual export requires 20–50 and all three top-level source SHA256 bindings. **Export refuses missing or changed checkpoint/manifest/snapshot declarations**, and checks the manifest SHA against Stage 4 training metadata. The generator provides these fields automatically and checks the actual Stage 4 snapshot. A manually authored snapshot digest is only a claim; review and provenance remain obligations outside this manifest: field names alone cannot certify independent annotation/ownership review.
+
+Each face also needs `reviewed_gt_impact_count` from its reviewed Stage 4 annotations. Export requires both a positive face and a verified-empty face and seals these counts into the release index. A manually supplied count is an assertion, not independent proof; use the generator and retain the underlying Stage 4 manifest, snapshot, raw photos and review records for audit.
 
 ## Export and verify
 
@@ -89,6 +92,12 @@ stage5-release/
 Release maxima are bounded by the fixed code-reviewable tolerances: logits max absolute `0.01`, offsets max absolute `0.01`, decoded XY distance `0.005` in normalized target units, decoded confidence absolute `0.01`. Matched point count must agree exactly for each face. Non-finite tensors and shape/type changes fail the gate. Release size limit for the `.pte` alone is **30,000,000 bytes**; any separate Android package-size policy must be checked later.
 
 The `--replay-release` check first verifies every package checksum and the recorded **PyTorch/ExecuTorch runtime versions**, then executes the **shipped** PTE on the **shipped** golden PNGs and compares its outputs against the saved eager heatmap/offset tensors and decoded expected points. It does not require the original checkpoint. To test a new runtime version, build a new, separately reviewed and hash-bound parity release rather than silently reinterpreting the original report. A package that merely claims `parity_status=PASS` is not adequate evidence.
+
+`--verify-release` also validates the fixed parity limits, finite measured errors, 20–50 unique reviewed face identities, positive/empty coverage, per-record hashes and the metadata input/output/postprocess contract. It cannot authenticate a package whose files and SHA256 manifest were deliberately replaced together; trusted artifact distribution and independent source review remain required.
+
+## Current production evidence (19 November 2026)
+
+The available repository checkout, GitHub Releases and latest Stage 5/Stage 4/Baseline workflow artifacts contain no trained `best_model.pt`, matching Stage 4 manifest/snapshot or reviewed canonical crop set. The connected ArcheryHelper Drive folder also contains no checkpoint or Stage 4 manifest. Consequently no production `impact_model.pte`, real-crop parity numbers or release replay can be reported. The PR remains a draft pending those source artifacts and Stage 4 quality evidence. The green CI runs exercise synthetic fixtures only.
 
 Release metadata also seals the input NCHW float32 layout, output tensor ordering and shapes, file size, source-checkpoint SHA256, source-metadata SHA256 and source golden-manifest SHA256; these source hashes are rechecked just before the atomic release rename. For CI, a full-width FPN48 synthetic checkpoint is created with PyTorch 2.8 then actually compiled and replayed under PyTorch 2.13/ExecuTorch 1.5.1; the per-image parity (including nonconstant offsets) must pass.
 

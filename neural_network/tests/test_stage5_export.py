@@ -43,6 +43,7 @@ def _build_golden(root: Path, *, count: int = 20, size: int = 512) -> Path:
             "crop_sha256": sha256_file(path),
             "original_sha256": hashlib.sha256(f"original-{index}".encode()).hexdigest(),
             "face_index": 0, "split": "val",
+            "reviewed_gt_impact_count": index % 2,
         })
     manifest = root / "golden.json"
     manifest.write_text(json.dumps({"schema_version": 1, "samples": records}), encoding="utf-8")
@@ -127,6 +128,21 @@ class TestGoldenManifest(unittest.TestCase):
             document["samples"][0]["crop_sha256"] = sha256_file(bad)
             path.write_text(json.dumps(document))
             with self.assertRaisesRegex(ValueError, "RGB"):
+                read_golden_manifest(path, _metadata())
+
+    def test_reject_unattested_or_single_class_golden_faces(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = _build_golden(root)
+            document = json.loads(path.read_text())
+            del document["samples"][0]["reviewed_gt_impact_count"]
+            path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(ValueError, "reviewed nonnegative"):
+                read_golden_manifest(path, _metadata())
+            for record in document["samples"]:
+                record["reviewed_gt_impact_count"] = 1
+            path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(ValueError, "verified-empty"):
                 read_golden_manifest(path, _metadata())
 
 
@@ -262,6 +278,51 @@ class TestAtomicExport(unittest.TestCase):
                 lines.append(f"{sha256_file(path)}  {path.relative_to(target).as_posix()}")
             (target / "sha256.txt").write_text("\n".join(lines) + "\n")
             with self.assertRaisesRegex(ValueError, "inconsistent Stage 5"):
+                verify_release(target)
+
+    def test_rehashed_release_cannot_hide_golden_or_parity_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            target = root / "bundle"
+            model = _TestModel()
+            with (mock.patch("neural_network.archery_ml.export.load_detector",
+                             return_value=(model, _metadata())),
+                  mock.patch("neural_network.archery_ml.export._compile_xnnpack",
+                             return_value=b"XnnpackBackend fake fixture"),
+                  mock.patch("neural_network.archery_ml.export._runtime_forward",
+                             return_value=lambda tensor: model(tensor)),
+                  mock.patch("neural_network.archery_ml.export.importlib.metadata.version",
+                             return_value="1.5.1")):
+                export_model(checkpoint, metadata, golden, target)
+
+            def reseal():
+                parity_path = target / "parity.json"
+                meta_path = target / "model_metadata.json"
+                info = json.loads(meta_path.read_text())
+                info["executorch"]["golden_index_sha256"] = sha256_file(target / "golden/index.json")
+                info["executorch"]["parity_report_sha256"] = sha256_file(parity_path)
+                meta_path.write_text(json.dumps(info))
+                files = sorted(p for p in target.rglob("*") if p.is_file() and p.name != "sha256.txt")
+                (target / "sha256.txt").write_text("\n".join(
+                    f"{sha256_file(p)}  {p.relative_to(target).as_posix()}" for p in files) + "\n")
+
+            parity_path = target / "parity.json"
+            report = json.loads(parity_path.read_text())
+            report["max_errors"]["logits_max_abs"] = float("nan")
+            parity_path.write_text(json.dumps(report))
+            reseal()
+            with self.assertRaisesRegex(ValueError, "parity limits or measurements"):
+                verify_release(target)
+
+            report["max_errors"]["logits_max_abs"] = 0
+            parity_path.write_text(json.dumps(report))
+            index_path = target / "golden/index.json"
+            index = json.loads(index_path.read_text())
+            index["samples"][0]["reviewed_gt_impact_count"] = -1
+            index_path.write_text(json.dumps(index))
+            reseal()
+            with self.assertRaisesRegex(ValueError, "golden record"):
                 verify_release(target)
 
     def test_runtime_mismatch_cleans_incomplete_release(self):

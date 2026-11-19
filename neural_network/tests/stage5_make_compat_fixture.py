@@ -71,6 +71,7 @@ def create_fixture(root: Path) -> None:
             "original_sha256": hashlib.sha256(f"synthetic-original-{index}".encode()).hexdigest(),
             "face_index": 0,
             "split": "val",
+            "reviewed_gt_impact_count": index % 2,  # synthetic contract fixture only
         })
     (root / "golden.json").write_text(json.dumps({
         "schema_version": 1,

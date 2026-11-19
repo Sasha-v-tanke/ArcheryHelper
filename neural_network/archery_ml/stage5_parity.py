@@ -34,6 +34,7 @@ class GoldenSample:
     original_sha256: str
     face_index: int
     split: str
+    reviewed_gt_impact_count: int
 
 
 def sha256_file(path: Path) -> str:
@@ -71,6 +72,7 @@ def read_golden_manifest(manifest: Path, metadata: ModelMetadata) -> list[Golden
     ids: set[str] = set()
     crops: set[str] = set()
     faces: set[tuple[str, int]] = set()
+    positive = negative = False
     for record in records:
         if not isinstance(record, dict):
             raise ValueError("golden sample must be an object")
@@ -80,6 +82,7 @@ def read_golden_manifest(manifest: Path, metadata: ModelMetadata) -> list[Golden
         original_hash = record.get("original_sha256")
         face_index = record.get("face_index")
         split = record.get("split")
+        gt_count = record.get("reviewed_gt_impact_count")
         if not isinstance(sample_id, str) or not re.fullmatch(r"[a-zA-Z0-9_.-]{1,128}", sample_id):
             raise ValueError("invalid sample_id")
         if not isinstance(relative, str) or not relative or Path(relative).is_absolute() or ".." in Path(relative).parts:
@@ -92,6 +95,8 @@ def read_golden_manifest(manifest: Path, metadata: ModelMetadata) -> list[Golden
             raise ValueError("invalid canonical face index")
         if split not in ("val", "test"):
             raise ValueError("golden set must use reviewed validation/test crops, not train or mobile holdout")
+        if type(gt_count) is not int or gt_count < 0:
+            raise ValueError("golden face requires a reviewed nonnegative GT impact count")
         image = (root / relative).resolve(strict=True)
         if not image.is_relative_to(root) or not image.is_file() or image.suffix.lower() != ".png":
             raise ValueError("golden crop must be a local PNG file inside manifest directory")
@@ -108,7 +113,11 @@ def read_golden_manifest(manifest: Path, metadata: ModelMetadata) -> list[Golden
         ids.add(sample_id)
         crops.add(crop_hash)
         faces.add((original_hash, face_index))
-        samples.append(GoldenSample(sample_id, image, crop_hash, original_hash, face_index, split))
+        positive |= gt_count > 0
+        negative |= gt_count == 0
+        samples.append(GoldenSample(sample_id, image, crop_hash, original_hash, face_index, split, gt_count))
+    if not positive or not negative:
+        raise ValueError("golden set requires reviewed positive and verified-empty faces")
     return sorted(samples, key=lambda sample: sample.sample_id)
 
 

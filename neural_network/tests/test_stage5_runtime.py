@@ -76,6 +76,7 @@ class TestRealExecuTorchRuntime(unittest.TestCase):
                     "crop_sha256": sha256_file(path),
                     "original_sha256": hashlib.sha256(f"synthetic-camera-{index}".encode()).hexdigest(),
                     "face_index": 0, "split": "val",
+                    "reviewed_gt_impact_count": index % 2,  # synthetic contract fixture only
                 })
             golden = root / "golden.json"
             golden.write_text(json.dumps({

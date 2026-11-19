@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageOps, ImageDraw
 
 from neural_network.archery_ml.contracts import DatasetSample, TargetMetadata
-from neural_network.archery_ml.data.geometry_provenance import annotation_digest, verify_landmark_ids
+from neural_network.archery_ml.data.geometry_provenance import annotation_digest, verify_landmark_ids, verify_image_content
 from neural_network.archery_ml.data.importers.mobile_geometry import import_mobile_geometry
 from neural_network.archery_ml.data.registry import DatasetSource
 from neural_network.archery_ml.geometry.validation import configuration_key
@@ -214,7 +214,11 @@ def coverage(root, policy):
 
 def preview(root, record, output):
     sample = DatasetSample.from_dict(load(record))
-    with Image.open(root / sample.image_path) as raw:
+    image_path = (root / sample.image_path).resolve()
+    if not image_path.is_relative_to(root.resolve()):
+        raise ValueError("mobile preview image outside source directory")
+    verify_image_content(image_path, sample.capture_metadata or {}, root)
+    with Image.open(image_path) as raw:
         image = raw.convert("RGB")
     draw = ImageDraw.Draw(image)
     for annotation in sample.geometry_annotations:

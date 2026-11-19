@@ -7,6 +7,7 @@ import json
 from PIL import Image
 
 from neural_network.archery_ml.contracts import DatasetSample
+from neural_network.archery_ml.data.geometry_provenance import verify_image_content
 
 
 def write_editor(root, record, output):
@@ -17,6 +18,7 @@ def write_editor(root, record, output):
     image_path = (root / sample.image_path).resolve()
     if not image_path.is_relative_to(root.resolve()):
         raise ValueError("annotation image outside dataset directory")
+    verify_image_content(image_path, sample.capture_metadata or {}, root)
     with Image.open(image_path) as raw:
         if raw.getexif().get(274,1) != 1:
             raise ValueError("register an explicit EXIF derivative first")

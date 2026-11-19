@@ -195,6 +195,34 @@ class MobileWorkflowTest(unittest.TestCase):
         verify_mobile_gt(imported)
         self.assertEqual(original,photo.read_bytes())
 
+    def test_preview_and_editor_reject_modified_source_images(self):
+        record = self.draft(usable=False)
+        sample = json.loads(record.read_text())
+        image_path = self.root / sample["image_path"]
+        Image.new("RGB", (200, 200), (255, 0, 0)).save(image_path)
+        preview_path = self.root / "altered-preview.png"
+        editor_path = self.root / "altered-editor.html"
+        with self.assertRaisesRegex(ValueError, "checksum"):
+            preview(self.root, record, preview_path)
+        with self.assertRaisesRegex(ValueError, "checksum"):
+            write_editor(self.root, record, editor_path)
+        self.assertFalse(preview_path.exists())
+        self.assertFalse(editor_path.exists())
+
+    def test_preview_and_editor_reject_images_outside_mobile_root(self):
+        record = self.draft(usable=False)
+        sample = json.loads(record.read_text())
+        sample["image_path"] = str(self.photo.resolve())
+        record.write_text(json.dumps(sample))
+        preview_path = self.root / "external-preview.png"
+        editor_path = self.root / "external-editor.html"
+        with self.assertRaisesRegex(ValueError, "outside source directory"):
+            preview(self.root, record, preview_path)
+        with self.assertRaisesRegex(ValueError, "outside dataset directory"):
+            write_editor(self.root, record, editor_path)
+        self.assertFalse(preview_path.exists())
+        self.assertFalse(editor_path.exists())
+
     def test_coverage_has_both_splits_and_all_required_configurations(self):
         empty = coverage(self.root,self.policy)
         self.assertEqual("BLOCKED: EXTERNAL CAPTURE REQUIRED",empty["status"])

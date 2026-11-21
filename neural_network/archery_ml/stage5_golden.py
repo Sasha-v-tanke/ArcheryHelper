@@ -13,6 +13,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from neural_network.archery_ml.atomic_publish import publish_directory
 from neural_network.archery_ml.data.view import DatasetView
 from neural_network.archery_ml.impact_dataset import CanonicalImpactDataset
 from neural_network.archery_ml.inference import load_detector
@@ -186,9 +187,7 @@ def prepare_golden(
             "samples": samples,
         }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         read_golden_manifest(golden, metadata)
-        if output_directory.exists():
-            raise FileExistsError("golden destination appeared during preparation")
-        staging.rename(output_directory)
+        publish_directory(staging, output_directory)
         return output_directory / "golden.json"
     finally:
         if staging.exists():

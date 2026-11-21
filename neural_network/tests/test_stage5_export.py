@@ -13,6 +13,7 @@ import numpy as np
 import torch
 from PIL import Image
 
+from neural_network.archery_ml.atomic_publish import publish_directory
 from neural_network.archery_ml.contracts import (
     ModelInputSpec, ModelMetadata, ModelOutputSpec, ModelPostprocessSpec,
 )
@@ -234,6 +235,30 @@ class _PixelModel(torch.nn.Module):
 
 
 class TestAtomicExport(unittest.TestCase):
+    def test_directory_publication_refuses_existing_empty_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = root / "staging"
+            target = root / "release"
+            staging.mkdir()
+            (staging / "new.txt").write_text("new")
+            target.mkdir()
+            with self.assertRaises(FileExistsError):
+                publish_directory(staging, target)
+            self.assertTrue(staging.is_dir())
+            self.assertEqual(list(target.iterdir()), [])
+
+    def test_directory_publication_succeeds_without_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = root / "staging"
+            staging.mkdir()
+            (staging / "new.txt").write_text("new")
+            target = root / "release"
+            publish_directory(staging, target)
+            self.assertFalse(staging.exists())
+            self.assertEqual((target / "new.txt").read_text(), "new")
+
     def _setup(self, root):
         golden = _build_golden(root)
         checkpoint = root / "best_model.pt"
@@ -407,6 +432,40 @@ class TestAtomicExport(unittest.TestCase):
                     _reseal_release(target)
                     with self.assertRaisesRegex(ValueError, error):
                         verify_release(target)
+
+    def test_replay_rejects_rehashed_understated_parity_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint, metadata, golden = self._setup(root)
+            target = root / "bundle"
+            model = _TestModel()
+
+            def deployed(tensor):
+                logits, offsets = model(tensor)
+                return logits, offsets + 1e-5
+
+            with (mock.patch("neural_network.archery_ml.export.load_detector",
+                             return_value=(model, _metadata())),
+                  mock.patch("neural_network.archery_ml.export._compile_xnnpack",
+                             return_value=b"XnnpackBackend fake fixture"),
+                  mock.patch("neural_network.archery_ml.export._runtime_forward",
+                             return_value=deployed),
+                  mock.patch("neural_network.archery_ml.export.importlib.metadata.version",
+                             return_value="1.5.1")):
+                export_model(checkpoint, metadata, golden, target)
+            parity_path = target / "parity.json"
+            report = json.loads(parity_path.read_text())
+            self.assertGreater(report["max_errors"]["offsets_max_abs"], 0)
+            report["max_errors"]["offsets_max_abs"] = 0
+            parity_path.write_text(json.dumps(report))
+            _reseal_release(target)
+            verify_release(target)
+            with (mock.patch("neural_network.archery_ml.export._runtime_forward",
+                             return_value=deployed),
+                  mock.patch("neural_network.archery_ml.export.importlib.metadata.version",
+                             return_value="1.5.1")):
+                with self.assertRaisesRegex(ValueError, "replay offsets_max_abs differs"):
+                    replay_release(target)
 
     def test_replay_failure_prevents_release_publication(self):
         with tempfile.TemporaryDirectory() as directory:

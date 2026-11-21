@@ -16,6 +16,7 @@ import numpy as np
 import torch
 from PIL import Image
 
+from neural_network.archery_ml.atomic_publish import publish_directory
 from neural_network.archery_ml.contracts import ModelMetadata
 from neural_network.archery_ml.inference import load_detector
 from neural_network.archery_ml.stage5_parity import (
@@ -248,10 +249,7 @@ def export_model(
         # Reject any package that cannot replay before exposing the final path.
         replay_release(staging)
 
-        # Same-filesystem rename exposes no partial release; never overwrite.
-        if output_directory.exists():
-            raise FileExistsError("release output appeared while exporting")
-        staging.rename(output_directory)
+        publish_directory(staging, output_directory)
         return output_directory
     finally:
         if staging.exists():
@@ -427,6 +425,10 @@ def replay_release(directory: Path) -> dict:
                 maxima[key] = max(maxima[key], compared[key])
     if total_points != original["total_expected_points"]:
         raise ValueError("golden reference point counts differ from recorded parity")
+    for key, measured in maxima.items():
+        if not math.isclose(measured, original["max_errors"][key],
+                            rel_tol=1e-4, abs_tol=1e-9):
+            raise ValueError(f"replay {key} differs from recorded parity report")
     return {"status": "PASS", "golden_count": len(entries),
             "total_expected_points": total_points, "max_errors": maxima,
             "pte_sha256": sha256_file(directory / "impact_model.pte")}

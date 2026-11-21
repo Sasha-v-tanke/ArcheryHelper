@@ -224,3 +224,18 @@ v9 export), 0 failures. Этот CI не запускает Ruff и не сод�
 Дополнительный тест на фиксацию shape/dtype и C-order добавлен
 после этого CI, поэтому требует повторной проверки на финальном SHA. Набор из 58 фотографий остаётся
 development feedback, а независимый real holdout остаётся **NOT_VALIDATED**.
+
+### Интеграция с `main`, 21.11.2026
+
+Текущий `main` влит в ветку PR без конфликтов. Защита replay из `main`
+сохранена. На macOS исправлено построение относительного пути к canonical
+crop при `/var` → `/private/var`; отдельный тест проверяет каталог manifest
+через символьную ссылку. После исправления полный Python unittest: 246 tests,
+2 skipped; Android `testDebugUnitTest assembleDebug`: PASS.
+
+Изолированный desktop diagnostic на одном хосте, отдельный процесс для
+каждого метода, 5 измерений после прогрева: для synthetic 3000×4000 медиана
+legacy 337/347 мс и robust 1107/1100 мс в двух запусках с обратным порядком.
+Пиковый RSS: legacy 646/647 MiB, robust 725/724 MiB. Это выявляет заметную
+стоимость robust detector на данном synthetic-входе; Android performance,
+реальные кадры и production budget этим тестом не подтверждены.

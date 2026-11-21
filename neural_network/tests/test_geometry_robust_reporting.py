@@ -306,6 +306,59 @@ class RobustReportingTest(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, "image photo:"):
                             compare(root / "old", root / "new", root / f"bad-{name}")
 
+    def test_synthetic_comparison_requires_exact_scene_contract(self):
+        from dataclasses import replace
+
+        def change_truth_matrix(row):
+            row["synthetic_contract"]["norm_to_image"][0][0][0] = 123.0
+
+        scene = render_scene(size=96)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch(
+                "neural_network.archery_ml.geometry.benchmark.scenarios",
+                return_value=[scene],
+            ):
+                run(root / "old", "legacy")
+                run(root / "new", "robust")
+            original = json.loads((root / "new/report.json").read_text())
+            with patch(
+                "neural_network.archery_ml.geometry.comparison.scenarios",
+                return_value=[scene],
+            ):
+                compare(root / "old", root / "new", root / "valid")
+                changes = {
+                    "scenario": lambda row: row.update(scenario="different"),
+                    "seed": lambda row: row.update(seed=43),
+                    "zone": lambda row: row.update(zone=6),
+                    "layout": lambda row: row.update(layout="VERTICAL"),
+                    "expected_reject": lambda row: row.update(expected_reject=True),
+                    "expected_faces": lambda row: row.update(expected_faces=3),
+                    "target_config": lambda row: row["synthetic_contract"][
+                        "target_config"
+                    ].update(minimum_scoring_zone=6),
+                    "truth_matrix": change_truth_matrix,
+                    "missing_contract": lambda row: row.pop("synthetic_contract"),
+                }
+                for name, change in changes.items():
+                    with self.subTest(change=name):
+                        altered = deepcopy(original)
+                        change(altered["records"][0])
+                        (root / "new/report.json").write_text(json.dumps(altered))
+                        destination = root / f"bad-{name}"
+                        with self.assertRaisesRegex(
+                            ValueError, "image synthetic-00-clean:"
+                        ):
+                            compare(root / "old", root / "new", destination)
+                        self.assertFalse(destination.exists())
+                (root / "new/report.json").write_text(json.dumps(original))
+            with patch(
+                "neural_network.archery_ml.geometry.comparison.scenarios",
+                return_value=[replace(scene, seed=43)],
+            ):
+                with self.assertRaisesRegex(ValueError, "seed differs"):
+                    compare(root / "old", root / "new", root / "stale-scene")
+
     def test_synthetic_comparison_negative_rates(self):
         from types import SimpleNamespace
 

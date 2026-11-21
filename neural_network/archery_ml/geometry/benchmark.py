@@ -76,6 +76,19 @@ def json_value(value):
     raise TypeError(type(value).__name__)
 
 
+def synthetic_contract(scene):
+    """Freeze the configuration and independent truth used by a rendered scene."""
+    return {
+        "version": 1,
+        "scenario": scene.scenario,
+        "seed": scene.seed,
+        "target_config": asdict(scene.config),
+        "expected_reject": scene.expected_reject,
+        "expected_faces": len(scene.norm_to_image),
+        "norm_to_image": [np.asarray(matrix).tolist() for matrix in scene.norm_to_image],
+    }
+
+
 def visualize(image, geometry, truth_centers, path, title, origin=(0, 0)):
     canvas = image.copy()
     origin = np.asarray(origin)
@@ -253,6 +266,7 @@ def run(output, method="legacy", pilot=None, reviews=None, image_paths=(), confi
             "ring_boundary_errors": boundary_errors,
             "expected_reject": scene.expected_reject,
             "expected_faces": len(scene.norm_to_image),
+            "synthetic_contract": synthetic_contract(scene),
             "faces": asdict(geometry)["faces"],
             "input_sha256": hashlib.sha256(scene.image.tobytes()).hexdigest(),
             "preview": f"previews/{name}.jpg",

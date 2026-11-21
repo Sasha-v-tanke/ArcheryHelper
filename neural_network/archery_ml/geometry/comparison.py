@@ -2,6 +2,7 @@
 
 import argparse
 from dataclasses import fields
+import hashlib
 import html
 import json
 import os
@@ -9,7 +10,11 @@ from pathlib import Path
 
 import numpy as np
 
-from neural_network.archery_ml.geometry.benchmark import RGB_PIXEL_HASH_SPEC, summary
+from neural_network.archery_ml.geometry.benchmark import (
+    RGB_PIXEL_HASH_SPEC,
+    summary,
+    synthetic_contract,
+)
 from neural_network.archery_ml.geometry.geometry_math import project
 from neural_network.archery_ml.geometry.synthetic import scenarios
 from neural_network.archery_ml.targets import TargetConfig
@@ -38,6 +43,16 @@ _UNLABELED_REQUIRED_FIELDS = (
     "roi",
     "preprocessing_version",
 )
+_SYNTHETIC_REQUIRED_FIELDS = (
+    "input_sha256",
+    "scenario",
+    "seed",
+    "zone",
+    "layout",
+    "expected_reject",
+    "expected_faces",
+    "synthetic_contract",
+)
 
 
 def _validate_evaluated_input(image_id, previous, current):
@@ -47,8 +62,10 @@ def _validate_evaluated_input(image_id, previous, current):
         required = _REAL_REQUIRED_FIELDS
     elif dataset == "unlabeled":
         required = _UNLABELED_REQUIRED_FIELDS
+    elif dataset == "independent_synthetic":
+        required = _SYNTHETIC_REQUIRED_FIELDS
     else:
-        required = ("input_sha256",)
+        raise ValueError(f"image {image_id}: unsupported dataset {dataset}")
 
     for field in required:
         for label, record in (("baseline", previous), ("candidate", current)):
@@ -78,7 +95,27 @@ def _validate_evaluated_input(image_id, previous, current):
             )
 
 
-def synthetic_metrics(records):
+def _validate_synthetic_scene(image_id, record, scene):
+    """Bind reported synthetic inputs and GT to the current scene definition."""
+    expected = synthetic_contract(scene)
+    fields = {
+        "input_sha256": hashlib.sha256(scene.image.tobytes()).hexdigest(),
+        "scenario": scene.scenario,
+        "seed": scene.seed,
+        "zone": scene.config.minimum_scoring_zone,
+        "layout": str(scene.config.triple_layout),
+        "expected_reject": scene.expected_reject,
+        "expected_faces": len(scene.norm_to_image),
+        "synthetic_contract": expected,
+    }
+    for field, value in fields.items():
+        if record.get(field) != value:
+            raise ValueError(f"image {image_id}: {field} differs from synthetic scene")
+
+
+def synthetic_metrics(records, scene_list=None):
+    if scene_list is None:
+        scene_list = scenarios()
     by_id = {r["id"]: r for r in records if r["dataset"] == "independent_synthetic"}
     center = []
     points = []
@@ -86,7 +123,7 @@ def synthetic_metrics(records):
     ready_points = []
     negative = 0
     false_accept = 0
-    for index, scene in enumerate(scenarios()):
+    for index, scene in enumerate(scene_list):
         row = by_id[f"synthetic-{index:02}-{scene.scenario}"]
         if scene.expected_reject:
             negative += 1
@@ -138,6 +175,28 @@ def compare(baseline, candidate, output):
     new = json.loads((candidate / "report.json").read_text())
     first = {r["id"]: r for r in old["records"]}
     second = {r["id"]: r for r in new["records"]}
+    if len(first) != len(old["records"]) or len(second) != len(new["records"]):
+        raise ValueError("duplicate image ID in benchmark report")
+    has_synthetic = any(
+        row["dataset"] == "independent_synthetic"
+        for report in (old, new)
+        for row in report["records"]
+    )
+    scene_list = scenarios() if has_synthetic else []
+    scene_by_id = {
+        f"synthetic-{index:02}-{scene.scenario}": scene
+        for index, scene in enumerate(scene_list)
+    }
+    for label, report in (("baseline", old), ("candidate", new)):
+        synthetic = {
+            row["id"]: row
+            for row in report["records"]
+            if row["dataset"] == "independent_synthetic"
+        }
+        if set(synthetic) != set(scene_by_id):
+            raise ValueError(f"{label} synthetic scenes differ from current definition")
+        for image_id, row in synthetic.items():
+            _validate_synthetic_scene(image_id, row, scene_by_id[image_id])
     if set(first) != set(second) or old["provenance"].get("review_sha256") != new[
         "provenance"
     ].get("review_sha256"):
@@ -221,8 +280,8 @@ def compare(baseline, candidate, output):
             "unmatched_references": missing,
             "independent_gt": False,
         },
-        "baseline_synthetic": synthetic_metrics(old["records"]),
-        "new_synthetic": synthetic_metrics(new["records"]),
+        "baseline_synthetic": synthetic_metrics(old["records"], scene_list),
+        "new_synthetic": synthetic_metrics(new["records"], scene_list),
         "baseline": {
             k: v for k, v in old.items() if k not in ("records", "provenance")
         },

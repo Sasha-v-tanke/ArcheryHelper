@@ -283,12 +283,21 @@ class ModelInputSpec:
 
     @staticmethod
     def from_dict(data: dict) -> "ModelInputSpec":
+        if (not isinstance(data, dict)
+                or type(data.get("width")) is not int
+                or type(data.get("height")) is not int
+                or data.get("color_space") != "RGB"
+                or any(not isinstance(data.get(key), (list, tuple))
+                       or len(data[key]) != 3
+                       or any(type(value) not in (int, float) for value in data[key])
+                       for key in ("mean", "std"))):
+            raise ValueError("invalid or incomplete model input metadata")
         return ModelInputSpec(
-            width=int(data["width"]),
-            height=int(data["height"]),
-            color_space=data.get("color_space", "RGB"),
-            mean=tuple(float(v) for v in data.get("mean", (0.0, 0.0, 0.0))),
-            std=tuple(float(v) for v in data.get("std", (1.0, 1.0, 1.0))),
+            width=data["width"],
+            height=data["height"],
+            color_space=data["color_space"],
+            mean=tuple(data["mean"]),
+            std=tuple(data["std"]),
         )
 
 
@@ -302,7 +311,10 @@ class ModelOutputSpec:
 
     @staticmethod
     def from_dict(data: dict) -> "ModelOutputSpec":
-        return ModelOutputSpec(type=data["type"], stride=int(data["stride"]))
+        if (not isinstance(data, dict) or not isinstance(data.get("type"), str)
+                or type(data.get("stride")) is not int):
+            raise ValueError("invalid or incomplete model output metadata")
+        return ModelOutputSpec(type=data["type"], stride=data["stride"])
 
 
 @dataclass(frozen=True)
@@ -315,9 +327,13 @@ class ModelPostprocessSpec:
 
     @staticmethod
     def from_dict(data: dict) -> "ModelPostprocessSpec":
+        if (not isinstance(data, dict)
+                or type(data.get("confidence_threshold")) not in (int, float)
+                or type(data.get("nms_radius")) is not int):
+            raise ValueError("invalid or incomplete model postprocess metadata")
         return ModelPostprocessSpec(
-            confidence_threshold=float(data["confidence_threshold"]),
-            nms_radius=int(data["nms_radius"]),
+            confidence_threshold=data["confidence_threshold"],
+            nms_radius=data["nms_radius"],
         )
 
 
@@ -344,8 +360,12 @@ class ModelMetadata:
 
     @staticmethod
     def from_dict(data: dict) -> "ModelMetadata":
+        if (not isinstance(data, dict) or type(data.get("contract_version")) is not int
+                or not isinstance(data.get("model_version"), str)
+                or not data["model_version"]):
+            raise ValueError("invalid or incomplete model metadata v2")
         return ModelMetadata(
-            contract_version=int(data["contract_version"]),
+            contract_version=data["contract_version"],
             model_version=data["model_version"],
             input=ModelInputSpec.from_dict(data["input"]),
             output=ModelOutputSpec.from_dict(data["output"]),

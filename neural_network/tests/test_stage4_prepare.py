@@ -82,6 +82,16 @@ class MaterializerTest(unittest.TestCase):
         self.assertEqual(hashlib.sha256(self.crop.read_bytes()).hexdigest(), face["sha256"])
         self.assertEqual(self.crop.resolve(), (self.manifests / face["image_path"]).resolve())
 
+    def test_crop_binding_with_manifest_directory_alias(self):
+        alias = self.root.parent / "manifest-alias"
+        alias.symlink_to(self.manifests, target_is_directory=True)
+        sample = self.sample()
+        prepared = reviewed_sample(sample, self.review(sample),
+                                   data_root=self.root, review_dir=self.root,
+                                   manifest_dir=alias)
+        face = prepared.capture_metadata["canonical_faces"][0]
+        self.assertEqual(self.crop.resolve(), (alias / face["image_path"]).resolve())
+
     def test_unreviewed_owner_and_mismatched_digests_fail_closed(self):
         sample = self.sample()
         for edit, error in [({"face_ownership_reviewed": False}, "ownership"),

@@ -1,8 +1,8 @@
 """Independent truth, occlusions, ambiguity and fail-closed integration."""
 
+import unittest
 from dataclasses import replace
 from unittest.mock import patch
-import unittest
 
 import numpy as np
 
@@ -222,20 +222,22 @@ class RobustGeometryTest(unittest.TestCase):
             detector.detect(image, scene.config, candidate_ids=("f0",) * 3)
 
     def test_external_orientation_requires_image_binding(self):
-        import hashlib
+        from neural_network.archery_ml.geometry.benchmark import rgb_pixel_sha256
         from neural_network.archery_ml.geometry.orientation import (
             OrientationCalibration,
             apply_orientation,
+            geometry_fingerprint,
         )
 
         scene = render_scene()
         geometry = TargetGeometryDetector().detect(scene.image, scene.config)
         calibration = OrientationCalibration(
             0.2,
-            hashlib.sha256(scene.image.tobytes()).hexdigest(),
+            rgb_pixel_sha256(scene.image),
             "manual_calibration",
             "review-1",
             "reviewer",
+            geometry_fingerprint(geometry),
         )
         calibrated = apply_orientation(scene.image, geometry, calibration)
         self.assertEqual("manual_calibration", calibrated.orientation_reference)
@@ -251,6 +253,16 @@ class RobustGeometryTest(unittest.TestCase):
         altered[0, 0] = 0
         with self.assertRaises(ValueError):
             apply_orientation(altered, geometry, calibration)
+
+        with self.assertRaisesRegex(ValueError, "another image"):
+            apply_orientation(
+                scene.image.reshape((400, 1600, 3)), geometry, calibration
+            )
+        changed = replace(geometry, fit_error=geometry.fit_error + 1)
+        with self.assertRaisesRegex(ValueError, "geometry revision"):
+            apply_orientation(scene.image, changed, calibration)
+        with self.assertRaisesRegex(ValueError, "already applied"):
+            apply_orientation(scene.image, calibrated, calibration)
 
     def test_occlusion_severity_has_no_false_ready(self):
         for fraction in (0.1, 0.25, 0.4, 0.6):

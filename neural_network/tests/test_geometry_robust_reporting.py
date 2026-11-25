@@ -1,16 +1,16 @@
 """Report denominators, unmatched centers and reproducible CLI outputs."""
 
-from copy import deepcopy
-from dataclasses import asdict
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from copy import deepcopy
+from dataclasses import asdict
+from pathlib import Path
 from unittest.mock import patch
 
 from neural_network.archery_ml.geometry.benchmark import (
-    RGB_PIXEL_HASH_SPEC,
     REAL_PREPROCESSING_VERSION,
+    RGB_PIXEL_HASH_SPEC,
     rgb_pixel_sha256,
     run,
 )
@@ -101,6 +101,7 @@ class RobustReportingTest(unittest.TestCase):
 
     def test_real_hash_binding_and_rejected_input_comparison(self):
         import hashlib
+
         from PIL import Image
 
         with tempfile.TemporaryDirectory() as directory:
@@ -420,3 +421,79 @@ class RobustReportingTest(unittest.TestCase):
         self.assertNotEqual(rgb_pixel_sha256(pixels), rgb_pixel_sha256(altered))
         with self.assertRaisesRegex(ValueError, "RGB uint8"):
             rgb_pixel_sha256(pixels.astype(np.uint16))
+
+    def test_real_generator_is_materialized_for_contract_and_metrics(self):
+        """The production 27-scene generator must be usable twice by compare."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old = run(root / "old", "legacy")
+            new = run(root / "new", "robust")
+            result = compare(root / "old", root / "new", root / "comparison")
+            self.assertEqual(27, old["synthetic"]["samples"])
+            self.assertEqual(27, new["synthetic"]["samples"])
+            for metrics in (result["baseline_synthetic"], result["new_synthetic"]):
+                self.assertEqual(3, metrics["negative_scenes"])
+                self.assertGreater(
+                    metrics["center_error_norm_all_detected"]["count"], 0
+                )
+                self.assertGreater(
+                    metrics["point_error_2d_external_axes_all_detected"]["count"], 0
+                )
+            expected = (
+                sum(
+                    r["expected_reject"] and r["status"] == "READY"
+                    for r in new["records"]
+                )
+                / 3
+            )
+            self.assertEqual(
+                expected,
+                result["new_synthetic"]["false_accept_fraction_on_negative_scenes"],
+            )
+            persisted = json.loads((root / "comparison/comparison.json").read_text())
+            self.assertEqual(result["new_synthetic"], persisted["new_synthetic"])
+
+    def test_input_rejected_records_cannot_supply_measurements(self):
+        records = [
+            {
+                "id": "missing",
+                "dataset": "development_real",
+                "status": "INPUT_REJECTED",
+                "reason": "missing",
+            },
+            {
+                "id": "missing-2",
+                "dataset": "development_real",
+                "status": "INPUT_REJECTED",
+                "reason": "missing",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("old", "new"):
+                folder = root / name
+                folder.mkdir()
+                (folder / "report.json").write_text(
+                    json.dumps({"records": records, "provenance": {}})
+                )
+            with patch(
+                "neural_network.archery_ml.geometry.comparison.scenarios",
+                return_value=[],
+            ):
+                result = compare(root / "old", root / "new", root / "valid")
+            self.assertTrue(
+                all(not case["input_identity_verified"] for case in result["cases"])
+            )
+            tampered = deepcopy(records)
+            tampered[0]["pairs"] = [{"id": "fake", "error_px": 0.0}]
+            (root / "new/report.json").write_text(
+                json.dumps({"records": tampered, "provenance": {}})
+            )
+            with (
+                patch(
+                    "neural_network.archery_ml.geometry.comparison.scenarios",
+                    return_value=[],
+                ),
+                self.assertRaisesRegex(ValueError, "INPUT_REJECTED must not contain"),
+            ):
+                compare(root / "old", root / "new", root / "invalid")

@@ -1,11 +1,11 @@
 """Paired fixed-input comparison, retaining rejections and unmatched references."""
 
 import argparse
-from dataclasses import fields
 import hashlib
 import html
 import json
 import os
+from dataclasses import fields
 from pathlib import Path
 
 import numpy as np
@@ -18,7 +18,6 @@ from neural_network.archery_ml.geometry.benchmark import (
 from neural_network.archery_ml.geometry.geometry_math import project
 from neural_network.archery_ml.geometry.synthetic import scenarios
 from neural_network.archery_ml.targets import TargetConfig
-
 
 _TARGET_CONFIG_KEYS = {field.name for field in fields(TargetConfig)}
 _REAL_REQUIRED_FIELDS = (
@@ -182,7 +181,10 @@ def compare(baseline, candidate, output):
         for report in (old, new)
         for row in report["records"]
     )
-    scene_list = scenarios() if has_synthetic else []
+    # scenarios() deliberately returns a generator.  Keep the exact rendered
+    # scenes used to validate the report for both contract verification and
+    # metric recomputation below.
+    scene_list = list(scenarios()) if has_synthetic else []
     scene_by_id = {
         f"synthetic-{index:02}-{scene.scenario}": scene
         for index, scene in enumerate(scene_list)
@@ -210,7 +212,14 @@ def compare(baseline, candidate, output):
         if previous["dataset"] != row["dataset"]:
             raise ValueError(f"image {key}: dataset changed")
         input_rejected = previous["status"] == row["status"] == "INPUT_REJECTED"
-        if not input_rejected:
+        if input_rejected:
+            # No pixels were evaluated, hence an input rejection cannot carry
+            # numerical observations from either method.
+            if previous.get("pairs") or row.get("pairs"):
+                raise ValueError(
+                    f"image {key}: INPUT_REJECTED must not contain measured pairs"
+                )
+        else:
             if "INPUT_REJECTED" in (previous["status"], row["status"]):
                 raise ValueError(
                     f"image {key}: INPUT_REJECTED cannot verify input identity"

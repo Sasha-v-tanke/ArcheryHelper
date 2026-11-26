@@ -227,6 +227,46 @@ class TestRealStage4GoldenSelection(unittest.TestCase):
                     prepare_golden(checkpoint, metadata_file, manifest, snapshot,
                                    root / "golden-release")
 
+    def test_reject_missing_reviewed_source_image_hash(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            _, manifest, snapshot, checkpoint, metadata, metadata_file = _stage4_dataset(root)
+            document = json.loads(manifest.read_text())
+            document["samples"][0]["capture_metadata"]["stage4_review"].pop(
+                "source_image_sha256"
+            )
+            manifest.write_text(json.dumps(document))
+            snapshot_document = json.loads(snapshot.read_text())
+            snapshot_document["manifest_sha256"] = sha256_file(manifest)
+            snapshot.write_text(json.dumps(snapshot_document))
+            provenance = verify_dataset({
+                "dataset": {"manifest": str(manifest), "snapshot": str(snapshot)}
+            })
+            metadata_document = json.loads(metadata_file.read_text())
+            metadata_document["training_dataset_sha256"] = sha256_file(manifest)
+            metadata_document["training_provenance_sha256"] = fingerprint(
+                training_provenance(provenance)
+            )
+            metadata_file.write_text(json.dumps(metadata_document))
+            with mock.patch("neural_network.archery_ml.stage5_golden.load_detector",
+                            return_value=(None, metadata)):
+                with self.assertRaisesRegex(ValueError, "missing reviewed source image SHA256"):
+                    prepare_golden(checkpoint, metadata_file, manifest, snapshot,
+                                   root / "golden-release")
+            self.assertFalse((root / "golden-release").exists())
+
+    def test_reject_replaced_reviewed_source_image(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            _, manifest, snapshot, checkpoint, metadata, metadata_file = _stage4_dataset(root)
+            (root / "data/originals/photo-00.png").write_bytes(b"replacement")
+            with mock.patch("neural_network.archery_ml.stage5_golden.load_detector",
+                            return_value=(None, metadata)):
+                with self.assertRaisesRegex(ValueError, "original image SHA256 differs"):
+                    prepare_golden(checkpoint, metadata_file, manifest, snapshot,
+                                   root / "golden-release")
+            self.assertFalse((root / "golden-release").exists())
+
     def test_changed_validation_annotations_fail_checkpoint_provenance(self):
         """Re-sealing only the manifest/snapshot cannot bypass train/val GT."""
         with tempfile.TemporaryDirectory() as folder:

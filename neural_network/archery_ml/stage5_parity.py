@@ -126,14 +126,26 @@ def _match_points(reference: list[ImpactPrediction], actual: list[ImpactPredicti
         raise ValueError(f"postprocess parity count mismatch: eager={len(reference)} executorch={len(actual)}")
 
     # Bipartite matching tolerates changes of confidence ordering across runtimes.
+    # Bucket by the fixed distance tolerance so dense heatmaps do not require an
+    # all-pairs comparison before matching.
+    cell_size = POINT_NORM_DISTANCE
+    buckets: dict[tuple[int, int, int], list[tuple[int, ImpactPrediction]]] = {}
+    for index, point in enumerate(actual):
+        cell = (point.face_index, math.floor(point.x_norm / cell_size),
+                math.floor(point.y_norm / cell_size))
+        buckets.setdefault(cell, []).append((index, point))
     candidates: list[list[int]] = []
     for old in reference:
         possibilities = []
-        for index, new in enumerate(actual):
-            distance = math.hypot(old.x_norm - new.x_norm, old.y_norm - new.y_norm)
-            if (old.face_index == new.face_index and distance <= POINT_NORM_DISTANCE
-                    and abs(old.confidence - new.confidence) <= POINT_CONFIDENCE_ABS):
-                possibilities.append(index)
+        base_x = math.floor(old.x_norm / cell_size)
+        base_y = math.floor(old.y_norm / cell_size)
+        for row in range(base_x - 1, base_x + 2):
+            for column in range(base_y - 1, base_y + 2):
+                for index, new in buckets.get((old.face_index, row, column), ()):
+                    distance = math.hypot(old.x_norm - new.x_norm, old.y_norm - new.y_norm)
+                    if (distance <= POINT_NORM_DISTANCE
+                            and abs(old.confidence - new.confidence) <= POINT_CONFIDENCE_ABS):
+                        possibilities.append(index)
         candidates.append(possibilities)
     matched: dict[int, int] = {}
 

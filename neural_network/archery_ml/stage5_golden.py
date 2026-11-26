@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -130,10 +131,13 @@ def prepare_golden(
             continue
         review = (sample.capture_metadata or {}).get("stage4_review") or {}
         annotator, reviewer = review.get("annotator"), review.get("reviewer")
+        source_image_sha256 = review.get("source_image_sha256")
         if (not isinstance(annotator, str) or not annotator.strip()
                 or not isinstance(reviewer, str) or not reviewer.strip()
                 or annotator == reviewer):
             raise ValueError(f"missing independent Stage 4 annotation review: {sample.id}")
+        if not isinstance(source_image_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", source_image_sha256):
+            raise ValueError(f"missing reviewed source image SHA256: {sample.id}")
         labels = [annotation.to_dict() for annotation in sample.raw_annotations]
         raw_digest = hashlib.sha256(json.dumps(
             labels, sort_keys=True, separators=(",", ":"), allow_nan=False,

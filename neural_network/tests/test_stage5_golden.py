@@ -143,6 +143,9 @@ class TestGoldenSelection(unittest.TestCase):
                         "canonical_faces": [{"annotation_status": "verified"}],
                         "stage4_review": {
                             "annotator": "annotator-1", "reviewer": "reviewer-2",
+                            "source_image_sha256": hashlib.sha256(
+                                f"source-{index}".encode()
+                            ).hexdigest(),
                             "source_annotations_sha256": raw_digest,
                         },
                     },

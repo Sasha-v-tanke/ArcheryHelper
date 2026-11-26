@@ -93,9 +93,12 @@ class SelectedTargetGeometryPipeline:
                 inverse = _checked_inverse(h)
                 faces.append(replace(face,face_index=index,center=center,ellipse=replace(face.ellipse,
                     center_x=face.ellipse.center_x+x0,center_y=face.ellipse.center_y+y0),homography=_matrix_tuple(h),
-                    inverse_homography=_matrix_tuple(inverse),visible_bounds=tuple(v+(x0 if i%2==0 else y0) for i,v in enumerate(face.visible_bounds))))
+                    inverse_homography=_matrix_tuple(inverse),visible_bounds=tuple(v+(x0 if i%2==0 else y0) for i,v in enumerate(face.visible_bounds)),
+                    observed_arcs=tuple({**arc,"points":(np.asarray(arc["points"])+[x0,y0]).tolist()} for arc in face.observed_arcs),
+                    excluded_points=tuple(tuple(np.asarray(point)+[x0,y0]) for point in face.excluded_points)))
             full = replace(roi_geometry,faces=tuple(sorted(faces,key=lambda f:f.face_index)),image_width=width,image_height=height,
-                visible_bounds=None if roi_geometry.visible_bounds is None else tuple(v+(x0 if i%2==0 else y0) for i,v in enumerate(roi_geometry.visible_bounds)))
+                visible_bounds=None if roi_geometry.visible_bounds is None else tuple(v+(x0 if i%2==0 else y0) for i,v in enumerate(roi_geometry.visible_bounds)),
+                candidate_proposals=tuple({**proposal,"center":(proposal["center"][0]+x0,proposal["center"][1]+y0)} for proposal in roi_geometry.candidate_proposals))
             full_quality = self.gate.evaluate(image,full)
             quality = roi_quality if roi_quality.status is not QualityStatus.READY else full_quality
             result.update(quality_status=quality.status.value,geometry_confidence=full.geometry_confidence,fit_error=full.fit_error,

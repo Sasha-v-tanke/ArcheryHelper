@@ -173,7 +173,7 @@ def reviewed_sample(sample, review: dict, *, data_root: Path, review_dir: Path, 
         # Rechecking crop SHA256 at dataset construction and every epoch closes
         # the gap between this review map and what training consumes.
         entries.append({"face_index": index,
-                        "image_path": Path(os.path.relpath(crop, manifest_dir)).as_posix(),
+                        "image_path": Path(os.path.relpath(crop, manifest_dir.resolve())).as_posix(),
                         "sha256": _sha256(crop), "annotation_status": "verified",
                         "geometry_revision": geometry["artifact_revision"]})
 

@@ -30,6 +30,23 @@ If installation, compilation, delegation, or Python ExecuTorch runtime is missin
 
 ## Real golden manifest
 
+### Review desk for real photographs
+
+Before training or golden generation, review real Stage 2.5 source annotations against **matching** Stage 3 selected geometry. From the repository root, with the training environment installed:
+
+```bash
+python -m archery_ml.review_stage4 \
+  --manifest data/manifests/dataset_manifest.json \
+  --geometry-results data/reports/<stage3-run>/geometry-results.json \
+  --data-root data --open-browser
+```
+
+The local read-only page shows the original photograph with numbered raw impacts alongside each unmasked canonical face. An annotator assigns every impact to a face or explicitly marks it as foreign and confirms empty faces only after inspection. Download the draft JSON and have a **different person** independently check the originals, face ownership, point assignments and empty faces; the reviewer records their own identity and per-sample confirmation. The completed export includes only confirmed samples. Browser state stays in localStorage and can be moved through the downloaded draft; no original image, crop, geometry or manifest is modified. A finished JSON file is an assertion, not proof of independent human review.
+
+Move the downloaded `stage4-review.json` under `data/` and use it with `python -m archery_ml.prepare --review-map data/stage4-review.json` as described in [Stage 4 materialization](stage-4-impact-pointnet.md). The materializer rechecks image/geometry hashes and assignments and writes the immutable Stage 4 manifest/snapshot. Then train Stage 4, verify its independent holdout gate, generate 20–50 goldens, export and run both `--verify-release` and `--replay-release` using the commands below. Keep the source review files, exact checkpoint SHA256, golden manifest and parity report together for audit.
+
+The existing local `data/manifests/dataset_manifest.json` has 153 source photos with raw impact labels but no canonical faces. The available 58-image Stage 3 pilot geometry does not match any of those 153 original SHA256 values. Running the desk with that pilot therefore shows all 153 records as blocked. Run the [Stage 3 selection workflow](stage-3-finalization-2026-10-26.md) on the actual `data/sources/archery_aiscore_ounar/v9/` originals, independently confirm target ownership and produce its selected `geometry-results.json`, then reopen the desk with that path. The historical pilot is not a substitute for the independently collected `mobile_real_test` holdout required by Stage 4. No production checkpoint or real Stage 5 parity is claimed from these inputs.
+
 Prefer generating the set directly from the Stage 4 **verified** manifest, snapshot and the exact checkpoint. The generator runs Stage 4's entire-dataset provenance and split checks, preserves canonical RGB bytes, and selects **20–50 distinct (original SHA256, face_index) canonical faces**, maximizing the number of different originals first. A triple-target photograph may contribute up to three independently verified faces, including at least one positively labeled face and one independently confirmed empty face. This avoids manually copying or re-hashing 20–50 files:
 
 ```bash

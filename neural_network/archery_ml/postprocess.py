@@ -8,6 +8,8 @@ from torch.nn import functional as F
 
 from neural_network.archery_ml.heatmap import grid_to_canonical
 
+MAX_IMPACT_CANDIDATES = 256
+
 
 @dataclass(frozen=True)
 class ImpactPrediction:
@@ -44,12 +46,25 @@ def decode_impacts(
     if nms_radius:
         mask[:, 1:] &= confidence[:, 1:] != confidence[:, :-1]
         mask[1:, :] &= confidence[1:, :] != confidence[:-1, :]
+    candidate_count = int(mask.sum().item())
+    if candidate_count > MAX_IMPACT_CANDIDATES:
+        raise ValueError(
+            f"postprocess candidate count exceeds limit {MAX_IMPACT_CANDIDATES}"
+        )
     locations = torch.nonzero(mask, as_tuple=False).tolist()
     locations.sort(key=lambda row: (-float(confidence[row[0], row[1]]), row[0], row[1]))
-    selected = []
+    cell_size = max(nms_radius, 1)
+    selected: dict[tuple[int, int], list[tuple[int, int]]] = {}
     result = []
     for y, x in locations:
-        if any((x - sx) ** 2 + (y - sy) ** 2 <= nms_radius**2 for sy, sx in selected):
+        cell = (y // cell_size, x // cell_size)
+        nearby = (
+            point
+            for row in range(cell[0] - 1, cell[0] + 2)
+            for column in range(cell[1] - 1, cell[1] + 2)
+            for point in selected.get((row, column), ())
+        )
+        if any((x - sx) ** 2 + (y - sy) ** 2 <= nms_radius**2 for sy, sx in nearby):
             continue
         dx = float(offsets[0, y, x])
         dy = float(offsets[1, y, x])
@@ -59,5 +74,5 @@ def decode_impacts(
         if not (-1 <= cx <= 1 and -1 <= cy <= 1):
             continue
         result.append(ImpactPrediction(cx, cy, float(confidence[y, x]), face_index))
-        selected.append((y, x))
+        selected.setdefault(cell, []).append((y, x))
     return result

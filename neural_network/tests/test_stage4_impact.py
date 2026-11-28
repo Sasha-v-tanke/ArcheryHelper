@@ -66,6 +66,23 @@ class ImpactTargetsTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             decode_impacts(logits, offsets, confidence_threshold=-0.1, nms_radius=2)
 
+    def test_zero_radius_rejects_dense_heatmap(self):
+        logits = torch.full((1, 256, 256), 9.0)
+        offsets = torch.zeros((2, 256, 256))
+        with self.assertRaisesRegex(ValueError, "candidate count exceeds limit"):
+            decode_impacts(logits, offsets, confidence_threshold=0.5, nms_radius=0)
+
+    def test_candidate_limit_accepts_256_and_rejects_257(self):
+        logits = torch.full((1, 256, 256), -9.0)
+        offsets = torch.zeros((2, 256, 256))
+        for index in range(256):
+            logits[0, 4 + 8 * (index // 16), 4 + 8 * (index % 16)] = 9.0
+        self.assertEqual(256, len(decode_impacts(
+            logits, offsets, confidence_threshold=0.5, nms_radius=2)))
+        logits[0, 252, 252] = 9.0
+        with self.assertRaisesRegex(ValueError, "candidate count exceeds limit 256"):
+            decode_impacts(logits, offsets, confidence_threshold=0.5, nms_radius=2)
+
     def test_real_input_output_grid_and_model_size(self):
         model = ImpactPointNet(fpn_channels=48).eval()
         with torch.no_grad():

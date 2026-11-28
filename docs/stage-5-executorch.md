@@ -1,0 +1,140 @@
+# Stage 5 — ExecuTorch/XNNPACK export and cross-runtime parity
+
+## Contract and scope
+
+Export a **trained Stage 4** `best_model.pt` without altering weights, network topology, normalization, output stride, or postprocessing. The frozen source `model_metadata.json` is contract v2 and **must** match the checkpoint's version-3 training provenance, input/output contract, and postprocessing settings. Export refuses inconsistent artifacts before writing a release.
+
+The exported program consumes a **pre-normalized** `float32[1,3,512,512]` tensor. It returns `heatmap_logits[1,1,256,256]` and `offsets[1,2,256,256]`, **not** final scores or a fixed number of shots. Android is responsible for the exact RGB/255→(value−mean)/std transformation specified in the metadata and for applying the same deterministic `decode_impacts` semantics. The runtime must not silently resize, change channel order, or adjust the postprocessing threshold/NMS radius.
+
+### Stage 6 decoder candidate limit
+
+`MAX_IMPACT_CANDIDATES = 256` is a fixed decoder rule in `neural_network/archery_ml/postprocess.py`, **not** a field of metadata v2. After sigmoid, thresholding and local-max pooling, the decoder suppresses equal-valued peaks that match the immediate left or upper neighbor when `nms_radius > 0`. It then counts the remaining candidate pixels **before** sorting, distance NMS or offset validation. At most 256 candidates are accepted; 257 or more raise `postprocess candidate count exceeds limit 256`. There is no top-256 truncation and no partial result.
+
+The Stage 6 Android decoder must apply the same rule at the same point, including the `nms_radius = 0` case (no equal-neighbor suppression), and treat an overflow as an inference failure for that face: return no scores or partial detections, and surface the error to the caller. Do not silently drop peaks, change the threshold or reinterpret the limit as a maximum number of final impacts. Add Android/Python parity cases with exactly 256 and 257 separated candidates, plus a dense flat heatmap for both zero and nonzero NMS radius. A future change to this fixed rule requires a versioned decoder contract and a new parity release before deployment.
+
+This stage does not implement Android inference, alter Room, or remove PyTorch Mobile (`model.ptl`). The existing `app/app/src/main/java/com/direwolf/archeryhelper/ml/ModelMetadata.kt` and `TorchShotDetector.kt` explicitly implement the **legacy v1 polar-shot** contract. Do **not** overwrite their Android assets with v2 metadata or `.pte` until Stage 6 installs and validates a new ExecuTorch reader and canonical-face preprocessing.
+
+## Isolated export environment
+
+The Stage 4 training environment currently pins PyTorch 2.8 / TorchVision 0.23. The Stage 5 export toolchain is isolated and pinned to PyTorch 2.13, TorchVision 0.28 and ExecuTorch 1.5.1; the Stage 4 checkpoint is loaded strictly in the export environment. The project can continue training with its own pinned packages. CI additionally creates a full-width FPN-48 checkpoint in the original PyTorch 2.8 environment, then strictly loads and exports it with PyTorch 2.13/ExecuTorch 1.5.1; this tests the version bridge without pretending the checkpoint is trained. Actual compatibility of **your trained weights** still requires the final golden parity run.
+
+```bash
+python3.11 -m venv .venv-export
+. .venv-export/bin/activate
+python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.13.0 torchvision==0.28.0
+python -m pip install numpy==2.2.6 pillow==11.3.0 executorch==1.5.1
+python -m unittest discover -s neural_network/tests -p 'test_stage5_*.py' -v
+```
+
+If installation, compilation, delegation, or Python ExecuTorch runtime is missing, export **fails**, and no release directory is published. The synthetic smoke test in CI uses random initialized network weights and **does not** establish trained-model quality.
+
+## Real golden manifest
+
+### Review desk for real photographs
+
+Before training or golden generation, review real Stage 2.5 source annotations against **matching** Stage 3 selected geometry. From the repository root, with the training environment installed:
+
+```bash
+python -m archery_ml.review_stage4 \
+  --manifest data/manifests/dataset_manifest.json \
+  --geometry-results data/reports/<stage3-run>/geometry-results.json \
+  --data-root data --open-browser
+```
+
+The local read-only page shows the original photograph with numbered raw impacts alongside each unmasked canonical face. An annotator assigns every impact to a face or explicitly marks it as foreign and confirms empty faces only after inspection. Download the draft JSON and have a **different person** independently check the originals, face ownership, point assignments and empty faces; the reviewer records their own identity and per-sample confirmation. The completed export includes only confirmed samples. Browser state stays in localStorage and can be moved through the downloaded draft; no original image, crop, geometry or manifest is modified. A finished JSON file is an assertion, not proof of independent human review.
+
+Move the downloaded `stage4-review.json` under `data/` and use it with `python -m archery_ml.prepare --review-map data/stage4-review.json` as described in [Stage 4 materialization](stage-4-impact-pointnet.md). The materializer rechecks image/geometry hashes and assignments and writes the immutable Stage 4 manifest/snapshot. Then train Stage 4, verify its independent holdout gate, generate 20–50 goldens, export and run both `--verify-release` and `--replay-release` using the commands below. Keep the source review files, exact checkpoint SHA256, golden manifest and parity report together for audit.
+
+The existing local `data/manifests/dataset_manifest.json` has 153 source photos with raw impact labels but no canonical faces. The available 58-image Stage 3 pilot geometry does not match any of those 153 original SHA256 values. Running the desk with that pilot therefore shows all 153 records as blocked. Run the [Stage 3 selection workflow](stage-3-finalization-2026-10-26.md) on the actual `data/sources/archery_aiscore_ounar/v9/` originals, independently confirm target ownership and produce its selected `geometry-results.json`, then reopen the desk with that path. The historical pilot is not a substitute for the independently collected `mobile_real_test` holdout required by Stage 4. No production checkpoint or real Stage 5 parity is claimed from these inputs.
+
+Prefer generating the set directly from the Stage 4 **verified** manifest, snapshot and the exact checkpoint. The generator runs Stage 4's entire-dataset provenance and split checks, preserves canonical RGB bytes, and selects **20–50 distinct (original SHA256, face_index) canonical faces**, maximizing the number of different originals first. A triple-target photograph may contribute up to three independently verified faces, including at least one positively labeled face and one independently confirmed empty face. This avoids manually copying or re-hashing 20–50 files:
+
+```bash
+python -m archery_ml.stage5_golden \
+  --checkpoint runs/<run>/best_model.pt \
+  --metadata runs/<run>/model_metadata.json \
+  --stage4-manifest data/manifests/stage4_manifest.json \
+  --stage4-snapshot data/snapshots/stage4_snapshot.json \
+  --output-directory data/stage5-golden \
+  --count 32
+```
+
+The resulting `data/stage5-golden/golden.json` binds the training dataset manifest, immutable snapshot, exact checkpoint SHA256, image bytes, original-photo SHA256 and per-face identity. Golden preparation recomputes **all Stage 4 dataset/split provenance**, checks the resulting `train` and `val` annotation fingerprint against the training metadata that `load_detector` has already verified against the checkpoint, and confirms distinct annotator/reviewer identities and the reviewed raw-annotation digest for every canonical candidate. A missing verified empty face or fewer than 20 distinct reviewed face identities **blocks generation**; never relabel an unverified zero-annotation face as negative. Camera-original diversity is prioritized, not forced to equal the face count. Stage 4 still prohibits train/evaluation leakage at the original-photo and session level.
+
+Alternatively, prepare 20–50 **already verified** Stage 3 canonical face RGB PNGs manually from `val`/`test`, independent of training samples and **not from `mobile_real_test`. For each, preserve original camera-photo SHA256, canonical crop file SHA256, face ownership/index, and the reviewed selection. Never use synthetic crops as substitute for the final real parity gate. The manifest is a JSON object with `schema_version: 1` and `samples`:
+
+```json
+{
+  "schema_version": 1,
+  "source_checkpoint_sha256": "<SHA256 of the exact trained checkpoint>",
+  "source_manifest_sha256": "<SHA256 of the Stage 4 source manifest>",
+  "source_snapshot_sha256": "<SHA256 of the immutable Stage 4 source snapshot>",
+  "samples": [{
+    "sample_id": "reviewed-face-001",
+    "image_path": "images/reviewed-face-001.png",
+    "crop_sha256": "<64 hexadecimal lowercase characters>",
+    "original_sha256": "<64 hexadecimal lowercase characters>",
+    "face_index": 0,
+    "split": "val",
+    "reviewed_gt_impact_count": 1
+  }]
+}
+```
+
+`image_path` resolves **inside** the golden manifest directory; symlink traversal, hash mismatch, invalid PNG/RGB, wrong 512×512 dimensions, duplicate identifiers/crop hashes/original-face identities, and unexpected splits are rejected. The example shows one record for readability; an actual export requires 20–50 and all three top-level source SHA256 bindings. **Export refuses missing or changed checkpoint/manifest/snapshot declarations**, and checks the manifest SHA against Stage 4 training metadata. The generator provides these fields automatically and checks the actual Stage 4 snapshot. A manually authored snapshot digest is only a claim; review and provenance remain obligations outside this manifest: field names alone cannot certify independent annotation/ownership review.
+
+Each face also needs `reviewed_gt_impact_count` from its reviewed Stage 4 annotations. Export requires both a positive face and a verified-empty face and seals these counts into the release index. A manually supplied count is an assertion, not independent proof; use the generator and retain the underlying Stage 4 manifest, snapshot, raw photos and review records for audit.
+
+## Export and verify
+
+```bash
+python -m archery_ml.export \
+  --checkpoint runs/<run>/best_model.pt \
+  --metadata runs/<run>/model_metadata.json \
+  --golden-manifest data/stage5-golden/golden.json \
+  --output-directory runs/<run>/stage5-release
+
+python -m archery_ml.export --verify-release runs/<run>/stage5-release
+python -m archery_ml.export --replay-release runs/<run>/stage5-release
+```
+
+The output directory **must not already exist**. A failed check leaves no release directory. The successful release contains:
+
+```text
+stage5-release/
+  impact_model.pte
+  model_metadata.json        # Stage 4 metadata + bound XNNPACK PTE SHA256 and parity result
+  parity.json                # actual eager vs ExecuTorch error metrics, versions and hashes
+  sha256.txt                 # SHA256 of every other package file
+  golden/
+    index.json               # images, original identities, expected points and tensor hashes
+    images/*.png             # byte-exact input copies
+    expected/*.npz           # eager heatmap logits and offset tensors
+```
+
+Release maxima are bounded by the fixed code-reviewable tolerances: logits max absolute `0.01`, offsets max absolute `0.01`, decoded XY distance `0.005` in normalized target units, decoded confidence absolute `0.01`. Matched point count must agree exactly for each face. Non-finite tensors and shape/type changes fail the gate. Release size limit for the `.pte` alone is **30,000,000 bytes**; any separate Android package-size policy must be checked later.
+
+The `--replay-release` check first verifies every package checksum and the recorded **PyTorch/ExecuTorch runtime versions**, then executes the **shipped** PTE on the **shipped** golden PNGs and compares its outputs against the saved eager heatmap/offset tensors and decoded expected points. It does not require the original checkpoint. To test a new runtime version, build a new, separately reviewed and hash-bound parity release rather than silently reinterpreting the original report. A package that merely claims `parity_status=PASS` is not adequate evidence.
+
+Replay also compares each recomputed maximum error with `parity.json` (`relative tolerance 1e-4`, `absolute tolerance 1e-9`), so a rehashed package cannot understate the recorded measurements without detection. Export and golden preparation publish completed directories with an atomic no-replace rename on Linux/macOS; an existing destination, even if empty, is preserved.
+
+`--verify-release` also validates the fixed parity limits, finite measured errors, 20–50 unique reviewed face identities, positive/empty coverage, per-record hashes and the metadata input/output/postprocess contract. It cannot authenticate a package whose files and SHA256 manifest were deliberately replaced together; trusted artifact distribution and independent source review remain required.
+
+Metadata v2 parsing requires explicit JSON input dimensions, RGB color space, three normalization means and standard deviations, output stride, and postprocessing parameters with their expected numeric types. Export uses each hash-checked PNG byte sequence for both eager inference and the packaged image, then replays the sealed package **before** publishing the release directory. The parity report and release metadata must agree on the golden index and Stage 4 snapshot SHA256 references.
+
+## Current production evidence (19 November 2026)
+
+The available repository checkout, GitHub Releases and latest Stage 5/Stage 4/Baseline workflow artifacts contain no trained `best_model.pt`, matching Stage 4 manifest/snapshot or reviewed canonical crop set. The connected ArcheryHelper Drive folder also contains no checkpoint or Stage 4 manifest. Consequently no production `impact_model.pte`, real-crop parity numbers or release replay can be reported. The PR remains a draft pending those source artifacts and Stage 4 quality evidence. The green CI runs exercise synthetic fixtures only.
+
+Release metadata also seals the input NCHW float32 layout, output tensor ordering and shapes, file size, source-checkpoint SHA256, source-metadata SHA256 and source golden-manifest SHA256; these source hashes are rechecked just before the atomic release rename. For CI, a full-width FPN48 synthetic checkpoint is created with PyTorch 2.8 then actually compiled and replayed under PyTorch 2.13/ExecuTorch 1.5.1; the per-image parity (including nonconstant offsets) must pass.
+
+The `sha256.txt` manifest protects files **from accidental or unsigned changes**, but SHA256 alone is not a digital signature or an authenticity mechanism. A trusted build source/distribution is still required. Raw camera photos and private training datasets must not be committed; the bundle should be treated as a release artifact, not a source-code change.
+
+## Acceptance boundaries
+
+- **Engineering smoke**: CI must compile and run the real XNNPACK delegate on 20 deterministic synthetic 512×512 images through the production FPN-48 topology, including nonempty postprocessed points, and independently replay the saved PTE. The second CI job checks a Stage 4 torch-2.8 checkpoint against the Stage 5 torch-2.13 runtime. Neither test establishes useful detection quality.
+- **Stage 5 golden parity**: actual trained, immutable Stage 4 checkpoint + independently reviewed 20–50 canonical crops must pass real eager/ExecuTorch tensor and point checks. Record exact checkpoint SHA256, PTE SHA256, environment and per-output maxima.
+- **Stage 4 detection quality gate**: independent original-photo holdout and production localization metrics must pass separately. A green Stage 5 smoke is **not** approval to deploy the model.
+- **Android parity and removal of PyTorch Mobile**: belongs to Stage 6, not this PR.
+
+Reference documentation: [ExecuTorch getting started](https://docs.pytorch.org/executorch/stable/getting-started-setup.html), [Python runtime](https://docs.pytorch.org/executorch/1.5/runtime-python-api-reference.html).

@@ -6,6 +6,12 @@ Export a **trained Stage 4** `best_model.pt` without altering weights, network t
 
 The exported program consumes a **pre-normalized** `float32[1,3,512,512]` tensor. It returns `heatmap_logits[1,1,256,256]` and `offsets[1,2,256,256]`, **not** final scores or a fixed number of shots. Android is responsible for the exact RGB/255→(value−mean)/std transformation specified in the metadata and for applying the same deterministic `decode_impacts` semantics. The runtime must not silently resize, change channel order, or adjust the postprocessing threshold/NMS radius.
 
+### Stage 6 decoder candidate limit
+
+`MAX_IMPACT_CANDIDATES = 256` is a fixed decoder rule in `neural_network/archery_ml/postprocess.py`, **not** a field of metadata v2. After sigmoid, thresholding and local-max pooling, the decoder suppresses equal-valued peaks that match the immediate left or upper neighbor when `nms_radius > 0`. It then counts the remaining candidate pixels **before** sorting, distance NMS or offset validation. At most 256 candidates are accepted; 257 or more raise `postprocess candidate count exceeds limit 256`. There is no top-256 truncation and no partial result.
+
+The Stage 6 Android decoder must apply the same rule at the same point, including the `nms_radius = 0` case (no equal-neighbor suppression), and treat an overflow as an inference failure for that face: return no scores or partial detections, and surface the error to the caller. Do not silently drop peaks, change the threshold or reinterpret the limit as a maximum number of final impacts. Add Android/Python parity cases with exactly 256 and 257 separated candidates, plus a dense flat heatmap for both zero and nonzero NMS radius. A future change to this fixed rule requires a versioned decoder contract and a new parity release before deployment.
+
 This stage does not implement Android inference, alter Room, or remove PyTorch Mobile (`model.ptl`). The existing `app/app/src/main/java/com/direwolf/archeryhelper/ml/ModelMetadata.kt` and `TorchShotDetector.kt` explicitly implement the **legacy v1 polar-shot** contract. Do **not** overwrite their Android assets with v2 metadata or `.pte` until Stage 6 installs and validates a new ExecuTorch reader and canonical-face preprocessing.
 
 ## Isolated export environment
